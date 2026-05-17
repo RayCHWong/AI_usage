@@ -1,0 +1,23 @@
+[project]
+name = "usag"
+version = "0.1.0"
+description = "在 macOS 終端機顯示 Claude Code 用量的繁中小工具"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pyobjc-framework-Cocoa>=11.0",
+    "rich>=14.0.0,<15.0.0",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+pretty = true

@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+.claude/settings.local.json
+*.log
+pricing_cache.json
+usag.log
+usag.err.log
