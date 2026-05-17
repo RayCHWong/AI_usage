@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)build, e.g. v0.1.1'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,17 +19,35 @@ jobs:
     runs-on: macos-latest
 
     steps:
+      - name: Resolve ref and tag
+        id: ref
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
 
-      - run: uv python install 3.13
+      - name: Install build dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e . py2app
 
-      - run: uv sync --frozen --group build
+      - name: Build .app
+        run: python3 setup_app.py py2app
 
-      - run: uv run python3 setup_app.py py2app
-
-      - run: |
+      - name: Zip .app
+        run: |
           if [[ -d dist/main.app && ! -d dist/usag.app ]]; then
             mv dist/main.app dist/usag.app
           fi
@@ -32,4 +56,4 @@ jobs:
       - name: Upload to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" dist/usag.app.zip
+        run: gh release upload "${{ steps.ref.outputs.tag }}" dist/usag.app.zip --clobber
