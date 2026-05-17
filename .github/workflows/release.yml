@@ -53,6 +53,18 @@ jobs:
           fi
           cd dist && zip -r usag.app.zip usag.app
 
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "${{ steps.ref.outputs.tag }}" >/dev/null 2>&1; then
+            gh release create \
+              "${{ steps.ref.outputs.tag }}" \
+              --target "${{ steps.ref.outputs.ref }}" \
+              --title "${{ steps.ref.outputs.tag }}" \
+              --notes ""
+          fi
+
       - name: Upload to release
         env:
           GH_TOKEN: ${{ github.token }}
