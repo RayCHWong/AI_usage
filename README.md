@@ -24,10 +24,18 @@ usag **不打 Anthropic API**、也不讀 Keychain，避免「自己每分鐘 pi
 - 已安裝並登入 Claude Code
 - 建議使用 GitHub noreply email 作為 commit identity，避免私人 email 外洩：`git config user.email "ID+username@users.noreply.github.com"`
 
+## 下載
+
+```bash
+git clone https://github.com/aqua5230/usage.git
+cd usage
+```
+
+不熟 git 也可以到 [GitHub 專案頁](https://github.com/aqua5230/usage) 點右上角綠色 **Code → Download ZIP**，解壓後 `cd` 進資料夾。
+
 ## 建立環境
 
 ```bash
-cd path/to/usag
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
