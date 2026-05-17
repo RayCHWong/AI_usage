@@ -124,7 +124,7 @@ async def run_tui(mock: bool, interval: int, force_group: int | None = None) -> 
                 frame_index = int((now - start_time) / interval_s) % 4
 
                 live.update(render_screen(state, frame_index), refresh=True)
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(0.1)
 
         await poll_task
     finally:
