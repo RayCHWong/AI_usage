@@ -2,6 +2,12 @@
 
 繁體中文 · [English](README.en.md)
 
+[![CI](https://github.com/aqua5230/usage/actions/workflows/check.yml/badge.svg)](https://github.com/aqua5230/usage/actions/workflows/check.yml)
+[![Latest Release](https://img.shields.io/github/v/release/aqua5230/usage)](https://github.com/aqua5230/usage/releases/latest)
+[![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](https://www.apple.com/macos/)
+[![License](https://img.shields.io/github/license/aqua5230/usage)](LICENSE)
+
 `usage` 是一個為 Claude Code 使用者設計的 macOS 工具，能將 5 小時 / 7 天用量顯示在右上角 menu bar 或終端機中，並支援開機自動啟動。
 
 <p align="center">
@@ -13,6 +19,16 @@
 usage **不打 Anthropic API**、也不讀 Keychain，避免「自己每分鐘 ping 一次也算用量」的觀察者效應。
 
 做法：安裝一個 Claude Code statusLine hook，Claude Code 主進程每次刷新狀態列時會把含 `rate_limits.five_hour.used_percentage` 等欄位的 JSON 餵給 hook，hook 把資料落地到 `~/.claude/usag-status.json`，usage 主程式反向讀這份檔。數字跟 Claude Code 自己看到的完全一致。
+
+```mermaid
+flowchart LR
+    A[Claude Code 主進程] -->|每次刷新 statusLine<br/>餵 JSON 到 stdin| B[usag-statusline.py<br/>hook script]
+    B -->|寫入| C[(~/.claude/<br/>usag-status.json)]
+    D[usage menu bar / TUI] -->|讀取| C
+    D -->|顯示| E[macOS menu bar]
+    F((Anthropic API)) -.x.- D
+    style F stroke:#c0392b,stroke-dasharray:5 5
+```
 
 讀檔優先順序：
 

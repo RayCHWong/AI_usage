@@ -2,6 +2,12 @@
 
 [繁體中文](README.md) · English
 
+[![CI](https://github.com/aqua5230/usage/actions/workflows/check.yml/badge.svg)](https://github.com/aqua5230/usage/actions/workflows/check.yml)
+[![Latest Release](https://img.shields.io/github/v/release/aqua5230/usage)](https://github.com/aqua5230/usage/releases/latest)
+[![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](https://www.apple.com/macos/)
+[![License](https://img.shields.io/github/license/aqua5230/usage)](LICENSE)
+
 `usage` is a macOS tool for Claude Code users that displays your 5-hour and 7-day usage in the right-hand menu bar or a terminal TUI, with optional auto-start on login.
 
 <p align="center">
@@ -13,6 +19,16 @@
 usage **never calls the Anthropic API and never reads the Keychain**, so it avoids the observer effect of "pinging once a minute counts as usage."
 
 Instead it installs a Claude Code statusLine hook. Every time the Claude Code main process refreshes its status line, it pipes a JSON payload (with fields like `rate_limits.five_hour.used_percentage`) into the hook. The hook writes that payload to `~/.claude/usag-status.json`, and the usage UI reads the file. The numbers match exactly what Claude Code itself sees.
+
+```mermaid
+flowchart LR
+    A[Claude Code main process] -->|pipes JSON to stdin<br/>on every statusLine refresh| B[usag-statusline.py<br/>hook script]
+    B -->|writes| C[(~/.claude/<br/>usag-status.json)]
+    D[usage menu bar / TUI] -->|reads| C
+    D -->|renders| E[macOS menu bar]
+    F((Anthropic API)) -.x.- D
+    style F stroke:#c0392b,stroke-dasharray:5 5
+```
 
 Read priority:
 
