@@ -8,3 +8,5 @@ pricing_cache.json
 usag.log
 usag.err.log
 .DS_Store
+build/
+dist/
