@@ -2,8 +2,9 @@
 <!-- One or two sentences explaining what this PR does and why. -->
 
 ## Test plan
-- [ ] `ruff check .`
-- [ ] `mypy .`
+- [ ] `uv run ruff check .`
+- [ ] `uv run mypy .`
+- [ ] `uv run pytest tests/`
 - [ ] Manually verified in menu bar mode / TUI mode (if UI-related)
 
 ## Notes for reviewer
