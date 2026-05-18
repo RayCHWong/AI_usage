@@ -71,6 +71,16 @@ BUTTON_TOP_GAP = 18.0
 BUTTON_HEIGHT = 32.0
 CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
 CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
+WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
+DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
+
+
+def _bar_color(pct: float, brand: tuple[float, float, float]) -> tuple[float, float, float]:
+    if pct >= 80:
+        return DANGER_COLOR
+    if pct >= 50:
+        return WARN_COLOR
+    return brand
 
 
 def _resolve_resource(name: str) -> str:
@@ -762,7 +772,7 @@ def _quota_row(
         percent=pct,
         percent_text=f"{_format_percent(pct)}% 已用",
         reset_text=f"重置 {format_human_time(resets_at - now)}",
-        color=color,
+        color=_bar_color(pct, color),
         available=True,
     )
 
