@@ -5,6 +5,23 @@
 All notable changes to usage are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 0.1.9 — 2026-05-18
+
+### UI
+- Progress bars now change colour based on usage level: below 50% keeps the brand colour (Claude orange / Codex cyan), 50–80% shifts to amber, ≥ 80% turns red.
+
+### Fixed
+- Sync status label changed from `usag-status` to `usage` to match the public-facing project name.
+- `setup_hook.py`: wrap interpreter and hook paths with `shlex.quote()` so hooks work when the project directory contains spaces (PR #1, thanks @DennisWei9898).
+- `usag_statusline.py`: replace `datetime.UTC` (Python 3.11+) with `timezone.utc` for compatibility with macOS system Python 3.9 (PR #1, thanks @DennisWei9898).
+- `codex_loader.py`: use the last token-event timestamp for `hours_back` filtering so long sessions no longer drop recent tokens; per-file fault-tolerant sort so a single bad file doesn't break the entire session scan.
+- `history_loader.py`: fall back to a composite dedup key when `message_id` / `request_id` is absent; reject bool and negative token values.
+- `usage_client.py`: guard `rate_limits` and its sub-fields against non-dict values.
+- `setup_hook.py`: validate `settings.json` structure before writing; safely rebuild the backup field if it is not a dict.
+
+### Documentation
+- README: replaced mainland Chinese phrasing ("打API", "打網路") with standard Taiwanese usage ("呼叫 API", "連網路").
+
 ## 0.1.8 — 2026-05-18
 
 ### UI

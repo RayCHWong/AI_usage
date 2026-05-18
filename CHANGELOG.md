@@ -4,6 +4,23 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## 0.1.9 — 2026-05-18
+
+### 介面
+- 進度條顏色依用量動態切換：< 50% 維持品牌色（Claude 橘 / Codex 青）、50–80% 轉琥珀黃、≥ 80% 轉警告紅。
+
+### 修正
+- 狀態列「已同步」來源標籤從 `usag-status` 改成 `usage`，跟對外名稱一致。
+- `setup_hook.py`：用 `shlex.quote()` 包 interpreter 與 hook 路徑，修復專案目錄含空格時 hook 永遠不跑的問題（PR #1，感謝 @DennisWei9898）。
+- `usag_statusline.py`：把 `datetime.UTC`（Python 3.11+ 限定）改成 `timezone.utc`，相容 macOS 系統 Python 3.9（PR #1，感謝 @DennisWei9898）。
+- `codex_loader.py`：Codex 用量改用最後一次 token 事件的時間做 `hours_back` 過濾，長 session 的近期 token 不再被誤排除；逐檔容錯排序，壞檔不拖垮整批讀取。
+- `history_loader.py`：缺 `message_id` / `request_id` 時改用複合 key 去重，降低誤刪有效紀錄的機率；token 解析排除 bool 與負數。
+- `usage_client.py`：`rate_limits` 及子欄位非 dict 時補防衛，避免 `.get()` 出錯。
+- `setup_hook.py`：寫入前先驗證 `settings.json` 格式；備份 statusLine 的欄位非 dict 時安全重建。
+
+### 文件
+- README 把「打 API」「打網路 API」等大陸慣用語改成「呼叫 API」「連網路」。
+
 ## 0.1.8 — 2026-05-18
 
 ### 介面
