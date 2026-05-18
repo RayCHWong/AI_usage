@@ -20,32 +20,19 @@ from AppKit import (
     NSApp,
     NSApplication,
     NSApplicationActivationPolicyAccessory,
-    NSBezierPath,
-    NSButton,
-    NSColor,
-    NSFont,
-    NSFontAttributeName,
-    NSForegroundColorAttributeName,
-    NSGradient,
-    NSImage,
-    NSMakeRect,
+    NSMakePoint,
     NSMakeSize,
+    NSMenu,
+    NSMenuItem,
     NSMinYEdge,
-    NSParagraphStyleAttributeName,
     NSPopover,
     NSPopoverBehaviorTransient,
-    NSRectFill,
     NSStatusBar,
-    NSStrokeColorAttributeName,
-    NSTextAlignmentRight,
-    NSTextField,
     NSVariableStatusItemLength,
-    NSView,
     NSViewController,
 )
 from Foundation import (
     NSBundle,
-    NSMutableParagraphStyle,
     NSObject,
     NSRunLoop,
     NSRunLoopCommonModes,
@@ -53,7 +40,10 @@ from Foundation import (
 )
 
 import codex_loader
+import panels
 from history_loader import load_entries
+from panels.base import Panel as UsagePanel
+from panels.base import load_active_panel_id, save_active_panel_id
 from pricing import calculate_cost
 from usage_client import ClaudeUsageClient, PollOutcome, PollState
 from usage_rate import GROUP_NAMES, UsageRateTracker
@@ -143,425 +133,29 @@ def format_human_time(seconds: float) -> str:
     return f"{minutes}m"
 
 
-class ProgressBarView(NSView):
-    percent = objc.ivar()
-    bar_color = objc.ivar()
-    available = objc.ivar()
-
-    def initWithFrame_(self, frame: Any) -> ProgressBarView:
-        self = objc.super(ProgressBarView, self).initWithFrame_(frame)
-        if self is None:
-            return None
-        self.percent = None
-        self.bar_color = NSColor.secondaryLabelColor()
-        self.available = False
-        return self
-
-    def isFlipped(self) -> bool:
-        return True
-
-    def setPercent_color_available_(
-        self,
-        percent: float | None,
-        color: NSColor,
-        available: bool,
-    ) -> None:
-        self.percent = percent
-        self.bar_color = color
-        self.available = available
-        self.setNeedsDisplay_(True)
-
-    def drawRect_(self, dirty_rect: Any) -> None:
-        bounds = self.bounds()
-        rect = NSMakeRect(
-            0,
-            (bounds.size.height - TRACK_HEIGHT) / 2,
-            bounds.size.width,
-            TRACK_HEIGHT,
-        )
-
-        if not self.available or self.percent is None:
-            NSColor.secondaryLabelColor().colorWithAlphaComponent_(0.3).setFill()
-            _fill_rounded_rect(rect, TRACK_HEIGHT / 2)
-            return
-
-        _track_color_for_view(self).setFill()
-        _fill_rounded_rect(rect, TRACK_HEIGHT / 2)
-
-        pct = max(0.0, min(100.0, float(self.percent)))
-        fill_width = min(bounds.size.width, max(2.0, bounds.size.width * pct / 100.0))
-        fill_rect = NSMakeRect(rect.origin.x, rect.origin.y, fill_width, rect.size.height)
-        _accent_gradient(self.bar_color).drawInBezierPath_angle_(
-            NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-                fill_rect,
-                TRACK_HEIGHT / 2,
-                TRACK_HEIGHT / 2,
-            ),
-            0.0,
-        )
-
-
-class QuotaRowView(NSView):
-    title_label = objc.ivar()
-    percent_label = objc.ivar()
-    reset_label = objc.ivar()
-    progress_bar = objc.ivar()
-
-    def initWithFrame_(self, frame: Any) -> QuotaRowView:
-        self = objc.super(QuotaRowView, self).initWithFrame_(frame)
-        if self is None:
-            return None
-        self.title_label = _label("", _medium_font(), NSColor.labelColor())
-        self.percent_label = _label(
-            "",
-            NSFont.systemFontOfSize_weight_(12, 0.31),
-            NSColor.labelColor(),
-            NSTextAlignmentRight,
-        )
-        self.reset_label = _label("", _regular_font(11), _muted_label_color(), NSTextAlignmentRight)
-        self.progress_bar = ProgressBarView.alloc().initWithFrame_(
-            NSMakeRect(0, 20, 1, TRACK_HEIGHT),
-        )
-        for view in (self.title_label, self.percent_label, self.progress_bar, self.reset_label):
-            self.addSubview_(view)
-        return self
-
-    def isFlipped(self) -> bool:
-        return True
-
-    def layout(self) -> None:
-        width = self.bounds().size.width
-        self.title_label.setFrame_(NSMakeRect(0, 0, width * 0.42, 18))
-        self.percent_label.setFrame_(NSMakeRect(width * 0.42, 0, width * 0.58, 18))
-        self.progress_bar.setFrame_(NSMakeRect(0, 24, width, TRACK_HEIGHT))
-        self.reset_label.setFrame_(NSMakeRect(0, 38, width, 14))
-
-    def setRowState_(self, row: QuotaRowState) -> None:
-        self.title_label.setStringValue_(row.title)
-        self.percent_label.setStringValue_(row.percent_text)
-        self.reset_label.setStringValue_(row.reset_text)
-        color = NSColor.colorWithCalibratedRed_green_blue_alpha_(*row.color, 1.0)
-        self.progress_bar.setPercent_color_available_(row.percent, color, row.available)
-        self.percent_label.setTextColor_(color if row.available else _muted_label_color())
-        self.reset_label.setTextColor_(_muted_label_color())
-        self.setNeedsLayout_(True)
-
-
-class HeaderIconView(NSView):
-    accent_color = objc.ivar()
-    image = objc.ivar()
-
-    def initWithFrame_color_path_(self, frame: Any, color: NSColor, path: str) -> HeaderIconView:
-        self = objc.super(HeaderIconView, self).initWithFrame_(frame)
-        if self is None:
-            return None
-        self.accent_color = color
-        self.image = NSImage.alloc().initWithContentsOfFile_(path)
-        return self
-
-    def isFlipped(self) -> bool:
-        return True
-
-    def drawRect_(self, dirty_rect: Any) -> None:
-        bounds = self.bounds()
-        if self.image is not None:
-            self.image.drawInRect_(bounds)
-
-
-class ActionButton(NSButton):
-    accent_color = objc.ivar()
-    is_primary = objc.ivar()
-
-    def initWithFrame_title_primary_color_target_action_(
-        self,
-        frame: Any,
-        title: str,
-        primary: bool,
-        color: NSColor | None,
-        target: Any,
-        action: str,
-    ) -> ActionButton:
-        self = objc.super(ActionButton, self).initWithFrame_(frame)
-        if self is None:
-            return None
-        self.accent_color = color
-        self.is_primary = primary
-        self.setTitle_(title)
-        self.setFont_(NSFont.systemFontOfSize_weight_(14, 0.28))
-        self.setBordered_(False)
-        self.setTarget_(target)
-        self.setAction_(action)
-        return self
-
-    def drawRect_(self, dirty_rect: Any) -> None:
-        bounds = self.bounds()
-        radius = 10.0
-        path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(bounds, radius, radius)
-        border = _button_border_color(self, self.is_primary)
-        border.setStroke()
-
-        if self.is_primary and self.accent_color is not None:
-            _button_gradient(self.accent_color).drawInBezierPath_angle_(path, 90.0)
-        else:
-            _secondary_button_fill_color(self).setFill()
-            path.fill()
-
-        path.setLineWidth_(1.0)
-        path.stroke()
-        _draw_button_title(self, bounds)
-
-
-class PopoverContentView(NSView):
-    delegate = objc.ivar()
-    claude_icon = objc.ivar()
-    codex_icon = objc.ivar()
-    claude_header = objc.ivar()
-    codex_header = objc.ivar()
-    claude_session = objc.ivar()
-    claude_weekly = objc.ivar()
-    codex_session = objc.ivar()
-    codex_weekly = objc.ivar()
-    rate_label = objc.ivar()
-    status_label = objc.ivar()
-    today_label = objc.ivar()
-    install_hook_button = objc.ivar()
-    refresh_button = objc.ivar()
-    quit_button = objc.ivar()
-    show_install_button = objc.ivar()
-
-    def initWithFrame_delegate_(self, frame: Any, delegate: Any) -> PopoverContentView:
-        self = objc.super(PopoverContentView, self).initWithFrame_(frame)
-        if self is None:
-            return None
-        self.delegate = delegate
-        self.show_install_button = False
-        claude_accent = NSColor.colorWithCalibratedRed_green_blue_alpha_(*CLAUDE_COLOR, 1.0)
-        codex_accent = NSColor.colorWithCalibratedRed_green_blue_alpha_(*CODEX_COLOR, 1.0)
-        self.claude_icon = HeaderIconView.alloc().initWithFrame_color_path_(
-            NSMakeRect(0, 0, 42, 42),
-            claude_accent,
-            str(CLAUDE_ICON_PATH),
-        )
-        self.codex_icon = HeaderIconView.alloc().initWithFrame_color_path_(
-            NSMakeRect(0, 0, 42, 42),
-            codex_accent,
-            str(CODEX_ICON_PATH),
-        )
-        self.claude_header = _label("Claude Code", _semibold_font(), NSColor.labelColor())
-        self.codex_header = _label("Codex", _semibold_font(), NSColor.labelColor())
-        self.claude_session = QuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        self.claude_weekly = QuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        self.codex_session = QuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        self.codex_weekly = QuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        self.rate_label = _label("速率：--", _regular_font(13.5), _muted_label_color())
-        self.status_label = _label("狀態：載入中", _regular_font(13.5), _muted_label_color())
-        self.today_label = _label(
-            "今日：$0.00 (0 tokens)",
-            NSFont.systemFontOfSize_weight_(15, 0.34),
-            NSColor.labelColor(),
-        )
-        self.today_label.setAllowsDefaultTighteningForTruncation_(True)
-        self.install_hook_button = (
-            ActionButton.alloc().initWithFrame_title_primary_color_target_action_(
-                NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-                "立即安裝 hook",
-                True,
-                claude_accent,
-                delegate,
-                "installHook:",
-            )
-        )
-        self.install_hook_button.setHidden_(True)
-        accent = NSColor.colorWithCalibratedRed_green_blue_alpha_(*CODEX_COLOR, 1.0)
-        self.refresh_button = ActionButton.alloc().initWithFrame_title_primary_color_target_action_(
-            NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-            "立即更新",
-            True,
-            accent,
-            delegate,
-            "refreshNow:",
-        )
-        self.quit_button = ActionButton.alloc().initWithFrame_title_primary_color_target_action_(
-            NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-            "結束",
-            False,
-            None,
-            delegate,
-            "quitApp:",
-        )
-
-        for view in (
-            self.claude_icon,
-            self.codex_icon,
-            self.claude_header,
-            self.claude_session,
-            self.claude_weekly,
-            self.codex_header,
-            self.codex_session,
-            self.codex_weekly,
-            self.rate_label,
-            self.status_label,
-            self.today_label,
-            self.install_hook_button,
-            self.refresh_button,
-            self.quit_button,
-        ):
-            self.addSubview_(view)
-        return self
-
-    def isFlipped(self) -> bool:
-        return True
-
-    def layout(self) -> None:
-        width = self.bounds().size.width
-        content_width = width - (PADDING * 2)
-        card_width = content_width
-        card_content_width = card_width - (CARD_SIDE_INSET * 2)
-        claude_y = PADDING
-        codex_y = claude_y + CARD_HEIGHT + SECTION_GAP
-        footer_y = codex_y + CARD_HEIGHT + FOOTER_GAP
-        icon_x = PADDING + CARD_SIDE_INSET
-
-        self.claude_icon.setFrame_(NSMakeRect(icon_x, claude_y + 18, 36, 36))
-        self.claude_header.setFrame_(
-            NSMakeRect(
-                icon_x + 48,
-                claude_y + CARD_HEADER_TOP + 1,
-                card_content_width - 48,
-                22,
-            ),
-        )
-        self.claude_session.setFrame_(
-            NSMakeRect(PADDING + CARD_SIDE_INSET, claude_y + CARD_ROW_TOP, card_content_width, 52),
-        )
-        self.claude_weekly.setFrame_(
-            NSMakeRect(
-                PADDING + CARD_SIDE_INSET,
-                claude_y + CARD_ROW_TOP + CARD_ROW_GAP,
-                card_content_width,
-                52,
-            ),
-        )
-
-        self.codex_icon.setFrame_(NSMakeRect(icon_x, codex_y + 18, 36, 36))
-        self.codex_header.setFrame_(
-            NSMakeRect(
-                icon_x + 48,
-                codex_y + CARD_HEADER_TOP + 1,
-                card_content_width - 48,
-                22,
-            ),
-        )
-        self.codex_session.setFrame_(
-            NSMakeRect(PADDING + CARD_SIDE_INSET, codex_y + CARD_ROW_TOP, card_content_width, 52),
-        )
-        self.codex_weekly.setFrame_(
-            NSMakeRect(
-                PADDING + CARD_SIDE_INSET,
-                codex_y + CARD_ROW_TOP + CARD_ROW_GAP,
-                card_content_width,
-                52,
-            ),
-        )
-
-        self.rate_label.setFrame_(NSMakeRect(PADDING + 18, footer_y + 16, content_width - 36, 18))
-        self.status_label.setFrame_(
-            NSMakeRect(PADDING + 18, footer_y + 16 + FOOTER_LINE_GAP, content_width - 36, 18),
-        )
-        self.today_label.setFrame_(
-            NSMakeRect(PADDING + 18, footer_y + 16 + FOOTER_LINE_GAP + 26, content_width - 36, 22),
-        )
-        y = footer_y + 16 + FOOTER_LINE_GAP + 26 + 24 + BUTTON_TOP_GAP
-
-        button_gap = 10.0
-        button_width = (content_width - 24 - button_gap) / 2
-        if self.show_install_button:
-            self.install_hook_button.setFrame_(
-                NSMakeRect(PADDING + 12, y, content_width - 24, BUTTON_HEIGHT),
-            )
-            y += INSTALL_BUTTON_EXTRA_HEIGHT
-        self.refresh_button.setFrame_(NSMakeRect(PADDING + 12, y, button_width, BUTTON_HEIGHT))
-        self.quit_button.setFrame_(
-            NSMakeRect(PADDING + 12 + button_width + button_gap, y, button_width, BUTTON_HEIGHT),
-        )
-
-    def drawRect_(self, dirty_rect: Any) -> None:
-        _background_gradient_for_view(self).drawInRect_angle_(self.bounds(), 90.0)
-        content_width = self.bounds().size.width - (PADDING * 2)
-        claude_rect = NSMakeRect(PADDING, PADDING, content_width, CARD_HEIGHT)
-        codex_rect = NSMakeRect(
-            PADDING,
-            PADDING + CARD_HEIGHT + SECTION_GAP,
-            content_width,
-            CARD_HEIGHT,
-        )
-        footer_rect = NSMakeRect(
-            PADDING,
-            PADDING + (CARD_HEIGHT * 2) + SECTION_GAP + FOOTER_GAP,
-            content_width,
-            FOOTER_HEIGHT + (INSTALL_BUTTON_EXTRA_HEIGHT if self.show_install_button else 0.0),
-        )
-
-        for card_rect in (claude_rect, codex_rect, footer_rect):
-            _card_fill_color_for_view(self).setFill()
-            _fill_rounded_rect(card_rect, CARD_RADIUS)
-            _card_border_color_for_view(self).setStroke()
-            _stroke_rounded_rect(card_rect, CARD_RADIUS, 1.0)
-
-        _card_separator_color_for_view(self).setFill()
-        for card_rect in (claude_rect, codex_rect):
-            separator_y = card_rect.origin.y + CARD_ROW_TOP + CARD_ROW_GAP - 12
-            NSRectFill(
-                NSMakeRect(
-                    card_rect.origin.x + CARD_SIDE_INSET,
-                    separator_y,
-                    card_rect.size.width - (CARD_SIDE_INSET * 2),
-                    1,
-                ),
-            )
-        NSRectFill(
-            NSMakeRect(
-                footer_rect.origin.x + 18,
-                footer_rect.origin.y + 54,
-                footer_rect.size.width - 36,
-                1,
-            ),
-        )
-
-    def setState_(self, state: PopoverState) -> None:
-        self.claude_session.setRowState_(state.claude_session)
-        self.claude_weekly.setRowState_(state.claude_weekly)
-        self.codex_session.setRowState_(state.codex_session)
-        self.codex_weekly.setRowState_(state.codex_weekly)
-        self.rate_label.setStringValue_(state.rate_text)
-        self.status_label.setStringValue_(state.status_text)
-        self.today_label.setStringValue_(state.today_text)
-        self.show_install_button = state.show_install_button
-        self.install_hook_button.setHidden_(not state.show_install_button)
-        self.rate_label.setTextColor_(_muted_label_color())
-        self.status_label.setTextColor_(_muted_label_color())
-        self.today_label.setTextColor_(NSColor.labelColor())
-        self.setNeedsLayout_(True)
-        self.setNeedsDisplay_(True)
-
-
 class PopoverViewController(NSViewController):
     content_view = objc.ivar()
+    panel = objc.ivar()
+    delegate = objc.ivar()
 
-    def initWithDelegate_(self, delegate: Any) -> PopoverViewController:
+    def initWithPanel_delegate_(self, panel: UsagePanel, delegate: Any) -> PopoverViewController:
         self = objc.super(PopoverViewController, self).init()
         if self is None:
             return None
-        self.content_view = PopoverContentView.alloc().initWithFrame_delegate_(
-            NSMakeRect(0, 0, POPOVER_WIDTH, CONTENT_HEIGHT),
-            delegate,
-        )
+        self.panel = panel
+        self.delegate = delegate
+        self.content_view = panel.build_view(delegate)
         self.setView_(self.content_view)
         return self
 
+    def rebuildWithPanel_(self, panel: UsagePanel) -> None:
+        self.panel = panel
+        self.content_view = panel.build_view(self.delegate)
+        self.setView_(self.content_view)
+
     def setState_(self, state: PopoverState) -> None:
-        self.view().setFrameSize_(_popover_size(state))
-        self.content_view.setState_(state)
+        self.view().setFrameSize_(_popover_size(state, self.panel))
+        self.panel.apply_state(self.content_view, state)
 
 
 class AppDelegate(NSObject):
@@ -573,6 +167,7 @@ class AppDelegate(NSObject):
     interval = objc.ivar()
     tracker = objc.ivar()
     latest_state = objc.ivar()
+    active_panel = objc.ivar()
     codex_5h_pct = objc.ivar()
     _refresh_in_flight = objc.ivar()
 
@@ -585,6 +180,7 @@ class AppDelegate(NSObject):
         self.tracker = UsageRateTracker(mock=mock)
         self.codex_5h_pct = None
         self.latest_state = _empty_state()
+        self.active_panel = panels.get_panel(load_active_panel_id())
         self._refresh_in_flight = False
         return self
 
@@ -598,10 +194,13 @@ class AppDelegate(NSObject):
         button.setTarget_(self)
         button.setAction_("togglePopover:")
 
-        self.popover_controller = PopoverViewController.alloc().initWithDelegate_(self)
+        self.popover_controller = PopoverViewController.alloc().initWithPanel_delegate_(
+            self.active_panel,
+            self,
+        )
         self.popover = NSPopover.alloc().init()
         self.popover.setBehavior_(NSPopoverBehaviorTransient)
-        self.popover.setContentSize_(NSMakeSize(POPOVER_WIDTH, CONTENT_HEIGHT))
+        self.popover.setContentSize_(_popover_size(self.latest_state, self.active_panel))
         self.popover.setContentViewController_(self.popover_controller)
 
         self._refresh()
@@ -629,12 +228,38 @@ class AppDelegate(NSObject):
             self.timer.invalidate()
         NSApp.terminate_(sender)
 
+    def switchPanel_(self, sender: Any) -> None:
+        menu = NSMenu.alloc().initWithTitle_("更換面板")
+        for panel in panels.all_panels():
+            item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                panel.display_name,
+                "selectPanel:",
+                "",
+            )
+            item.setTarget_(self)
+            item.setRepresentedObject_(panel.id)
+            item.setState_(1 if panel.id == self.active_panel.id else 0)
+            menu.addItem_(item)
+        menu.popUpMenuPositioningItem_atLocation_inView_(None, NSMakePoint(0, 0), sender)
+
+    def selectPanel_(self, sender: Any) -> None:
+        panel_id = str(sender.representedObject())
+        self._set_active_panel_id(panel_id)
+
+    def _set_active_panel_id(self, panel_id: str) -> None:
+        panel = panels.get_panel(panel_id)
+        save_active_panel_id(panel.id)
+        self.active_panel = panel
+        self.popover_controller.rebuildWithPanel_(panel)
+        self.popover_controller.setState_(self.latest_state)
+        self.popover.setContentSize_(_popover_size(self.latest_state, panel))
+
     def togglePopover_(self, sender: Any) -> None:
         if self.popover.isShown():
             self.popover.performClose_(sender)
             return
         self.popover_controller.setState_(self.latest_state)
-        self.popover.setContentSize_(_popover_size(self.latest_state))
+        self.popover.setContentSize_(_popover_size(self.latest_state, self.active_panel))
         button = self.status_item.button()
         self.popover.showRelativeToRect_ofView_preferredEdge_(button.bounds(), button, NSMinYEdge)
 
@@ -667,7 +292,7 @@ class AppDelegate(NSObject):
         self.codex_5h_pct = codex_5h_pct
         self.latest_state = state
         self.popover_controller.setState_(state)
-        self.popover.setContentSize_(_popover_size(state))
+        self.popover.setContentSize_(_popover_size(state, self.active_panel))
         self.status_item.button().setTitle_(self._compose_title(state))
         self._refresh_in_flight = False
 
@@ -728,9 +353,7 @@ class AppDelegate(NSObject):
             group_name = GROUP_NAMES[self.tracker.group()]
             claude_session = _quota_row(
                 "Session",
-                float(snapshot.current_percent)
-                if snapshot.current_percent is not None
-                else None,
+                float(snapshot.current_percent) if snapshot.current_percent is not None else None,
                 snapshot.current_reset_at,
                 now,
                 CLAUDE_COLOR,
@@ -817,9 +440,11 @@ def run_app(mock: bool = False, interval: int = 60) -> None:
     app.run()
 
 
-def _popover_size(state: PopoverState) -> Any:
-    height = CONTENT_HEIGHT + (INSTALL_BUTTON_EXTRA_HEIGHT if state.show_install_button else 0.0)
-    return NSMakeSize(POPOVER_WIDTH, height)
+def _popover_size(state: PopoverState, panel: UsagePanel | None = None) -> Any:
+    active_panel = panel if panel is not None else panels.get_panel("classic")
+    width, base_height = active_panel.preferred_size()
+    height = base_height + (INSTALL_BUTTON_EXTRA_HEIGHT if state.show_install_button else 0.0)
+    return NSMakeSize(width, height)
 
 
 def _empty_state() -> PopoverState:
@@ -896,146 +521,3 @@ def _format_percent(value: float) -> str:
     if value.is_integer():
         return str(int(value))
     return f"{value:.1f}"
-
-
-def _label(
-    text: str,
-    font: NSFont,
-    color: NSColor,
-    alignment: int | None = None,
-) -> NSTextField:
-    label = NSTextField.labelWithString_(text)
-    label.setFont_(font)
-    label.setTextColor_(color)
-    label.setDrawsBackground_(False)
-    label.setBordered_(False)
-    label.setEditable_(False)
-    label.setSelectable_(False)
-    if alignment is not None:
-        label.setAlignment_(alignment)
-    return label
-
-
-def _semibold_font() -> NSFont:
-    return NSFont.systemFontOfSize_weight_(16, 0.33)
-
-
-def _medium_font() -> NSFont:
-    return NSFont.systemFontOfSize_weight_(12.5, 0.28)
-
-
-def _regular_font(size: float) -> NSFont:
-    return NSFont.systemFontOfSize_weight_(size, -0.4)
-
-
-def _muted_label_color() -> NSColor:
-    return NSColor.labelColor().colorWithAlphaComponent_(0.74)
-
-
-def _is_dark_appearance(view: NSView) -> bool:
-    name = view.effectiveAppearance().name() or ""
-    return "Dark" in name
-
-
-def _card_fill_color_for_view(view: NSView) -> NSColor:
-    if _is_dark_appearance(view):
-        return NSColor.colorWithCalibratedRed_green_blue_alpha_(0.115, 0.126, 0.15, 0.92)
-    return NSColor.whiteColor().colorWithAlphaComponent_(0.9)
-
-
-def _card_border_color_for_view(view: NSView) -> NSColor:
-    if _is_dark_appearance(view):
-        return NSColor.whiteColor().colorWithAlphaComponent_(0.08)
-    return NSColor.blackColor().colorWithAlphaComponent_(0.08)
-
-
-def _card_separator_color_for_view(view: NSView) -> NSColor:
-    if _is_dark_appearance(view):
-        return NSColor.whiteColor().colorWithAlphaComponent_(0.09)
-    return NSColor.blackColor().colorWithAlphaComponent_(0.08)
-
-
-def _track_color_for_view(view: NSView) -> NSColor:
-    if _is_dark_appearance(view):
-        return NSColor.whiteColor().colorWithAlphaComponent_(0.07)
-    return NSColor.blackColor().colorWithAlphaComponent_(0.057)
-
-
-def _background_gradient_for_view(view: NSView) -> NSGradient:
-    if _is_dark_appearance(view):
-        colors = [
-            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.11, 0.135, 1.0),
-            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.065, 0.072, 0.09, 1.0),
-        ]
-    else:
-        colors = [
-            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.96, 0.965, 0.975, 1.0),
-            NSColor.colorWithCalibratedRed_green_blue_alpha_(0.92, 0.93, 0.945, 1.0),
-        ]
-    return NSGradient.alloc().initWithColors_(colors)
-
-
-def _accent_gradient(color: NSColor) -> NSGradient:
-    return NSGradient.alloc().initWithColors_(
-        [
-            color.highlightWithLevel_(0.22),
-            color,
-        ],
-    )
-
-
-def _secondary_button_fill_color(view: NSView) -> NSColor:
-    if _is_dark_appearance(view):
-        return NSColor.whiteColor().colorWithAlphaComponent_(0.045)
-    return NSColor.blackColor().colorWithAlphaComponent_(0.035)
-
-
-def _button_gradient(color: NSColor) -> NSGradient:
-    return NSGradient.alloc().initWithColors_(
-        [
-            color.highlightWithLevel_(0.08),
-            color.shadowWithLevel_(0.12),
-        ],
-    )
-
-
-def _button_border_color(view: NSView, primary: bool) -> NSColor:
-    if primary:
-        return NSColor.whiteColor().colorWithAlphaComponent_(0.14)
-    if _is_dark_appearance(view):
-        return NSColor.whiteColor().colorWithAlphaComponent_(0.12)
-    return NSColor.blackColor().colorWithAlphaComponent_(0.1)
-
-
-def _icon_badge_fill(view: NSView) -> NSColor:
-    if _is_dark_appearance(view):
-        return NSColor.whiteColor().colorWithAlphaComponent_(0.04)
-    return NSColor.blackColor().colorWithAlphaComponent_(0.03)
-
-
-def _draw_button_title(button: ActionButton, bounds: Any) -> None:
-    style = NSMutableParagraphStyle.alloc().init()
-    style.setAlignment_(1)
-    text_color = (
-        NSColor.colorWithCalibratedRed_green_blue_alpha_(0.12, 0.18, 0.2, 0.96)
-        if button.is_primary
-        else NSColor.labelColor()
-    )
-    attrs = {
-        NSForegroundColorAttributeName: text_color,
-        NSParagraphStyleAttributeName: style,
-        NSStrokeColorAttributeName: NSColor.clearColor(),
-        NSFontAttributeName: NSFont.systemFontOfSize_weight_(14, 0.32),
-    }
-    title_rect = NSMakeRect(0, 8, bounds.size.width, 18)
-    button.title().drawInRect_withAttributes_(title_rect, attrs)
-
-
-def _fill_rounded_rect(rect: Any, radius: float) -> None:
-    NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(rect, radius, radius).fill()
-
-
-def _stroke_rounded_rect(rect: Any, radius: float, width: float) -> None:
-    path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(rect, radius, radius)
-    path.setLineWidth_(width)
-    path.stroke()

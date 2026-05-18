@@ -4,6 +4,21 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## Unreleased
+
+### 新增
+- **面板切換系統**：popover 右上角新增「⇄ 更換面板」按鈕，點下去出現 NSMenu 列出所有已註冊面板；選擇後立即套用最新狀態並透過 `NSUserDefaults`（key `usage.activePanelId`）持久化，下次啟動記得上次選的面板。
+- **預設面板（ClassicPanel）**：保留原有兩張卡 + 速率/狀態/今日佈局，切換按鈕嵌入 Claude 卡右上角，新增 `ClassicSwitchButton` 在 light/dark 兩種外觀下都清晰可見。
+- **台灣用量監控面板（TaiwanPanel）**：紅底白字主題（純 20 行 `ThemeConfig`），頂部標題列含 TAIWAN 旗 icon、「台灣用量監控」標題、切換按鈕，整體 popover 高度 574 → 672。
+- 新增 `panels/` 模組：`base.py` 提供 `Panel` Protocol、`ThemeConfig` dataclass、`ThemedPanel` 通用實作與 `NSUserDefaults` helper；`classic.py` / `taiwan.py` 為具體面板；`__init__.py` 提供 panel registry（`get_panel(id)`、`all_panels()`、找不到 id 自動 fallback 到 classic）。
+- 新增 `assets/taiwan.png`，並在 `setup_app.py` 的 `resources` 清單登錄，確保 `.app` bundle 內含此資源。
+
+### 重構
+- `menubar.py` 大幅縮減（1041 → 524 行）：所有 popover 視圖繪製與排版邏輯抽到 `panels/` 模組；`PopoverViewController` 改為輕量 container，依目前選的 `Panel` 動態 rebuild view；`AppDelegate` 新增 `switchPanel:` / `selectPanel:` 與 `_set_active_panel_id` 處理面板切換流程。
+
+### 測試
+- 新增 `tests/test_panels.py`（11 個 case）覆蓋：panel registry 內容、各面板 `preferred_size`、`NSUserDefaults` round-trip、找不到 id 的 fallback、`ThemeConfig` 套用、`ThemedPanel` 有無 header 的高度差。
+
 ## 0.2.1 — 2026-05-18
 
 ### 修正
