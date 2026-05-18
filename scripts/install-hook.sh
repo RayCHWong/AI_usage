@@ -25,7 +25,7 @@ PYTHON_BIN="$(command -v python3 || echo /usr/bin/python3)"
 echo "✎ 更新 ${SETTINGS_PATH}"
 HOOK_PATH="${HOOK_PATH}" SETTINGS_PATH="${SETTINGS_PATH}" PYTHON_BIN="${PYTHON_BIN}" \
 "${PYTHON_BIN}" - <<'PY'
-import json, os
+import json, os, shlex
 
 settings_path = os.environ["SETTINGS_PATH"]
 hook_path = os.environ["HOOK_PATH"]
@@ -43,7 +43,8 @@ if isinstance(existing, dict) and "usage-statusline" not in str(existing.get("co
     data.setdefault("usage", {})["previousStatusLine"] = existing
     print(f"ℹ 已備份原 statusLine 到 settings.usage.previousStatusLine")
 
-data["statusLine"] = {"type": "command", "command": f'{python_bin} {hook_path}'}
+command = f"{shlex.quote(python_bin)} {shlex.quote(hook_path)}"
+data["statusLine"] = {"type": "command", "command": command}
 
 with open(settings_path, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)

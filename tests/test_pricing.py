@@ -178,6 +178,109 @@ def test_load_pricing_falls_back_when_fetch_fails_without_real_network(
     assert pricing._load_pricing() == pricing._fallback_pricing()
 
 
+def test_get_pricing_reuses_fallback_within_retry_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 1_000.0
+    fetch_calls = 0
+    fallback = {"fallback-model": {"input_cost_per_token": 1.0}}
+
+    def fake_fetch_pricing() -> pricing.PricingTable | None:
+        nonlocal fetch_calls
+        fetch_calls += 1
+        return None
+
+    monkeypatch.setattr(pricing, "_pricing_cache", None)
+    monkeypatch.setattr(pricing, "_read_cache", lambda: None)
+    monkeypatch.setattr(pricing, "_fetch_pricing", fake_fetch_pricing)
+    monkeypatch.setattr(pricing, "_fallback_pricing", lambda: fallback)
+    monkeypatch.setattr("pricing.time.time", lambda: now)
+    monkeypatch.setattr(pricing, "FALLBACK_RETRY_SECONDS", 600)
+
+    assert pricing.get_pricing() == fallback
+    now += 599
+    assert pricing.get_pricing() == fallback
+    assert fetch_calls == 1
+    assert pricing._pricing_cache == (fallback, "fallback", 1_000.0)
+
+
+def test_get_pricing_retries_fallback_after_retry_ttl_and_switches_to_fetched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 1_000.0
+    fallback = {"fallback-model": {"input_cost_per_token": 1.0}}
+    fetched = {"fetched-model": {"input_cost_per_token": 2.0}}
+    fetch_results: list[pricing.PricingTable | None] = [None, fetched]
+
+    def fake_fetch_pricing() -> pricing.PricingTable | None:
+        return fetch_results.pop(0)
+
+    monkeypatch.setattr(pricing, "_pricing_cache", None)
+    monkeypatch.setattr(pricing, "_read_cache", lambda: None)
+    monkeypatch.setattr(pricing, "_fetch_pricing", fake_fetch_pricing)
+    monkeypatch.setattr(pricing, "_fallback_pricing", lambda: fallback)
+    monkeypatch.setattr(pricing, "_write_cache", lambda table: None)
+    monkeypatch.setattr("pricing.time.time", lambda: now)
+    monkeypatch.setattr(pricing, "FALLBACK_RETRY_SECONDS", 600)
+
+    assert pricing.get_pricing() == fallback
+    now += 601
+    assert pricing.get_pricing() == fetched
+    assert fetch_results == []
+    assert pricing._pricing_cache == (fetched, "fetched", 1_601.0)
+
+
+def test_get_pricing_keeps_fetched_result_after_retry_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 1_000.0
+    fetched = {"fetched-model": {"input_cost_per_token": 2.0}}
+    fetch_calls = 0
+
+    def fake_fetch_pricing() -> pricing.PricingTable | None:
+        nonlocal fetch_calls
+        fetch_calls += 1
+        return fetched
+
+    monkeypatch.setattr(pricing, "_pricing_cache", None)
+    monkeypatch.setattr(pricing, "_read_cache", lambda: None)
+    monkeypatch.setattr(pricing, "_fetch_pricing", fake_fetch_pricing)
+    monkeypatch.setattr(pricing, "_write_cache", lambda table: None)
+    monkeypatch.setattr("pricing.time.time", lambda: now)
+    monkeypatch.setattr(pricing, "FALLBACK_RETRY_SECONDS", 600)
+
+    assert pricing.get_pricing() == fetched
+    now += 601
+    assert pricing.get_pricing() == fetched
+    assert fetch_calls == 1
+    assert pricing._pricing_cache == (fetched, "fetched", 1_000.0)
+
+
+def test_get_pricing_keeps_cache_result_after_retry_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 1_000.0
+    cached = {"cached-model": {"input_cost_per_token": 3.0}}
+    fetch_calls = 0
+
+    def fake_fetch_pricing() -> pricing.PricingTable | None:
+        nonlocal fetch_calls
+        fetch_calls += 1
+        return None
+
+    monkeypatch.setattr(pricing, "_pricing_cache", None)
+    monkeypatch.setattr(pricing, "_read_cache", lambda: cached)
+    monkeypatch.setattr(pricing, "_fetch_pricing", fake_fetch_pricing)
+    monkeypatch.setattr("pricing.time.time", lambda: now)
+    monkeypatch.setattr(pricing, "FALLBACK_RETRY_SECONDS", 600)
+
+    assert pricing.get_pricing() == cached
+    now += 601
+    assert pricing.get_pricing() == cached
+    assert fetch_calls == 0
+    assert pricing._pricing_cache == (cached, "cache", 1_000.0)
+
+
 def test_write_cache_writes_json_atomically(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

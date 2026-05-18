@@ -73,6 +73,8 @@ def _load_thread_models() -> dict[str, str]:
                 "SELECT id, model FROM threads WHERE model IS NOT NULL",
             ).fetchall()
     except (OSError, sqlite3.Error):
+        if os.environ.get("USAGE_DEBUG") == "1":
+            logger.warning("codex thread models load failed", exc_info=True)
         return {}
     return {
         thread_id: model
