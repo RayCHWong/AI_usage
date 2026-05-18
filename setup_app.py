@@ -44,7 +44,12 @@ if __name__ == "__main__":
     version = _version()
     OPTIONS = {
         "argv_emulation": False,
-        "resources": ["assets/claude.webp", "assets/codex.webp", "usage_statusline.py"],
+        "resources": [
+            "assets/claude.webp",
+            "assets/codex.webp",
+            "assets/taiwan.png",
+            "usage_statusline.py",
+        ],
         "includes": [
             "AppKit",
             "Foundation",
