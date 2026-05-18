@@ -73,8 +73,9 @@ jobs:
           fi
 
           verify_file dist/usage.app/Contents/Resources/usage_statusline.py
-          verify_file dist/usage.app/Contents/Resources/assets/claude.webp
-          verify_file dist/usage.app/Contents/Resources/assets/codex.webp
+          verify_file dist/usage.app/Contents/Resources/claude.webp
+          verify_file dist/usage.app/Contents/Resources/codex.webp
+          verify_file dist/usage.app/Contents/Resources/taiwan.png
           verify_file dist/usage.app/Contents/Info.plist
 
       - name: Zip .app
