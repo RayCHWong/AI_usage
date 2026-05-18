@@ -77,7 +77,7 @@ def _load_file(
                 if cutoff is not None and entry.timestamp < cutoff:
                     continue
 
-                dedup_key = f"{entry.message_id}:{entry.request_id}"
+                dedup_key = _dedup_key(entry)
                 if dedup_key in seen:
                     continue
                 seen.add(dedup_key)
@@ -159,8 +159,20 @@ def _project_from_cwd(cwd: str) -> str:
     return Path(os.path.expanduser(cwd)).name or "unknown"
 
 
+def _dedup_key(entry: UsageEntry) -> str:
+    if entry.message_id or entry.request_id:
+        return f"message:{entry.message_id}:{entry.request_id}"
+    return (
+        f"entry:{entry.session_id}:{entry.timestamp.isoformat()}:{entry.model}:"
+        f"{entry.input_tokens}:{entry.output_tokens}:"
+        f"{entry.cache_creation_tokens}:{entry.cache_read_tokens}"
+    )
+
+
 def _as_int(value: Any) -> int:
-    return value if isinstance(value, int) else 0
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    return max(0, value)
 
 
 def _as_str(value: Any) -> str:
@@ -168,6 +180,8 @@ def _as_str(value: Any) -> str:
 
 
 def _as_optional_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     if isinstance(value, int | float):
         return float(value)
     return None

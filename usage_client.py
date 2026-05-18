@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from dataclasses import dataclass
@@ -41,21 +42,31 @@ class PollOutcome:
 
 
 def _pct(value: Any) -> int:
-    if value is None:
+    numeric = _as_finite_float(value)
+    if numeric is None:
         return 0
-    try:
-        return max(0, min(100, round(float(value))))
-    except (TypeError, ValueError):
-        return 0
+    return max(0, min(100, round(numeric)))
 
 
 def _reset_at(value: Any, default: float) -> float:
-    if value is None:
+    numeric = _as_finite_float(value)
+    if numeric is None:
         return default
+    return numeric
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_finite_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
-        return float(value)
+        numeric = float(value)
     except (TypeError, ValueError):
-        return default
+        return None
+    return numeric if math.isfinite(numeric) else None
 
 
 def _read_status_file() -> tuple[dict[str, Any], str] | None:
@@ -74,9 +85,9 @@ def _read_status_file() -> tuple[dict[str, Any], str] | None:
 
 
 def _build_snapshot(data: dict[str, Any]) -> UsageSnapshot | None:
-    rl = data.get("rate_limits") or {}
-    five = rl.get("five_hour") or {}
-    seven = rl.get("seven_day") or {}
+    rl = _as_dict(data.get("rate_limits"))
+    five = _as_dict(rl.get("five_hour"))
+    seven = _as_dict(rl.get("seven_day"))
 
     five_pct_raw = five.get("used_percentage")
     seven_pct_raw = seven.get("used_percentage")
@@ -91,11 +102,7 @@ def _build_snapshot(data: dict[str, Any]) -> UsageSnapshot | None:
     five_pct = 0 if five_reset and five_reset < now else _pct(five_pct_raw)
     seven_pct = 0 if seven_reset and seven_reset < now else _pct(seven_pct_raw)
 
-    received = data.get("_received_at_ts") or now
-    try:
-        polled_at = float(received)
-    except (TypeError, ValueError):
-        polled_at = now
+    polled_at = _as_finite_float(data.get("_received_at_ts")) or now
 
     status = ""
     if isinstance(rl.get("status"), str):

@@ -82,12 +82,14 @@ def _load_thread_models() -> dict[str, str]:
 
 
 def _recent_jsonl_files() -> list[Path]:
-    paths = list(SESSIONS_DIR.rglob("*.jsonl"))
-    try:
-        return sorted(paths, key=lambda path: path.stat().st_mtime, reverse=True)[:5]
-    except OSError as exc:
-        logger.warning("failed to list codex session dirs: %s", exc)
-        return []
+    paths_with_mtime: list[tuple[float, Path]] = []
+    for path in SESSIONS_DIR.rglob("*.jsonl"):
+        try:
+            paths_with_mtime.append((path.stat().st_mtime, path))
+        except OSError as exc:
+            logger.warning("failed to stat codex session %s: %s", path, exc)
+    paths_with_mtime.sort(key=lambda item: item[0], reverse=True)
+    return [path for _, path in paths_with_mtime[:5]]
 
 
 def _extract_rate_limits(path: Path) -> CodexRateLimits | None:
@@ -137,6 +139,7 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
     session_timestamp = ""
     project = "unknown"
     last_usage: dict[str, Any] | None = None
+    last_usage_timestamp = ""
     try:
         with path.open(encoding="utf-8") as file:
             for line in file:
@@ -157,10 +160,11 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
                 usage = _as_dict(_as_dict(payload.get("info")).get("total_token_usage"))
                 if usage:
                     last_usage = usage
+                    last_usage_timestamp = _as_str(data.get("timestamp"))
     except OSError as exc:
         logger.warning("failed to parse codex session %s: %s", path, exc)
         return None
-    timestamp = _parse_timestamp(session_timestamp)
+    timestamp = _parse_timestamp(last_usage_timestamp) or _parse_timestamp(session_timestamp)
     if not session_id or last_usage is None or timestamp is None:
         return None
     if cutoff is not None and timestamp < cutoff:
@@ -195,7 +199,9 @@ def _load_json_line(line: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _parse_timestamp(value: str) -> datetime | None:
+def _parse_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
     try:
         timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
@@ -214,7 +220,9 @@ def _as_dict(value: Any) -> dict[str, Any]:
 
 
 def _as_int(value: Any) -> int:
-    return value if isinstance(value, int) else 0
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    return max(0, value)
 
 
 def _as_str(value: Any) -> str:
@@ -222,4 +230,6 @@ def _as_str(value: Any) -> str:
 
 
 def _as_optional_float(value: Any) -> float | None:
-    return float(value) if isinstance(value, int | float) else None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)

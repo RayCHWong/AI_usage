@@ -52,7 +52,9 @@ def _load_settings() -> dict[str, Any]:
             data = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"❌ 無法讀取 {CLAUDE_SETTINGS}: {exc}") from exc
-    return data if isinstance(data, dict) else {}
+    if not isinstance(data, dict):
+        raise SystemExit(f"❌ {CLAUDE_SETTINGS} 必須是 JSON object")
+    return data
 
 
 def _save_settings(data: dict[str, Any]) -> None:
@@ -84,12 +86,16 @@ def setup() -> int:
         print("❌ 找不到 ~/.claude/，請先安裝並執行過 Claude Code 一次", file=sys.stderr)
         return 1
 
-    _copy_hook_script()
     settings = _load_settings()
+    _copy_hook_script()
 
     existing = settings.get("statusLine")
     if existing and not _is_usag_hook(existing):
-        settings.setdefault(BACKUP_KEY, {})[PREV_SL_KEY] = existing
+        backup = settings.get(BACKUP_KEY)
+        if not isinstance(backup, dict):
+            backup = {}
+            settings[BACKUP_KEY] = backup
+        backup[PREV_SL_KEY] = existing
         print(f"ℹ 已備份原有 statusLine 到 settings.{BACKUP_KEY}.{PREV_SL_KEY}")
 
     settings["statusLine"] = {"type": "command", "command": _statusline_command()}
@@ -106,7 +112,8 @@ def unsetup() -> int:
     sl = settings.get("statusLine")
 
     if _is_usag_hook(sl):
-        prev = settings.get(BACKUP_KEY, {}).get(PREV_SL_KEY)
+        backup = settings.get(BACKUP_KEY)
+        prev = backup.get(PREV_SL_KEY) if isinstance(backup, dict) else None
         if isinstance(prev, dict):
             settings["statusLine"] = prev
             print("✓ 已還原原有 statusLine")
@@ -114,7 +121,6 @@ def unsetup() -> int:
             settings.pop("statusLine", None)
             print("✓ 已移除 usag statusLine")
 
-        backup = settings.get(BACKUP_KEY)
         if isinstance(backup, dict):
             backup.pop(PREV_SL_KEY, None)
             if not backup:
