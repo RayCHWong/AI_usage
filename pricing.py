@@ -8,7 +8,7 @@ import tempfile
 import time
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from history_loader import UsageEntry
 
@@ -19,11 +19,13 @@ LITELLM_PRICING_URL = (
 )
 CACHE_PATH = Path(os.path.expanduser("~/.claude/pricing_cache.json"))
 CACHE_TTL_DAYS = 7
+FALLBACK_RETRY_SECONDS = 600
 USER_AGENT = "usage/0.2"
 
 PricingTable = dict[str, dict[str, float]]
+PricingSource = Literal["cache", "fetched", "fallback"]
 
-_pricing_cache: PricingTable | None = None
+_pricing_cache: tuple[PricingTable, PricingSource, float] | None = None
 
 
 def calculate_cost(entry: UsageEntry) -> float:
@@ -54,22 +56,33 @@ def calculate_cost(entry: UsageEntry) -> float:
 
 def get_pricing() -> PricingTable:
     global _pricing_cache
-    if _pricing_cache is None:
-        _pricing_cache = _load_pricing()
-    return _pricing_cache
+    now = time.time()
+    if _pricing_cache is not None:
+        pricing, source, cached_at = _pricing_cache
+        if source != "fallback" or (now - cached_at) <= FALLBACK_RETRY_SECONDS:
+            return pricing
+
+    pricing, source = _load_pricing_with_source()
+    _pricing_cache = (pricing, source, now)
+    return pricing
 
 
 def _load_pricing() -> PricingTable:
+    pricing, _ = _load_pricing_with_source()
+    return pricing
+
+
+def _load_pricing_with_source() -> tuple[PricingTable, PricingSource]:
     cached = _read_cache()
     if cached:
-        return cached
+        return cached, "cache"
 
     fetched = _fetch_pricing()
     if fetched:
         _write_cache(fetched)
-        return fetched
+        return fetched, "fetched"
 
-    return _fallback_pricing()
+    return _fallback_pricing(), "fallback"
 
 
 def _read_cache() -> PricingTable | None:

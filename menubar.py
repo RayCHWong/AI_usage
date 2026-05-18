@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import io
+import logging
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -77,6 +79,8 @@ CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
 CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
 WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
 DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
+
+logger = logging.getLogger(__name__)
 
 
 def _bar_color(pct: float, brand: tuple[float, float, float]) -> tuple[float, float, float]:
@@ -765,6 +769,8 @@ class AppDelegate(NSObject):
         try:
             rate_limits = codex_loader.load_rate_limits()
         except Exception:
+            if os.environ.get("USAGE_DEBUG") == "1":
+                logger.warning("codex rate limits load failed", exc_info=True)
             rate_limits = None
 
         if rate_limits is None:
