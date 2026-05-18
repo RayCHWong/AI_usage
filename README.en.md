@@ -73,7 +73,18 @@ Go to the [GitHub Releases page](https://github.com/aqua5230/usage/releases/late
 ⚠️ Because this app is not signed with an Apple Developer certificate, **macOS Gatekeeper will block the first launch**.
 To open it: find `usag.app` in Finder → right-click → Open → confirm Open. After that, double-clicking works normally.
 
-You still need to run `--setup` once so Claude Code knows to feed data to usage (see [First install](#first-install-wire-up-the-claude-code-hook)).
+### First launch: install the hook
+
+The first time you open usag, if Claude Code has never been wired up yet, the popover will detect the missing status file and **show an extra "立即安裝 hook" (Install hook now) button at the bottom**. Click it once — it installs the hook for you. Then **fully quit Claude Code (Cmd+Q) and re-open it**, click "Refresh now" in usag, and the numbers will appear.
+
+If the button doesn't show, usag is already reading data (e.g. you previously installed [token-tracker](https://github.com/stormzhang/token-tracker) and its status file works as a fallback) — nothing else to do.
+
+> **Fallback: install via curl**
+> If the in-app button doesn't work or you prefer the command line, paste this in Terminal:
+>
+> ```bash
+> bash <(curl -fsSL https://raw.githubusercontent.com/aqua5230/usage/main/scripts/install-hook.sh)
+> ```
 
 ## Download
 
@@ -94,7 +105,9 @@ pip install -e .
 
 This creates an isolated Python environment (`.venv`) for the project, activates it, and installs usage plus its dependencies into it.
 
-## First install (wire up the Claude Code hook)
+## First install (wire up the Claude Code hook — source mode only)
+
+> Using the .app? Just click the "立即安裝 hook" button in the popover on first launch instead — you don't need this section. The steps below are for developers running usag from source.
 
 This single command does two things: copies the hook script into `~/.claude/`, and updates your Claude Code settings to point at it.
 
@@ -217,7 +230,7 @@ USAG_DEBUG=1 python3 main.py
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| Menu bar shows `--` | Hook not installed, or Claude Code hasn't refreshed yet | Run `--setup`, then restart Claude Code once |
+| Menu bar shows `--` | Hook not installed, or Claude Code hasn't refreshed yet | **.app users**: click the "立即安裝 hook" button in the popover. **Source users**: run `python3 main.py --setup`. Either way, restart Claude Code once afterwards |
 | Status says "N minutes stale" | Claude Code isn't running | Open Claude Code and let it run; it updates the file on its next status refresh |
 | Codex section is empty | `~/.codex/sessions/` doesn't exist or has no `rate_limits` events yet | Run a Codex conversation to generate log entries |
 | Today's cost shows $0.00 | Model name doesn't match the pricing table, or pricing download/cache failed | Delete `~/.claude/pricing_cache.json` to force a re-fetch; or run with `USAG_DEBUG=1` for details |
