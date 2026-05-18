@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VENV_PYTHON="${PROJECT_DIR}/.venv/bin/python3"
 PLIST_NAME="com.lollapalooza.usag.plist"
 TARGET_PLIST="${HOME}/Library/LaunchAgents/${PLIST_NAME}"
@@ -17,7 +18,7 @@ echo "正在生成設定檔..."
 sed -e "s|__PROJECT_DIR__|${PROJECT_DIR}|g" \
     -e "s|__VENV_PYTHON__|${VENV_PYTHON}|g" \
     -e "s|__HOME__|${HOME}|g" \
-    "${PROJECT_DIR}/${PLIST_NAME}" > "${TARGET_PLIST}"
+    "${SCRIPT_DIR}/${PLIST_NAME}" > "${TARGET_PLIST}"
 
 echo "正在載入 LaunchAgent..."
 launchctl unload "${TARGET_PLIST}" 2>/dev/null || true

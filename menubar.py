@@ -80,7 +80,7 @@ def _resolve_resource(name: str) -> str:
         path = bundle.pathForResource_ofType_(stem, ext)
         if path:
             return str(path)
-    return str(Path(__file__).with_name(name))
+    return str(Path(__file__).parent / "assets" / name)
 
 
 CLAUDE_ICON_PATH = _resolve_resource("claude.webp")

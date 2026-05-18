@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from clawd_sprite import render_sprite
+from tui_sprite import render_sprite
 from usage_client import PollState, UsageSnapshot
 
 BG = "#000000"

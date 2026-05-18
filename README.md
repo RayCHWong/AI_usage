@@ -116,7 +116,7 @@ python3 main.py --tui
 
 1. **安裝**：
    ```bash
-   ./install-launchagent.sh
+   ./scripts/install-launchagent.sh
    ```
 2. **手動測試啟動**：
    ```bash
@@ -127,7 +127,7 @@ python3 main.py --tui
    - 錯誤輸出：`~/Library/Logs/usag/usag.err.log`
 4. **移除**：
    ```bash
-   ./uninstall-launchagent.sh
+   ./scripts/uninstall-launchagent.sh
    ```
 
 ## 預覽模式
@@ -169,7 +169,7 @@ USAG_DEBUG=1 python3 main.py
 想要雙擊就跑、不開終端機，可以打包成 macOS 原生 App：
 
 ```bash
-./build_app.sh
+./scripts/build_app.sh
 ```
 
 產物在 `dist/usag.app`。雙擊或 `open dist/usag.app` 即可。

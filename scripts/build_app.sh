@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$BASH_SOURCE")"
+cd "$(dirname "$BASH_SOURCE")/.."
 rm -rf build dist
 uv sync --group build
 uv run python3 setup_app.py py2app

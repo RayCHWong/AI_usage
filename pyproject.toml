@@ -25,7 +25,7 @@ py-modules = [
     "setup_hook",
     "usage_client",
     "codex_loader",
-    "clawd_sprite",
+    "tui_sprite",
 ]
 
 [dependency-groups]

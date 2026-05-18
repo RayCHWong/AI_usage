@@ -116,7 +116,7 @@ A LaunchAgent makes usage start automatically when you log in:
 
 1. **Install:**
    ```bash
-   ./install-launchagent.sh
+   ./scripts/install-launchagent.sh
    ```
 2. **Manual start (for testing):**
    ```bash
@@ -127,7 +127,7 @@ A LaunchAgent makes usage start automatically when you log in:
    - stderr: `~/Library/Logs/usag/usag.err.log`
 4. **Uninstall:**
    ```bash
-   ./uninstall-launchagent.sh
+   ./scripts/uninstall-launchagent.sh
    ```
 
 ## Preview mode
@@ -169,7 +169,7 @@ USAG_DEBUG=1 python3 main.py
 If you want to launch usage by double-clicking instead of opening a terminal, build a native macOS app bundle:
 
 ```bash
-./build_app.sh
+./scripts/build_app.sh
 ```
 
 The output is `dist/usag.app`. Double-click it or run `open dist/usag.app`.
