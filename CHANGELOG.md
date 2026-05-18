@@ -4,6 +4,15 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## 0.1.11 — 2026-05-18
+
+### 修正
+- `setup_app.py` 補打包 `usag_statusline.py`，確保 `.app` 內有 hook 原始檔。
+- `setup_hook.py` 在原始碼模式與 `.app` bundle 模式都能解析 hook 來源路徑。
+
+### 介面
+- popover 偵測到找不到狀態檔時新增「立即安裝 hook」一鍵救援按鈕。
+
 ## 0.1.10 — 2026-05-18
 
 ### 介面

@@ -5,6 +5,15 @@
 All notable changes to usage are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 0.1.11 — 2026-05-18
+
+### Fixed
+- `setup_app.py` now packages `usag_statusline.py` so the `.app` bundle ships the hook source.
+- `setup_hook.py` now resolves the hook source in both source-tree mode and `.app` bundle mode.
+
+### UI
+- The popover now shows a one-click "立即安裝 hook" recovery button when the status file is missing.
+
 ## 0.1.10 — 2026-05-18
 
 ### UI

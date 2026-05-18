@@ -25,10 +25,20 @@ from typing import Any
 CLAUDE_SETTINGS = Path(os.path.expanduser("~/.claude/settings.json"))
 HOOK_TARGET = Path(os.path.expanduser("~/.claude/usag-statusline.py"))
 STATUS_FILE = Path(os.path.expanduser("~/.claude/usag-status.json"))
-HOOK_SOURCE = Path(__file__).resolve().parent / "usag_statusline.py"
-
 BACKUP_KEY = "usag"
 PREV_SL_KEY = "previousStatusLine"
+
+
+def _resolve_hook_source() -> Path:
+    paths = [
+        Path(__file__).resolve().parent / "usag_statusline.py",
+        Path(sys.executable).resolve().parent.parent / "Resources" / "usag_statusline.py",
+    ]
+    for path in paths:
+        if path.exists():
+            return path
+    tried = ", ".join(str(path) for path in paths)
+    raise SystemExit(f"❌ 找不到 hook 原始檔，tried: {tried}")
 
 
 def _statusline_command() -> str:
@@ -74,10 +84,9 @@ def _save_settings(data: dict[str, Any]) -> None:
 
 
 def _copy_hook_script() -> None:
-    if not HOOK_SOURCE.exists():
-        raise SystemExit(f"❌ 找不到 hook 原始檔：{HOOK_SOURCE}")
+    hook_source = _resolve_hook_source()
     HOOK_TARGET.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(HOOK_SOURCE, HOOK_TARGET)
+    shutil.copyfile(hook_source, HOOK_TARGET)
     HOOK_TARGET.chmod(HOOK_TARGET.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 

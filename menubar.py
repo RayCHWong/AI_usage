@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import io
 import threading
 import time
 from dataclasses import dataclass
@@ -12,6 +14,7 @@ from typing import Any
 
 import objc
 from AppKit import (
+    NSAlert,
     NSApp,
     NSApplication,
     NSApplicationActivationPolicyAccessory,
@@ -69,6 +72,7 @@ FOOTER_GAP = 12.0
 FOOTER_LINE_GAP = 18.0
 BUTTON_TOP_GAP = 18.0
 BUTTON_HEIGHT = 32.0
+INSTALL_BUTTON_EXTRA_HEIGHT = BUTTON_HEIGHT + 10.0
 CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
 CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
 WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
@@ -118,6 +122,7 @@ class PopoverState:
     rate_text: str
     status_text: str
     today_text: str
+    show_install_button: bool = False
 
 
 def format_human_time(seconds: float) -> str:
@@ -315,14 +320,17 @@ class PopoverContentView(NSView):
     rate_label = objc.ivar()
     status_label = objc.ivar()
     today_label = objc.ivar()
+    install_hook_button = objc.ivar()
     refresh_button = objc.ivar()
     quit_button = objc.ivar()
+    show_install_button = objc.ivar()
 
     def initWithFrame_delegate_(self, frame: Any, delegate: Any) -> PopoverContentView:
         self = objc.super(PopoverContentView, self).initWithFrame_(frame)
         if self is None:
             return None
         self.delegate = delegate
+        self.show_install_button = False
         claude_accent = NSColor.colorWithCalibratedRed_green_blue_alpha_(*CLAUDE_COLOR, 1.0)
         codex_accent = NSColor.colorWithCalibratedRed_green_blue_alpha_(*CODEX_COLOR, 1.0)
         self.claude_icon = HeaderIconView.alloc().initWithFrame_color_path_(
@@ -349,6 +357,17 @@ class PopoverContentView(NSView):
             NSColor.labelColor(),
         )
         self.today_label.setAllowsDefaultTighteningForTruncation_(True)
+        self.install_hook_button = (
+            ActionButton.alloc().initWithFrame_title_primary_color_target_action_(
+                NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
+                "立即安裝 hook",
+                True,
+                claude_accent,
+                delegate,
+                "installHook:",
+            )
+        )
+        self.install_hook_button.setHidden_(True)
         accent = NSColor.colorWithCalibratedRed_green_blue_alpha_(*CODEX_COLOR, 1.0)
         self.refresh_button = ActionButton.alloc().initWithFrame_title_primary_color_target_action_(
             NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
@@ -379,6 +398,7 @@ class PopoverContentView(NSView):
             self.rate_label,
             self.status_label,
             self.today_label,
+            self.install_hook_button,
             self.refresh_button,
             self.quit_button,
         ):
@@ -451,6 +471,11 @@ class PopoverContentView(NSView):
 
         button_gap = 10.0
         button_width = (content_width - 24 - button_gap) / 2
+        if self.show_install_button:
+            self.install_hook_button.setFrame_(
+                NSMakeRect(PADDING + 12, y, content_width - 24, BUTTON_HEIGHT),
+            )
+            y += INSTALL_BUTTON_EXTRA_HEIGHT
         self.refresh_button.setFrame_(NSMakeRect(PADDING + 12, y, button_width, BUTTON_HEIGHT))
         self.quit_button.setFrame_(
             NSMakeRect(PADDING + 12 + button_width + button_gap, y, button_width, BUTTON_HEIGHT),
@@ -470,7 +495,7 @@ class PopoverContentView(NSView):
             PADDING,
             PADDING + (CARD_HEIGHT * 2) + SECTION_GAP + FOOTER_GAP,
             content_width,
-            FOOTER_HEIGHT,
+            FOOTER_HEIGHT + (INSTALL_BUTTON_EXTRA_HEIGHT if self.show_install_button else 0.0),
         )
 
         for card_rect in (claude_rect, codex_rect, footer_rect):
@@ -507,9 +532,12 @@ class PopoverContentView(NSView):
         self.rate_label.setStringValue_(state.rate_text)
         self.status_label.setStringValue_(state.status_text)
         self.today_label.setStringValue_(state.today_text)
+        self.show_install_button = state.show_install_button
+        self.install_hook_button.setHidden_(not state.show_install_button)
         self.rate_label.setTextColor_(_muted_label_color())
         self.status_label.setTextColor_(_muted_label_color())
         self.today_label.setTextColor_(NSColor.labelColor())
+        self.setNeedsLayout_(True)
         self.setNeedsDisplay_(True)
 
 
@@ -528,6 +556,7 @@ class PopoverViewController(NSViewController):
         return self
 
     def setState_(self, state: PopoverState) -> None:
+        self.view().setFrameSize_(_popover_size(state))
         self.content_view.setState_(state)
 
 
@@ -587,6 +616,10 @@ class AppDelegate(NSObject):
     def refreshNow_(self, sender: Any) -> None:
         self._refresh()
 
+    def installHook_(self, sender: Any) -> None:
+        thread = threading.Thread(target=self._install_hook_in_background, daemon=True)
+        thread.start()
+
     def quitApp_(self, sender: Any) -> None:
         if self.timer is not None:
             self.timer.invalidate()
@@ -597,6 +630,7 @@ class AppDelegate(NSObject):
             self.popover.performClose_(sender)
             return
         self.popover_controller.setState_(self.latest_state)
+        self.popover.setContentSize_(_popover_size(self.latest_state))
         button = self.status_item.button()
         self.popover.showRelativeToRect_ofView_preferredEdge_(button.bounds(), button, NSMinYEdge)
 
@@ -629,8 +663,44 @@ class AppDelegate(NSObject):
         self.codex_5h_pct = codex_5h_pct
         self.latest_state = state
         self.popover_controller.setState_(state)
+        self.popover.setContentSize_(_popover_size(state))
         self.status_item.button().setTitle_(self._compose_title(state))
         self._refresh_in_flight = False
+
+    def _install_hook_in_background(self) -> None:
+        output = io.StringIO()
+        exit_code = 1
+        try:
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                import setup_hook
+
+                exit_code = setup_hook.setup()
+        except SystemExit as exc:
+            exit_code = exc.code if isinstance(exc.code, int) else 1
+            if exc.code:
+                print(exc.code, file=output)
+        except Exception as exc:
+            print(f"{type(exc).__name__}: {exc}", file=output)
+
+        result = {
+            "success": exit_code == 0,
+            "message": output.getvalue().strip(),
+        }
+        self.performSelectorOnMainThread_withObject_waitUntilDone_(
+            "_finishHookInstall:",
+            result,
+            False,
+        )
+
+    def _finishHookInstall_(self, result: dict[str, Any]) -> None:
+        alert = NSAlert.alloc().init()
+        if result["success"]:
+            alert.setMessageText_("已安裝完成，請重開 Claude Code 一次")
+        else:
+            alert.setMessageText_("安裝 hook 失敗")
+            alert.setInformativeText_(result["message"] or "setup_hook.setup() 回傳失敗")
+        alert.runModal()
+        self._refresh()
 
     async def _fetch(self) -> PollOutcome:
         client = ClaudeUsageClient(mock=self.mock)
@@ -680,6 +750,7 @@ class AppDelegate(NSObject):
             rate_text=f"速率：{group_name}",
             status_text=status_text,
             today_text=today_text,
+            show_install_button=outcome.state == PollState.TOKEN_ERROR,
         )
 
     def _codex_rows(self) -> tuple[tuple[QuotaRowState, QuotaRowState], int | None]:
@@ -738,6 +809,11 @@ def run_app(mock: bool = False, interval: int = 60) -> None:
     app.run()
 
 
+def _popover_size(state: PopoverState) -> Any:
+    height = CONTENT_HEIGHT + (INSTALL_BUTTON_EXTRA_HEIGHT if state.show_install_button else 0.0)
+    return NSMakeSize(POPOVER_WIDTH, height)
+
+
 def _empty_state() -> PopoverState:
     return PopoverState(
         claude_session=_missing_row("Session", CLAUDE_COLOR),
@@ -747,6 +823,7 @@ def _empty_state() -> PopoverState:
         rate_text="速率：--",
         status_text="狀態：載入中",
         today_text="今日：$0.00 (0 tokens)",
+        show_install_button=False,
     )
 
 
@@ -754,6 +831,7 @@ def _error_state(message: str, mock: bool) -> PopoverState:
     state = _empty_state()
     state.status_text = f"狀態：錯誤 ({message})"
     state.today_text = _today_title(mock)
+    state.show_install_button = False
     return state
 
 
