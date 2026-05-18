@@ -44,7 +44,8 @@ flowchart LR
 Read priority:
 
 1. `~/.claude/usage-status.json` — written by the hook usage installs.
-2. `~/.claude/tt-status.json` — fallback. If you also use [token-tracker](https://github.com/stormzhang/token-tracker), usage will share its status file.
+2. `~/.claude/usag-status.json` — automatic v0.1.x legacy fallback; new users should not encounter this.
+3. `~/.claude/tt-status.json` — fallback. If you also use [token-tracker](https://github.com/stormzhang/token-tracker), usage will share its status file.
 
 ### Codex usage
 
@@ -222,7 +223,7 @@ USAGE_DEBUG=1 python3 main.py
 
 ## Behaviour notes
 
-- usage only reads `~/.claude/usage-status.json`, `~/.claude/tt-status.json`, and Codex's session files. It does not call the Anthropic / OpenAI API and does not read the Keychain. The only network activity is a one-time download of the LiteLLM pricing table for Codex cost estimates (cached for 7 days; offline fallback available).
+- usage only reads `~/.claude/usage-status.json`, the v0.1.x legacy `~/.claude/usag-status.json`, `~/.claude/tt-status.json`, and Codex's session files. It does not call the Anthropic / OpenAI API and does not read the Keychain. The only network activity is a one-time download of the LiteLLM pricing table for Codex cost estimates (cached for 7 days; offline fallback available).
 - When Claude Code isn't running, the status file isn't updated — but actual usage isn't changing either (until reset time), so the displayed value is still accurate. After reset time passes, it auto-resets to zero.
 - If the status file hasn't been updated for more than 6 hours, the status line notes "status file is N minutes stale, numbers may be out of date."
 

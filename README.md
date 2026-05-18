@@ -44,7 +44,8 @@ flowchart LR
 讀檔的優先順序：
 
 1. `~/.claude/usage-status.json` —— usage 自己 hook 寫的
-2. `~/.claude/tt-status.json` —— 備援；如果你也裝過 [token-tracker](https://github.com/stormzhang/token-tracker)，usage 會直接共用它的狀態檔
+2. `~/.claude/usag-status.json` —— v0.1.x legacy 自動 fallback，新使用者不會碰到
+3. `~/.claude/tt-status.json` —— 備援；如果你也裝過 [token-tracker](https://github.com/stormzhang/token-tracker)，usage 會直接共用它的狀態檔
 
 ### Codex 用量
 
@@ -224,7 +225,7 @@ USAGE_DEBUG=1 python3 main.py
 
 ## 一些行為說明
 
-- usage 只讀 `~/.claude/usage-status.json`、`~/.claude/tt-status.json`，以及 Codex 的 session 檔。不呼叫 Anthropic / OpenAI API、不讀 Keychain。唯一會連網的情況是首次估算 Codex 成本時下載 LiteLLM 價格表（快取 7 天，離線也能用 fallback）。
+- usage 只讀 `~/.claude/usage-status.json`、v0.1.x 留下的 `~/.claude/usag-status.json`、`~/.claude/tt-status.json`，以及 Codex 的 session 檔。不呼叫 Anthropic / OpenAI API、不讀 Keychain。唯一會連網的情況是首次估算 Codex 成本時下載 LiteLLM 價格表（快取 7 天，離線也能用 fallback）。
 - Claude Code 沒在跑的時候，狀態檔不會更新；但因為實際用量也不會變（除非重置時間到了），所以顯示的數字仍然是有效的；重置時間過了會自動歸零。
 - 如果狀態檔超過 6 小時沒被更新過，會在狀態訊息標註「狀態檔已 N 分鐘未更新，數字可能過時」。
 
