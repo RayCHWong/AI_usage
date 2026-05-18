@@ -60,7 +60,7 @@ jobs:
           if ! gh release view "${{ steps.ref.outputs.tag }}" >/dev/null 2>&1; then
             gh release create \
               "${{ steps.ref.outputs.tag }}" \
-              --target "${{ steps.ref.outputs.ref }}" \
+              --target "${{ github.sha }}" \
               --title "${{ steps.ref.outputs.tag }}" \
               --notes ""
           fi
