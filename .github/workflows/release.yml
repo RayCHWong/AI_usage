@@ -46,11 +46,39 @@ jobs:
       - name: Build .app
         run: python3 setup_app.py py2app
 
-      - name: Zip .app
+      - name: Verify .app bundle contents
         run: |
+          set -e
           if [[ -d dist/main.app && ! -d dist/usage.app ]]; then
             mv dist/main.app dist/usage.app
           fi
+
+          dump_resources() {
+            echo "Contents/Resources listing:"
+            ls -lR dist/usage.app/Contents/Resources | head -50 || true
+          }
+
+          verify_file() {
+            if [[ ! -f "$1" ]]; then
+              echo "Missing required bundle file: $1"
+              dump_resources
+              exit 1
+            fi
+          }
+
+          if [[ ! -d dist/usage.app ]]; then
+            echo "Missing app bundle: dist/usage.app"
+            ls -l dist || true
+            exit 1
+          fi
+
+          verify_file dist/usage.app/Contents/Resources/usage_statusline.py
+          verify_file dist/usage.app/Contents/Resources/assets/claude.webp
+          verify_file dist/usage.app/Contents/Resources/assets/codex.webp
+          verify_file dist/usage.app/Contents/Info.plist
+
+      - name: Zip .app
+        run: |
           cd dist && zip -r usage.app.zip usage.app
 
       - name: Ensure release exists
