@@ -156,11 +156,13 @@ python3 main.py
   - **Default**: the original two-card + footer layout.
   - **Taiwan usage monitor**: a red-on-white themed variant with a top header bar containing the TAIWAN flag icon.
   - **Matrix / 駭客任務** (v0.3.1+): animated digital-rain panel with cascading katakana characters, Matrix-green palette, and terminal bracket–style buttons.
+  - **ECG**: medical-monitor style with two live ECG waveform channels — LEAD A for Claude Code and LEAD B for Codex. Waveform amplitude scales with quota usage; higher burn rate produces more intense peaks.
 
   <p align="center">
     <img src="docs/popover.png" alt="default panel" width="220">
     <img src="docs/popover-taiwan.png" alt="Taiwan usage monitor panel" width="220">
     <img src="docs/popover-matrix.png" alt="Matrix panel" width="220">
+    <img src="docs/popover-ecg.png" alt="ECG panel" width="220">
   </p>
 
   Your choice is persisted via `NSUserDefaults`, so the last selected panel survives restarts.

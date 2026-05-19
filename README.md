@@ -158,11 +158,13 @@ python3 main.py
   - **預設**：原本兩張卡 + 速率/狀態/今日 的英式風格
   - **台灣用量監控**：紅底白字、上方加一條含 TAIWAN 旗 icon 的標題列
   - **駭客任務**（v0.3.1+）：黑底綠字數位雨動畫，Matrix 風格終端機介面
+  - **ECG 心電圖**：醫療監視器風格，LEAD A（Claude）與 LEAD B（Codex）各有一條即時 ECG 波形動畫，振幅跟著 quota 使用率變化，速率越高波形越激烈
 
   <p align="center">
     <img src="docs/popover.png" alt="預設面板" width="220">
     <img src="docs/popover-taiwan.png" alt="台灣用量監控面板" width="220">
     <img src="docs/popover-matrix.png" alt="駭客任務面板" width="220">
+    <img src="docs/popover-ecg.png" alt="ECG 心電圖面板" width="220">
   </p>
 
   選擇會記進 `NSUserDefaults`（macOS 內建的偏好設定儲存區），下次開 app 會記得上次選的面板。
