@@ -113,12 +113,12 @@ def _suffix(text: str) -> str:
 def _pulse_profile(rate_text: str) -> tuple[float, float]:
     lowered = rate_text.lower()
     if "heavy" in lowered:
-        return (1.0, 1.85)
+        return (1.0, 0.92)
     if "active" in lowered:
-        return (0.74, 1.45)
+        return (0.74, 0.72)
     if "normal" in lowered:
-        return (0.48, 1.10)
-    return (0.18, 0.72)
+        return (0.48, 0.55)
+    return (0.18, 0.36)
 
 
 def _ecg_shape(progress: float) -> float:
@@ -246,7 +246,7 @@ class ECGMonitorView(NSView):
         if self is None:
             return None
         self.phase = 0.0
-        self.speed_factor = 0.72
+        self.speed_factor = 0.36
         self.claude_amplitude = 0.18
         self.codex_amplitude = 0.18
         self.timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
