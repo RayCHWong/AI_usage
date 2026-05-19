@@ -22,6 +22,10 @@
     <string>__HOME__/Library/Logs/usage/usage.log</string>
     <key>StandardErrorPath</key>
     <string>__HOME__/Library/Logs/usage/usage.err.log</string>
+    <key>ThrottleInterval</key>
+    <integer>15</integer>
+    <key>StartDelay</key>
+    <integer>10</integer>
     <key>ProcessType</key>
     <string>Interactive</string>
 </dict>
