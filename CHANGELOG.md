@@ -4,7 +4,7 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
-## Unreleased
+## 0.3.2 — 2026-05-19
 
 ### 新增
 - **ECG 心電圖面板**：醫療監視器風格面板。`ECGView` 以 `NSTimer`（80ms）驅動雙通道 ECG 波形動畫，LEAD A 對應 Claude Code、LEAD B 對應 Codex；波形振幅隨 quota 使用率縮放，速率（burn rate）越高波形節奏越激烈。文字標籤與波形區域垂直分區，互不重疊。

@@ -7,7 +7,6 @@ from panels.matrix import MatrixPanel
 from panels.taiwan import TaiwanPanel
 
 PANELS: tuple[Panel, ...] = (ClassicPanel(), TaiwanPanel, MatrixPanel(), ECGPanel())
-DEFAULT_PANEL_ID = "classic"
 
 
 def all_panels() -> tuple[Panel, ...]:
