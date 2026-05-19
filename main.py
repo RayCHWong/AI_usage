@@ -6,9 +6,7 @@ import logging
 import os
 import time
 from contextlib import suppress
-
-from rich.console import Console
-from rich.live import Live
+from typing import Any
 
 import menubar
 from tui import AppViewState, render_screen
@@ -16,6 +14,20 @@ from usage_client import ClaudeUsageClient, PollOutcome, PollState
 from usage_rate import UsageRateTracker
 
 SPRITE_INTERVAL_S = [2.0, 0.8, 0.4, 0.15]  # idle/normal/active/heavy
+
+
+def _load_rich() -> tuple[type[Any], type[Any]]:
+    for _attempt in range(6):
+        try:
+            from rich.console import Console
+            from rich.live import Live
+
+            return Console, Live
+        except OSError:
+            if _attempt >= 5:
+                raise
+            time.sleep(3)
+    raise RuntimeError("unreachable")
 
 
 def _setup_logging() -> None:
@@ -91,6 +103,7 @@ def _apply_outcome(state: AppViewState, outcome: PollOutcome) -> None:
 
 
 async def run_tui(mock: bool, interval: int, force_group: int | None = None) -> None:
+    Console, Live = _load_rich()
     console = Console()
     state = AppViewState()
     tracker = UsageRateTracker(forced_group=force_group, mock=mock)
