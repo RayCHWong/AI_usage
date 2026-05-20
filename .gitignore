@@ -13,3 +13,4 @@ dist/
 *.egg-info/
 .pytest_cache/
 .coverage
+.antigravitycli/

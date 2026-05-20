@@ -2,31 +2,39 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import logging
 import os
 import time
 from contextlib import suppress
 from typing import Any
 
-import menubar
-from tui import AppViewState, render_screen
 from usage_client import ClaudeUsageClient, PollOutcome, PollState
 from usage_rate import UsageRateTracker
 
 SPRITE_INTERVAL_S = [2.0, 0.8, 0.4, 0.15]  # idle/normal/active/heavy
+IMPORT_RETRY_ATTEMPTS = 6
+IMPORT_RETRY_DELAY_S = 3.0
+
+logger = logging.getLogger(__name__)
 
 
 def _load_rich() -> tuple[type[Any], type[Any]]:
-    for _attempt in range(6):
-        try:
-            from rich.console import Console
-            from rich.live import Live
+    rich_console = _import_module_with_oserror_retry("rich.console")
+    rich_live = _import_module_with_oserror_retry("rich.live")
+    return rich_console.Console, rich_live.Live
 
-            return Console, Live
+
+def _import_module_with_oserror_retry(name: str) -> Any:
+    """Retry imports that can transiently fail under launchd with Errno 11."""
+    for attempt in range(IMPORT_RETRY_ATTEMPTS):
+        try:
+            return importlib.import_module(name)
         except OSError:
-            if _attempt >= 5:
+            if attempt >= IMPORT_RETRY_ATTEMPTS - 1:
                 raise
-            time.sleep(3)
+            logger.warning("import failed for %s, retrying", name, exc_info=True)
+            time.sleep(IMPORT_RETRY_DELAY_S)
     raise RuntimeError("unreachable")
 
 
@@ -77,7 +85,7 @@ def parse_args() -> argparse.Namespace:
 
 async def poll_usage(
     client: ClaudeUsageClient,
-    state: AppViewState,
+    state: Any,
     stop_event: asyncio.Event,
 ) -> None:
     while not stop_event.is_set():
@@ -92,7 +100,7 @@ async def poll_usage(
         _apply_outcome(state, outcome)
 
 
-def _apply_outcome(state: AppViewState, outcome: PollOutcome) -> None:
+def _apply_outcome(state: Any, outcome: PollOutcome) -> None:
     state.poll_state = outcome.state
     if outcome.snapshot is not None:
         state.snapshot = outcome.snapshot
@@ -103,9 +111,10 @@ def _apply_outcome(state: AppViewState, outcome: PollOutcome) -> None:
 
 
 async def run_tui(mock: bool, interval: int, force_group: int | None = None) -> None:
+    tui = _import_module_with_oserror_retry("tui")
     Console, Live = _load_rich()
     console = Console()
-    state = AppViewState()
+    state = tui.AppViewState()
     tracker = UsageRateTracker(forced_group=force_group, mock=mock)
     stop_event = asyncio.Event()
     client = ClaudeUsageClient(interval_seconds=interval, mock=mock)
@@ -117,7 +126,7 @@ async def run_tui(mock: bool, interval: int, force_group: int | None = None) -> 
         poll_task = asyncio.create_task(poll_usage(client, state, stop_event))
 
         with Live(
-            render_screen(state, 0),
+            tui.render_screen(state, 0),
             console=console,
             screen=True,
             refresh_per_second=10,
@@ -133,7 +142,7 @@ async def run_tui(mock: bool, interval: int, force_group: int | None = None) -> 
                 interval_s = SPRITE_INTERVAL_S[effective_group]
                 frame_index = int((now - start_time) / interval_s) % 4
 
-                live.update(render_screen(state, frame_index), refresh=True)
+                live.update(tui.render_screen(state, frame_index), refresh=True)
                 await asyncio.sleep(0.1)
 
         await poll_task
@@ -159,6 +168,7 @@ def main() -> None:
                 run_tui(mock=args.mock, interval=args.interval, force_group=args.force_group)
             )
     else:
+        menubar = _import_module_with_oserror_retry("menubar")
         menubar.run_app(mock=args.mock, interval=args.interval)
 
 
