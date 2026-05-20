@@ -194,7 +194,6 @@ def _state_payload(state: PopoverState) -> dict[str, object]:
         "antigravity": {
             "session": _row_payload(state.antigravity_session),
             "weekly": _row_payload(state.antigravity_weekly),
-            "model": state.antigravity_model,
         },
         "footer": {
             "rate": state.rate_text,

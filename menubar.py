@@ -117,7 +117,6 @@ class PopoverState:
     codex_weekly: QuotaRowState
     antigravity_session: QuotaRowState
     antigravity_weekly: QuotaRowState
-    antigravity_model: str
     rate_text: str
     status_text: str
     today_text: str
@@ -350,7 +349,7 @@ class AppDelegate(NSObject):
         self,
         outcome: PollOutcome,
         codex_rows: tuple[QuotaRowState, QuotaRowState],
-        antigravity_rows: tuple[QuotaRowState, QuotaRowState, str],
+        antigravity_rows: tuple[QuotaRowState, QuotaRowState],
     ) -> PopoverState:
         now = time.time()
         today_text = _today_title(self.mock)
@@ -387,7 +386,6 @@ class AppDelegate(NSObject):
             codex_weekly=codex_rows[1],
             antigravity_session=antigravity_rows[0],
             antigravity_weekly=antigravity_rows[1],
-            antigravity_model=antigravity_rows[2],
             rate_text=f"速率：{group_name}",
             status_text=status_text,
             today_text=today_text,
@@ -436,13 +434,12 @@ class AppDelegate(NSObject):
         )
         return rows, codex_5h_pct
 
-    def _antigravity_rows(self) -> tuple[QuotaRowState, QuotaRowState, str]:
+    def _antigravity_rows(self) -> tuple[QuotaRowState, QuotaRowState]:
         if self.mock:
             now = time.time()
             return (
                 _quota_row("Session", 28.0, now + (3 * 3600) + (42 * 60), now, ANTIGRAVITY_COLOR),
                 _quota_row("Weekly", 41.0, now + (5 * 86400) + (6 * 3600), now, ANTIGRAVITY_COLOR),
-                "Gemini 3 Pro",
             )
 
         try:
@@ -453,7 +450,6 @@ class AppDelegate(NSObject):
             return (
                 _missing_row("Session", ANTIGRAVITY_COLOR),
                 _missing_row("Weekly", ANTIGRAVITY_COLOR),
-                "--",
             )
 
         now = time.time()
@@ -476,7 +472,6 @@ class AppDelegate(NSObject):
                 now,
                 ANTIGRAVITY_COLOR,
             ),
-            snapshot.active_model or "--",
         )
 
     def _compose_title(self, state: PopoverState) -> str:
@@ -510,7 +505,6 @@ def _empty_state() -> PopoverState:
         codex_weekly=_missing_row("Weekly", CODEX_COLOR),
         antigravity_session=_missing_row("Session", ANTIGRAVITY_COLOR),
         antigravity_weekly=_missing_row("Weekly", ANTIGRAVITY_COLOR),
-        antigravity_model="--",
         rate_text="速率：--",
         status_text="狀態：載入中",
         today_text="今日：$0.00 (0 tokens)",

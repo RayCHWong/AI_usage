@@ -20,43 +20,9 @@ def _urlopen_context(payload: dict[str, Any]) -> MagicMock:
     return context
 
 
-def test_read_active_model_returns_none_when_log_dir_missing(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(antigravity_loader, "LOG_DIR", tmp_path / "missing")
-
-    assert antigravity_loader._read_active_model() is None
-
-
-def test_read_active_model_returns_model_label_from_matching_log(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    log_dir = tmp_path / "log"
-    log_dir.mkdir()
-    (log_dir / "antigravity.log").write_text(
-        'info Propagating selected model override label="gemini-2.5-pro"\n',
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(antigravity_loader, "LOG_DIR", log_dir)
-
-    assert antigravity_loader._read_active_model() == "gemini-2.5-pro"
-
-
-def test_read_active_model_returns_none_when_no_log_line_matches(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    log_dir = tmp_path / "log"
-    log_dir.mkdir()
-    (log_dir / "antigravity.log").write_text("info no selected model here\n", encoding="utf-8")
-    monkeypatch.setattr(antigravity_loader, "LOG_DIR", log_dir)
-
-    assert antigravity_loader._read_active_model() is None
-
-
 def test_load_antigravity_returns_empty_snapshot_when_creds_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(antigravity_loader, "LOG_DIR", tmp_path / "missing-log")
     monkeypatch.setattr(antigravity_loader, "CREDS_PATH", tmp_path / "missing-creds.json")
 
     snapshot = antigravity_loader.load_antigravity()
@@ -67,14 +33,12 @@ def test_load_antigravity_returns_empty_snapshot_when_creds_missing(
     assert snapshot.resets_at is None
     assert snapshot.weekly_used_percent is None
     assert snapshot.weekly_resets_at is None
-    assert snapshot.active_model is None
     assert snapshot.polled_at is not None
 
 
 def test_load_antigravity_reads_quota_bucket_for_valid_access_token(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(antigravity_loader, "LOG_DIR", tmp_path / "missing-log")
     creds_path = tmp_path / "oauth_creds.json"
     creds_path.write_text(
         json.dumps(
@@ -113,7 +77,6 @@ def test_load_antigravity_reads_quota_bucket_for_valid_access_token(
 def test_load_antigravity_splits_session_and_weekly_buckets(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(antigravity_loader, "LOG_DIR", tmp_path / "missing-log")
     now = 1_800_000_000.0
     creds_path = tmp_path / "oauth_creds.json"
     creds_path.write_text(
@@ -172,7 +135,6 @@ def test_load_antigravity_splits_session_and_weekly_buckets(
 def test_load_antigravity_returns_none_used_percent_when_api_has_no_buckets(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(antigravity_loader, "LOG_DIR", tmp_path / "missing-log")
     creds_path = tmp_path / "oauth_creds.json"
     creds_path.write_text(
         json.dumps(
@@ -197,7 +159,6 @@ def test_load_antigravity_returns_none_used_percent_when_api_has_no_buckets(
 def test_load_antigravity_returns_empty_snapshot_when_urlopen_raises(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(antigravity_loader, "LOG_DIR", tmp_path / "missing-log")
     creds_path = tmp_path / "oauth_creds.json"
     creds_path.write_text(
         json.dumps(
@@ -219,5 +180,4 @@ def test_load_antigravity_returns_empty_snapshot_when_urlopen_raises(
     assert snapshot.resets_at is None
     assert snapshot.weekly_used_percent is None
     assert snapshot.weekly_resets_at is None
-    assert snapshot.active_model is None
     assert snapshot.polled_at is not None
