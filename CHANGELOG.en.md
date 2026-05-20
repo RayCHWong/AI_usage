@@ -12,7 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **Antigravity quota tracking**: the popover now shows three cards for Claude Code, Codex, and Antigravity; the Antigravity card has two rows for current usage (Session) and weekly cap (Weekly).
 
 ### Changed
-- `antigravity_loader` now splits quota buckets by reset window: ≤24h becomes Session and >24h becomes Weekly. When Google's API exposes a weekly bucket, Weekly fills automatically.
+- `antigravity_loader` now splits quota buckets by reset window: shorter windows become Session and longer windows become Weekly. When Google's API exposes a weekly bucket, Weekly fills automatically.
 - WKWebView integration adds a JS bridge (refresh / quit / switch), preload support, and a dark backing layer to remove launch-time white flash; panel switching tears down the web view to break retain cycles.
 - New dependencies: `pyobjc-framework-WebKit`, `pyobjc-framework-Quartz`.
 

@@ -132,6 +132,47 @@ def test_load_antigravity_splits_session_and_weekly_buckets(
     assert snapshot.weekly_resets_at == now + 6 * 86400
 
 
+def test_load_antigravity_classifies_edge_24h_bucket_as_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    now = 1_800_000_000.0
+    creds_path = tmp_path / "oauth_creds.json"
+    creds_path.write_text(
+        json.dumps(
+            {
+                "access_token": "access-token",
+                "expiry_date": 9_999_999_999_999,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(antigravity_loader, "CREDS_PATH", creds_path)
+
+    edge_reset = datetime.fromtimestamp(now + 87000, UTC).isoformat().replace(
+        "+00:00", "Z"
+    )
+    with (
+        patch("antigravity_loader.time.time", return_value=now),
+        patch("antigravity_loader.urllib.request.urlopen") as urlopen_mock,
+    ):
+        urlopen_mock.return_value = _urlopen_context(
+            {
+                "buckets": [
+                    {
+                        "remainingFraction": 0.6,
+                        "modelId": "edge-session-model",
+                        "resetTime": edge_reset,
+                    }
+                ]
+            }
+        )
+
+        snapshot = antigravity_loader.load_antigravity()
+
+    assert snapshot.used_percent is not None
+    assert snapshot.weekly_used_percent is None
+
+
 def test_load_antigravity_returns_none_used_percent_when_api_has_no_buckets(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

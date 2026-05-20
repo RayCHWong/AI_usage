@@ -11,7 +11,7 @@
 - **Antigravity 額度追蹤**：popover 現在顯示 Claude Code / Codex / Antigravity 三張卡；Antigravity 卡含目前用量（Session）與每週上限（Weekly）兩排。
 
 ### 變更
-- `antigravity_loader` 依重置視窗自動分流：≤24h 歸為 Session，>24h 歸為 Weekly；Google API 補上週 bucket 時 Weekly 會自動填值。
+- `antigravity_loader` 依重置視窗自動分流：短窗歸為 Session，長窗歸為 Weekly；Google API 補上週 bucket 時 Weekly 會自動填值。
 - WKWebView 整合加入 JS bridge（refresh / quit / switch）、預先載入與深色 layer，減少開啟時白閃；切換面板時會 teardown 以解除 retain cycle。
 - 新增依賴：`pyobjc-framework-WebKit`、`pyobjc-framework-Quartz`。
 
