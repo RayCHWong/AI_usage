@@ -4,9 +4,9 @@ from panels.base import ThemeConfig, ThemedPanel
 
 TAIWAN_THEME = ThemeConfig(
     id="taiwan",
-    display_name="台灣用量監控",
+    display_name="Taiwan Usage Monitor",
     icon_asset="taiwan.png",
-    header_title="台灣用量監控",
+    header_title="Taiwan Usage Monitor",
     bg_top=(0.55, 0.05, 0.08),
     bg_bottom=(0.42, 0.03, 0.05),
     card_bg=(0.30, 0.0, 0.02, 0.6),

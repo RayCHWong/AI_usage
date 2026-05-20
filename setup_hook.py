@@ -42,7 +42,7 @@ def _resolve_hook_source() -> Path:
         if path.exists():
             return path
     tried = ", ".join(str(path) for path in paths)
-    raise SystemExit(f"❌ 找不到 hook 原始檔，tried: {tried}")
+    raise SystemExit(f"❌ Hook source file not found, tried: {tried}")
 
 
 def _statusline_command() -> str:
@@ -67,7 +67,7 @@ def _migrate_from_legacy_usage() -> None:
                 path.unlink()
                 changed = True
         except OSError as exc:
-            print(f"⚠ 無法移除舊檔 {path}: {exc}")
+            print(f"⚠ Failed to remove legacy file {path}: {exc}")
 
     settings: dict[str, Any] | None = None
     try:
@@ -77,9 +77,9 @@ def _migrate_from_legacy_usage() -> None:
             if isinstance(data, dict):
                 settings = data
             else:
-                print(f"⚠ {CLAUDE_SETTINGS} 不是 JSON object，略過 migration")
+                print(f"⚠ {CLAUDE_SETTINGS} is not a JSON object, skipping migration")
     except (OSError, json.JSONDecodeError) as exc:
-        print(f"⚠ 無法讀取舊設定做 migration: {exc}")
+        print(f"⚠ Failed to read legacy settings for migration: {exc}")
 
     if settings is not None:
         try:
@@ -93,7 +93,7 @@ def _migrate_from_legacy_usage() -> None:
                 settings.pop("statusLine", None)
                 changed = True
         except Exception as exc:
-            print(f"⚠ 無法清理舊 statusLine: {exc}")
+            print(f"⚠ Failed to clean up legacy statusLine: {exc}")
 
         try:
             legacy_backup = settings.pop(LEGACY_BACKUP_KEY, None)
@@ -107,18 +107,18 @@ def _migrate_from_legacy_usage() -> None:
             elif legacy_backup is not None:
                 changed = True
         except Exception as exc:
-            print(f"⚠ 無法搬移舊備份 key: {exc}")
+            print(f"⚠ Failed to migrate legacy backup key: {exc}")
 
         if changed:
             try:
                 _save_settings(settings)
             except Exception as exc:
-                print(f"⚠ 無法寫回 migration 設定: {exc}")
+                print(f"⚠ Failed to write back migration settings: {exc}")
 
     if changed:
-        print(f"ℹ 已從 v0.1.x ({LEGACY_NAME}) 自動 migrate 到 usage")
+        print(f"ℹ Auto-migrated from v0.1.x ({LEGACY_NAME}) to usage")
     else:
-        print("ℹ 無需 migration")
+        print("ℹ No migration needed")
 
 
 def _load_settings() -> dict[str, Any]:
@@ -128,9 +128,9 @@ def _load_settings() -> dict[str, Any]:
         with CLAUDE_SETTINGS.open(encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"❌ 無法讀取 {CLAUDE_SETTINGS}: {exc}") from exc
+        raise SystemExit(f"❌ Failed to read {CLAUDE_SETTINGS}: {exc}") from exc
     if not isinstance(data, dict):
-        raise SystemExit(f"❌ {CLAUDE_SETTINGS} 必須是 JSON object")
+        raise SystemExit(f"❌ {CLAUDE_SETTINGS} must be a JSON object")
     return data
 
 
@@ -160,7 +160,7 @@ def _copy_hook_script() -> None:
 def setup() -> int:
     _migrate_from_legacy_usage()
     if not CLAUDE_SETTINGS.parent.exists():
-        print("❌ 找不到 ~/.claude/，請先安裝並執行過 Claude Code 一次", file=sys.stderr)
+        print("❌ ~/.claude/ not found, please install and run Claude Code at least once", file=sys.stderr)
         return 1
 
     settings = _load_settings()
@@ -173,14 +173,14 @@ def setup() -> int:
             backup = {}
             settings[BACKUP_KEY] = backup
         backup[PREV_SL_KEY] = existing
-        print(f"ℹ 已備份原有 statusLine 到 settings.{BACKUP_KEY}.{PREV_SL_KEY}")
+        print(f"ℹ Backed up existing statusLine to settings.{BACKUP_KEY}.{PREV_SL_KEY}")
 
     settings["statusLine"] = {"type": "command", "command": _statusline_command()}
     _save_settings(settings)
 
-    print(f"✓ hook 已安裝：{HOOK_TARGET}")
-    print(f"✓ settings 已更新：{CLAUDE_SETTINGS}")
-    print("ℹ 請重新開啟 Claude Code 一次（讓它重新讀 settings 並刷新一次 statusLine）")
+    print(f"✓ Hook installed: {HOOK_TARGET}")
+    print(f"✓ Settings updated: {CLAUDE_SETTINGS}")
+    print("ℹ Please restart Claude Code once (so it re-reads settings and refreshes the statusLine)")
     return 0
 
 
@@ -193,10 +193,10 @@ def unsetup() -> int:
         prev = backup.get(PREV_SL_KEY) if isinstance(backup, dict) else None
         if isinstance(prev, dict):
             settings["statusLine"] = prev
-            print("✓ 已還原原有 statusLine")
+            print("✓ Restored previous statusLine")
         else:
             settings.pop("statusLine", None)
-            print("✓ 已移除 usage statusLine")
+            print("✓ Removed usage statusLine")
 
         if isinstance(backup, dict):
             backup.pop(PREV_SL_KEY, None)
@@ -205,14 +205,14 @@ def unsetup() -> int:
 
         _save_settings(settings)
     else:
-        print("ℹ statusLine 不是 usage 安裝的，settings 未動")
+        print("ℹ statusLine was not installed by usage, settings unchanged")
 
     if HOOK_TARGET.exists():
         HOOK_TARGET.unlink()
-        print(f"✓ 已刪除 hook：{HOOK_TARGET}")
+        print(f"✓ Deleted hook: {HOOK_TARGET}")
 
     if STATUS_FILE.exists():
         STATUS_FILE.unlink()
-        print(f"✓ 已刪除狀態檔：{STATUS_FILE}")
+        print(f"✓ Deleted status file: {STATUS_FILE}")
 
     return 0

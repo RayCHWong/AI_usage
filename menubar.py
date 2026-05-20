@@ -66,7 +66,6 @@ BUTTON_TOP_GAP = 18.0
 BUTTON_HEIGHT = 32.0
 INSTALL_BUTTON_EXTRA_HEIGHT = BUTTON_HEIGHT + 10.0
 CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
-CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
 WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
 DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
 
@@ -92,7 +91,6 @@ def _resolve_resource(name: str) -> str:
 
 
 CLAUDE_ICON_PATH = _resolve_resource("claude.webp")
-CODEX_ICON_PATH = _resolve_resource("codex.webp")
 
 _APP_DELEGATE: AppDelegate | None = None
 
@@ -111,8 +109,6 @@ class QuotaRowState:
 class PopoverState:
     claude_session: QuotaRowState
     claude_weekly: QuotaRowState
-    codex_session: QuotaRowState
-    codex_weekly: QuotaRowState
     rate_text: str
     status_text: str
     today_text: str
@@ -168,7 +164,6 @@ class AppDelegate(NSObject):
     tracker = objc.ivar()
     latest_state = objc.ivar()
     active_panel = objc.ivar()
-    codex_5h_pct = objc.ivar()
     _refresh_in_flight = objc.ivar()
 
     def initWithMock_interval_(self, mock: bool, interval: int) -> AppDelegate:
@@ -178,7 +173,6 @@ class AppDelegate(NSObject):
         self.mock = mock
         self.interval = max(30, interval)
         self.tracker = UsageRateTracker(mock=mock)
-        self.codex_5h_pct = None
         self.latest_state = _empty_state()
         self.active_panel = panels.get_panel(load_active_panel_id())
         self._refresh_in_flight = False
@@ -229,7 +223,7 @@ class AppDelegate(NSObject):
         NSApp.terminate_(sender)
 
     def switchPanel_(self, sender: Any) -> None:
-        menu = NSMenu.alloc().initWithTitle_("更換面板")
+        menu = NSMenu.alloc().initWithTitle_("Switch Panel")
         for panel in panels.all_panels():
             item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                 panel.display_name,
@@ -273,23 +267,18 @@ class AppDelegate(NSObject):
     def _refresh_in_background(self) -> None:
         try:
             outcome = asyncio.run(self._fetch())
-            codex_rows, codex_5h_pct = self._codex_rows()
-            state = self._state_from_outcome(outcome, codex_rows)
+            state = self._state_from_outcome(outcome)
         except Exception as exc:
-            codex_5h_pct = None
             state = _error_state(type(exc).__name__, self.mock)
 
-        result = {"state": state, "codex_5h_pct": codex_5h_pct}
         self.performSelectorOnMainThread_withObject_waitUntilDone_(
             "_applyRefreshResult:",
-            result,
+            {"state": state},
             False,
         )
 
     def _applyRefreshResult_(self, result: dict[str, Any]) -> None:
         state = result["state"]
-        codex_5h_pct = result["codex_5h_pct"]
-        self.codex_5h_pct = codex_5h_pct
         self.latest_state = state
         self.popover_controller.setState_(state)
         self.popover.setContentSize_(_popover_size(state, self.active_panel))
@@ -324,10 +313,10 @@ class AppDelegate(NSObject):
     def _finishHookInstall_(self, result: dict[str, Any]) -> None:
         alert = NSAlert.alloc().init()
         if result["success"]:
-            alert.setMessageText_("已安裝完成，請重開 Claude Code 一次")
+            alert.setMessageText_("Installed successfully, please restart Claude Code")
         else:
-            alert.setMessageText_("安裝 hook 失敗")
-            alert.setInformativeText_(result["message"] or "setup_hook.setup() 回傳失敗")
+            alert.setMessageText_("Hook installation failed")
+            alert.setInformativeText_(result["message"] or "setup_hook.setup() returned failure")
         alert.runModal()
         self._refresh()
 
@@ -338,15 +327,11 @@ class AppDelegate(NSObject):
         finally:
             await client.aclose()
 
-    def _state_from_outcome(
-        self,
-        outcome: PollOutcome,
-        codex_rows: tuple[QuotaRowState, QuotaRowState],
-    ) -> PopoverState:
+    def _state_from_outcome(self, outcome: PollOutcome) -> PopoverState:
         now = time.time()
         today_text = _today_title(self.mock)
         group_name = GROUP_NAMES[self.tracker.group()]
-        status_text = f"狀態：{outcome.message or '載入中'}"
+        status_text = f"Status: {outcome.message or 'Loading'}"
 
         if outcome.state == PollState.SUCCESS and outcome.snapshot is not None:
             snapshot = outcome.snapshot
@@ -365,71 +350,24 @@ class AppDelegate(NSObject):
                 now,
                 CLAUDE_COLOR,
             )
-            status_text = f"狀態：{outcome.message or '✓ 已同步'}"
+            status_text = f"Status: {outcome.message or '✓ Synced'}"
         else:
             claude_session = _missing_row("Session", CLAUDE_COLOR)
             claude_weekly = _missing_row("Weekly", CLAUDE_COLOR)
-            status_text = f"狀態：{outcome.message or '無資料'}"
+            status_text = f"Status: {outcome.message or 'No data'}"
 
         return PopoverState(
             claude_session=claude_session,
             claude_weekly=claude_weekly,
-            codex_session=codex_rows[0],
-            codex_weekly=codex_rows[1],
-            rate_text=f"速率：{group_name}",
+            rate_text=f"Rate: {group_name}",
             status_text=status_text,
             today_text=today_text,
             show_install_button=outcome.state == PollState.TOKEN_ERROR,
         )
 
-    def _codex_rows(self) -> tuple[tuple[QuotaRowState, QuotaRowState], int | None]:
-        if self.mock:
-            now = time.time()
-            rows = (
-                _quota_row("Session", 12.0, now + (4 * 3600) + (15 * 60), now, CODEX_COLOR),
-                _quota_row("Weekly", 28.0, now + (4 * 86400), now, CODEX_COLOR),
-            )
-            return rows, 12
-
-        try:
-            rate_limits = codex_loader.load_rate_limits()
-        except Exception:
-            if os.environ.get("USAGE_DEBUG") == "1":
-                logger.warning("codex rate limits load failed", exc_info=True)
-            rate_limits = None
-
-        if rate_limits is None:
-            rows = _missing_row("Session", CODEX_COLOR), _missing_row("Weekly", CODEX_COLOR)
-            return rows, None
-
-        now = time.time()
-        codex_5h_pct = (
-            round(rate_limits.five_hour_pct) if rate_limits.five_hour_pct is not None else None
-        )
-        rows = (
-            _quota_row(
-                "Session",
-                rate_limits.five_hour_pct,
-                rate_limits.five_hour_resets_at,
-                now,
-                CODEX_COLOR,
-            ),
-            _quota_row(
-                "Weekly",
-                rate_limits.seven_day_pct,
-                rate_limits.seven_day_resets_at,
-                now,
-                CODEX_COLOR,
-            ),
-        )
-        return rows, codex_5h_pct
-
     def _compose_title(self, state: PopoverState) -> str:
-        claude_text = state.claude_session.percent_text.replace(" 已用", "")
-        base = "🐾 --" if claude_text == "--" else f"🐾 {claude_text}"
-        if self.codex_5h_pct is None:
-            return base
-        return f"{base} · 📜 {self.codex_5h_pct}%"
+        claude_text = state.claude_session.percent_text.replace(" used", "")
+        return "🐾 --" if claude_text == "--" else f"🐾 {claude_text}"
 
 
 def run_app(mock: bool = False, interval: int = 60) -> None:
@@ -451,18 +389,16 @@ def _empty_state() -> PopoverState:
     return PopoverState(
         claude_session=_missing_row("Session", CLAUDE_COLOR),
         claude_weekly=_missing_row("Weekly", CLAUDE_COLOR),
-        codex_session=_missing_row("Session", CODEX_COLOR),
-        codex_weekly=_missing_row("Weekly", CODEX_COLOR),
-        rate_text="速率：--",
-        status_text="狀態：載入中",
-        today_text="今日：$0.00 (0 tokens)",
+        rate_text="Rate: --",
+        status_text="Status: Loading",
+        today_text="Today: $0.00 (0 tokens)",
         show_install_button=False,
     )
 
 
 def _error_state(message: str, mock: bool) -> PopoverState:
     state = _empty_state()
-    state.status_text = f"狀態：錯誤 ({message})"
+    state.status_text = f"Status: Error ({message})"
     state.today_text = _today_title(mock)
     state.show_install_button = False
     return state
@@ -481,8 +417,8 @@ def _quota_row(
     return QuotaRowState(
         title=title,
         percent=pct,
-        percent_text=f"{_format_percent(pct)}% 已用",
-        reset_text=f"重置 {format_human_time(resets_at - now)}",
+        percent_text=f"{_format_percent(pct)}% used",
+        reset_text=f"Resets {format_human_time(resets_at - now)}",
         color=_bar_color(pct, color),
         available=True,
     )
@@ -493,7 +429,7 @@ def _missing_row(title: str, color: tuple[float, float, float]) -> QuotaRowState
         title=title,
         percent=None,
         percent_text="--",
-        reset_text="重置 --",
+        reset_text="Resets --",
         color=color,
         available=False,
     )
@@ -501,7 +437,7 @@ def _missing_row(title: str, color: tuple[float, float, float]) -> QuotaRowState
 
 def _today_title(mock: bool = False) -> str:
     if mock:
-        return "今日：$45.20 (50,193,442 tokens)"
+        return "Today: $45.20 (50,193,442 tokens)"
 
     today = datetime.now().astimezone().date()
     total_tokens = 0
@@ -514,7 +450,7 @@ def _today_title(mock: bool = False) -> str:
         total_tokens += entry.total_tokens
         total_cost += calculate_cost(entry)
 
-    return f"今日：${total_cost:.2f} ({total_tokens:,} tokens)"
+    return f"Today: ${total_cost:.2f} ({total_tokens:,} tokens)"
 
 
 def _format_percent(value: float) -> str:

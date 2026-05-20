@@ -40,25 +40,25 @@ def test_registered_panel_ids_are_unique() -> None:
 def test_registered_panel_display_names() -> None:
     names = [panel.display_name for panel in panels.all_panels()]
 
-    assert names == ["預設", "台灣用量監控", "駭客任務", "ECG", "Minimal", "手繪"]
+    assert names == ["Default", "Taiwan Usage Monitor", "Matrix", "ECG", "Minimal", "Sketch"]
 
 
 def test_classic_panel_preferred_size() -> None:
     panel = panels.get_panel("classic")
 
-    assert panel.preferred_size() == (364.0, 574.0)
+    assert panel.preferred_size() == (364.0, 376.0)
 
 
 def test_taiwan_panel_preferred_size() -> None:
     panel = panels.get_panel("taiwan")
 
-    assert panel.preferred_size() == (364.0, 672.0)
+    assert panel.preferred_size() == (364.0, 474.0)
 
 
 def test_sketch_panel_preferred_size() -> None:
     panel = panels.get_panel("sketch")
 
-    assert panel.preferred_size() == (364.0, 590.0)
+    assert panel.preferred_size() == (364.0, 378.0)
 
 
 def test_missing_panel_id_falls_back_to_classic() -> None:
@@ -86,7 +86,7 @@ def test_defaults_round_trip() -> None:
 def test_taiwan_theme_config_values() -> None:
     assert TAIWAN_THEME.id == "taiwan"
     assert TAIWAN_THEME.icon_asset == "taiwan.png"
-    assert TAIWAN_THEME.header_title == "台灣用量監控"
+    assert TAIWAN_THEME.header_title == "Taiwan Usage Monitor"
     assert TAIWAN_THEME.bg_top == (0.55, 0.05, 0.08)
     assert TAIWAN_THEME.card_bg == (0.30, 0.0, 0.02, 0.6)
 
@@ -124,4 +124,4 @@ def test_popover_size_uses_active_panel_height_and_install_button() -> None:
     size = menubar._popover_size(state, panels.get_panel("taiwan"))
 
     assert size.width == 364.0
-    assert size.height == 714.0
+    assert size.height == 516.0

@@ -40,35 +40,35 @@ def _setup_logging() -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="顯示 Claude Code 用量的工具")
-    parser.add_argument("--mock", action="store_true", help="使用假資料預覽介面")
+    parser = argparse.ArgumentParser(description="Display Claude Code usage in the menu bar")
+    parser.add_argument("--mock", action="store_true", help="Preview UI with fake data")
     parser.add_argument(
         "--interval",
         type=int,
         default=60,
-        help="輪詢秒數，預設 60，最小 30",
+        help="Polling interval in seconds, default 60, minimum 30",
     )
     parser.add_argument(
         "--tui",
         action="store_true",
-        help="使用舊版終端機 TUI 介面",
+        help="Use the terminal TUI interface instead",
     )
     parser.add_argument(
         "--force-group",
         type=int,
         choices=[0, 1, 2, 3],
         default=None,
-        help="強制使用某速率組（測試用，僅 TUI 模式有效），0=Idle 1=Normal 2=Active 3=Heavy",
+        help="Force a burn-rate group (for testing, TUI only): 0=Idle 1=Normal 2=Active 3=Heavy",
     )
     parser.add_argument(
         "--setup",
         action="store_true",
-        help="安裝 statusLine hook 到 Claude Code（首次使用必跑）",
+        help="Install the statusLine hook into Claude Code (required on first use)",
     )
     parser.add_argument(
         "--unsetup",
         action="store_true",
-        help="從 Claude Code 移除 statusLine hook 並還原原設定",
+        help="Remove the statusLine hook from Claude Code and restore previous settings",
     )
     args = parser.parse_args()
     args.interval = max(30, args.interval)

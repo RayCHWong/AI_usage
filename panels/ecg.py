@@ -40,7 +40,6 @@ GRID_COLOR = (0.09, 0.35, 0.28, 0.50)
 TEXT_MAIN = (0.85, 1.0, 0.94)
 TEXT_MUTED = (0.48, 0.81, 0.72)
 CLAUDE_WAVE = (0.20, 1.0, 0.72, 1.0)
-CODEX_WAVE = (0.14, 0.83, 1.0, 1.0)
 BUTTON_FILL = (0.03, 0.17, 0.14, 0.98)
 BUTTON_BORDER = (0.28, 0.70, 0.58, 0.52)
 PADDING = 16.0
@@ -62,8 +61,6 @@ LEAD_TEXT_HEIGHT = LEAD_HEADER_HEIGHT + 8.0 + SUMMARY_BLOCK_HEIGHT
 LEAD_SECTION_HEIGHT = LEAD_TEXT_HEIGHT + LEAD_WAVE_GAP + WAVE_HEIGHT
 MONITOR_HEIGHT = (
     MONITOR_INSET
-    + LEAD_SECTION_HEIGHT
-    + LEAD_BLOCK_GAP
     + LEAD_SECTION_HEIGHT
     + MONITOR_BOTTOM_INSET
 )
@@ -103,8 +100,8 @@ def _mono_label(
 
 
 def _suffix(text: str) -> str:
-    if "：" in text:
-        return text.split("：", 1)[1].strip()
+    if ": " in text:
+        return text.split(": ", 1)[1].strip()
     if ":" in text:
         return text.split(":", 1)[1].strip()
     return text.strip()
@@ -143,15 +140,9 @@ def _ecg_shape(progress: float) -> float:
     return 0.0
 
 
-def _wave_baselines(height: float) -> tuple[float, float]:
+def _wave_baseline(height: float) -> float:
     claude_wave_top = MONITOR_INSET + LEAD_TEXT_HEIGHT + LEAD_WAVE_GAP
-    codex_wave_top = (
-        MONITOR_INSET + LEAD_SECTION_HEIGHT + LEAD_BLOCK_GAP + LEAD_TEXT_HEIGHT + LEAD_WAVE_GAP
-    )
-    return (
-        claude_wave_top + (WAVE_HEIGHT / 2.0),
-        codex_wave_top + (WAVE_HEIGHT / 2.0),
-    )
+    return claude_wave_top + (WAVE_HEIGHT / 2.0)
 
 
 class ECGActionButton(NSButton):
@@ -248,7 +239,6 @@ class ECGMonitorView(NSView):
         self.phase = 0.0
         self.speed_factor = 0.36
         self.claude_amplitude = 0.18
-        self.codex_amplitude = 0.18
         self.timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
             0.08,
             self,
@@ -270,18 +260,15 @@ class ECGMonitorView(NSView):
         self.phase = float(self.phase) + float(self.speed_factor) * 0.055
         self.setNeedsDisplay_(True)
 
-    def updateWithClaudePercent_codexPercent_rateText_(
+    def updateWithClaudePercent_rateText_(
         self,
         claude_percent: float | None,
-        codex_percent: float | None,
         rate_text: str,
     ) -> None:
         intensity, speed = _pulse_profile(rate_text)
         claude_pct = max(0.0, min(100.0, claude_percent or 0.0))
-        codex_pct = max(0.0, min(100.0, codex_percent or 0.0))
         self.speed_factor = speed
         self.claude_amplitude = 0.08 + (claude_pct / 100.0 * 0.92 * intensity)
-        self.codex_amplitude = 0.08 + (codex_pct / 100.0 * 0.92 * intensity)
         self.setNeedsDisplay_(True)
 
     def drawRect_(self, dirty_rect: Any) -> None:
@@ -291,20 +278,13 @@ class ECGMonitorView(NSView):
         _rgba(PANEL_BORDER).setStroke()
         stroke_rounded_rect(bounds, 14.0, 1.0)
         self._draw_grid(bounds)
-        claude_baseline, codex_baseline = _wave_baselines(bounds.size.height)
+        claude_baseline = _wave_baseline(bounds.size.height)
         self._draw_channel(
             bounds,
             claude_baseline,
             CLAUDE_WAVE,
             self.claude_amplitude,
             0.0,
-        )
-        self._draw_channel(
-            bounds,
-            codex_baseline,
-            CODEX_WAVE,
-            self.codex_amplitude,
-            0.38,
         )
 
     def _draw_grid(self, bounds: Any) -> None:
@@ -316,19 +296,9 @@ class ECGMonitorView(NSView):
             NSRectFill(NSMakeRect(float(x), 8.0, 1.0, height - 16.0))
         for y in range(14, int(height), 18):
             NSRectFill(NSMakeRect(8.0, float(y), width - 16.0, 1.0))
-        claude_baseline, codex_baseline = _wave_baselines(bounds.size.height)
+        claude_baseline = _wave_baseline(bounds.size.height)
         NSColor.colorWithCalibratedRed_green_blue_alpha_(0.30, 0.92, 0.78, 0.20).setFill()
         NSRectFill(NSMakeRect(8.0, claude_baseline, width - 16.0, 1.0))
-        NSRectFill(NSMakeRect(8.0, codex_baseline, width - 16.0, 1.0))
-        NSColor.colorWithCalibratedRed_green_blue_alpha_(0.30, 0.92, 0.78, 0.10).setFill()
-        NSRectFill(
-            NSMakeRect(
-                12.0,
-                MONITOR_INSET + LEAD_SECTION_HEIGHT + (LEAD_BLOCK_GAP / 2.0),
-                width - 24.0,
-                1.0,
-            ),
-        )
 
     def _draw_channel(
         self,
@@ -376,11 +346,8 @@ class ECGContentView(NSView):
     delegate = objc.ivar()
     monitor_view = objc.ivar()
     claude_header = objc.ivar()
-    codex_header = objc.ivar()
     claude_session = objc.ivar()
     claude_weekly = objc.ivar()
-    codex_session = objc.ivar()
-    codex_weekly = objc.ivar()
     rate_label = objc.ivar()
     status_label = objc.ivar()
     today_label = objc.ivar()
@@ -399,7 +366,6 @@ class ECGContentView(NSView):
 
         self.monitor_view = ECGMonitorView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 1))
         self.claude_header = _mono_label("LEAD A  CLAUDE", 14.0, _rgba(CLAUDE_WAVE), weight=0.38)
-        self.codex_header = _mono_label("LEAD B  CODEX", 14.0, _rgba(CODEX_WAVE), weight=0.38)
         self.claude_session = ECGQuotaSummaryView.alloc().initWithFrame_color_(
             NSMakeRect(0, 0, 1, 34),
             _rgba(CLAUDE_WAVE),
@@ -408,40 +374,32 @@ class ECGContentView(NSView):
             NSMakeRect(0, 0, 1, 34),
             _rgba(CLAUDE_WAVE),
         )
-        self.codex_session = ECGQuotaSummaryView.alloc().initWithFrame_color_(
-            NSMakeRect(0, 0, 1, 34),
-            _rgba(CODEX_WAVE),
-        )
-        self.codex_weekly = ECGQuotaSummaryView.alloc().initWithFrame_color_(
-            NSMakeRect(0, 0, 1, 34),
-            _rgba(CODEX_WAVE),
-        )
 
-        self.rate_label = _mono_label("速率：--", 13.0, ns_color(TEXT_MAIN), weight=0.30)
-        self.status_label = _mono_label("狀態：--", 13.0, ns_color(TEXT_MAIN), weight=0.30)
-        self.today_label = _mono_label("今日：--", 13.0, ns_color(TEXT_MAIN), weight=0.30)
+        self.rate_label = _mono_label("Rate: --", 13.0, ns_color(TEXT_MAIN), weight=0.30)
+        self.status_label = _mono_label("Status: --", 13.0, ns_color(TEXT_MAIN), weight=0.30)
+        self.today_label = _mono_label("Today: --", 13.0, ns_color(TEXT_MAIN), weight=0.30)
 
         self.switch_button = ECGActionButton.alloc().initWithFrame_title_target_action_(
             NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-            "切換面板",
+            "Switch Panel",
             delegate,
             "switchPanel:",
         )
         self.refresh_button = ECGActionButton.alloc().initWithFrame_title_target_action_(
             NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-            "立即更新",
+            "Refresh Now",
             delegate,
             "refreshNow:",
         )
         self.quit_button = ECGActionButton.alloc().initWithFrame_title_target_action_(
             NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-            "結束",
+            "Quit",
             delegate,
             "quitApp:",
         )
         self.install_hook_button = ECGActionButton.alloc().initWithFrame_title_target_action_(
             NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-            "安裝 Hook",
+            "Install Hook",
             delegate,
             "installHook:",
         )
@@ -450,11 +408,8 @@ class ECGContentView(NSView):
         for view in (
             self.monitor_view,
             self.claude_header,
-            self.codex_header,
             self.claude_session,
             self.claude_weekly,
-            self.codex_session,
-            self.codex_weekly,
             self.rate_label,
             self.status_label,
             self.today_label,
@@ -479,8 +434,6 @@ class ECGContentView(NSView):
         lead_x = PADDING + 18
         lead_width = content_width - 36
         claude_text_y = monitor_y + MONITOR_INSET
-        claude_wave_y = claude_text_y + LEAD_TEXT_HEIGHT + LEAD_WAVE_GAP
-        codex_text_y = claude_wave_y + WAVE_HEIGHT + LEAD_BLOCK_GAP
 
         self.monitor_view.setFrame_(NSMakeRect(PADDING, monitor_y, content_width, MONITOR_HEIGHT))
         self.claude_header.setFrame_(NSMakeRect(lead_x, claude_text_y, 180, LEAD_HEADER_HEIGHT))
@@ -491,18 +444,6 @@ class ECGContentView(NSView):
             NSMakeRect(
                 lead_x,
                 claude_text_y + 26 + SUMMARY_ROW_HEIGHT + LEAD_SUMMARY_GAP,
-                lead_width,
-                SUMMARY_ROW_HEIGHT,
-            ),
-        )
-        self.codex_header.setFrame_(NSMakeRect(lead_x, codex_text_y, 180, LEAD_HEADER_HEIGHT))
-        self.codex_session.setFrame_(
-            NSMakeRect(lead_x, codex_text_y + 26, lead_width, SUMMARY_ROW_HEIGHT),
-        )
-        self.codex_weekly.setFrame_(
-            NSMakeRect(
-                lead_x,
-                codex_text_y + 26 + SUMMARY_ROW_HEIGHT + LEAD_SUMMARY_GAP,
                 lead_width,
                 SUMMARY_ROW_HEIGHT,
             ),
@@ -548,14 +489,11 @@ class ECGContentView(NSView):
     def setState_(self, state: PopoverState) -> None:
         self.claude_session.setRowState_(state.claude_session)
         self.claude_weekly.setRowState_(state.claude_weekly)
-        self.codex_session.setRowState_(state.codex_session)
-        self.codex_weekly.setRowState_(state.codex_weekly)
         self.rate_label.setStringValue_(state.rate_text)
         self.status_label.setStringValue_(state.status_text)
         self.today_label.setStringValue_(state.today_text)
-        self.monitor_view.updateWithClaudePercent_codexPercent_rateText_(
+        self.monitor_view.updateWithClaudePercent_rateText_(
             state.claude_session.percent,
-            state.codex_session.percent,
             _suffix(state.rate_text),
         )
         self.show_install_button = state.show_install_button

@@ -38,7 +38,6 @@ from panels.base import (
     INSTALL_BUTTON_EXTRA_HEIGHT,
     PADDING,
     POPOVER_WIDTH,
-    SECTION_GAP,
     PanelQuotaRowView,
     fill_rounded_rect,
     label,
@@ -84,8 +83,8 @@ def _matrix_label(text: str, size: float, color: NSColor) -> Any:
 
 
 def _suffix(text: str) -> str:
-    if "：" in text:
-        return text.split("：", 1)[1].strip()
+    if ": " in text:
+        return text.split(": ", 1)[1].strip()
     if ":" in text:
         return text.split(":", 1)[1].strip()
     return text.strip()
@@ -224,11 +223,8 @@ class MatrixContentView(NSView):
     rain_view = objc.ivar()
     content_layer = objc.ivar()
     claude_header = objc.ivar()
-    codex_header = objc.ivar()
     claude_session = objc.ivar()
     claude_weekly = objc.ivar()
-    codex_session = objc.ivar()
-    codex_weekly = objc.ivar()
     rate_label = objc.ivar()
     status_label = objc.ivar()
     today_label = objc.ivar()
@@ -253,17 +249,9 @@ class MatrixContentView(NSView):
         self.content_layer.setAutoresizingMask_(18)
 
         self.claude_header = _matrix_label("[ CLAUDE_CODE ]", 15.0, text)
-        self.codex_header = _matrix_label("[ CODEX ]", 15.0, text)
         self.claude_session = PanelQuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
         self.claude_weekly = PanelQuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        self.codex_session = PanelQuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        self.codex_weekly = PanelQuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        for row in (
-            self.claude_session,
-            self.claude_weekly,
-            self.codex_session,
-            self.codex_weekly,
-        ):
+        for row in (self.claude_session, self.claude_weekly):
             row.setTextColor_mutedTextColor_trackColor_(text, muted, track)
 
         self.rate_label = _matrix_label("RATE: --", 13.0, muted)
@@ -303,9 +291,6 @@ class MatrixContentView(NSView):
             self.claude_header,
             self.claude_session,
             self.claude_weekly,
-            self.codex_header,
-            self.codex_session,
-            self.codex_weekly,
             self.rate_label,
             self.status_label,
             self.today_label,
@@ -327,8 +312,7 @@ class MatrixContentView(NSView):
         content_width = width - (PADDING * 2)
         card_content_width = content_width - (CARD_SIDE_INSET * 2)
         claude_y = PADDING
-        codex_y = claude_y + CARD_HEIGHT + SECTION_GAP
-        footer_y = codex_y + CARD_HEIGHT + FOOTER_GAP
+        footer_y = claude_y + CARD_HEIGHT + FOOTER_GAP
         text_x = PADDING + CARD_SIDE_INSET
 
         switch_x = PADDING + content_width - CARD_SIDE_INSET - SWITCH_BUTTON_WIDTH
@@ -347,21 +331,6 @@ class MatrixContentView(NSView):
             NSMakeRect(
                 PADDING + CARD_SIDE_INSET,
                 claude_y + CARD_ROW_TOP + CARD_ROW_GAP,
-                card_content_width,
-                52,
-            ),
-        )
-
-        self.codex_header.setFrame_(
-            NSMakeRect(text_x, codex_y + CARD_HEADER_TOP + 1, card_content_width, 22),
-        )
-        self.codex_session.setFrame_(
-            NSMakeRect(PADDING + CARD_SIDE_INSET, codex_y + CARD_ROW_TOP, card_content_width, 52),
-        )
-        self.codex_weekly.setFrame_(
-            NSMakeRect(
-                PADDING + CARD_SIDE_INSET,
-                codex_y + CARD_ROW_TOP + CARD_ROW_GAP,
                 card_content_width,
                 52,
             ),
@@ -394,36 +363,29 @@ class MatrixContentView(NSView):
 
         content_width = self.bounds().size.width - (PADDING * 2)
         claude_rect = NSMakeRect(PADDING, PADDING, content_width, CARD_HEIGHT)
-        codex_rect = NSMakeRect(
-            PADDING,
-            PADDING + CARD_HEIGHT + SECTION_GAP,
-            content_width,
-            CARD_HEIGHT,
-        )
         footer_rect = NSMakeRect(
             PADDING,
-            PADDING + (CARD_HEIGHT * 2) + SECTION_GAP + FOOTER_GAP,
+            PADDING + CARD_HEIGHT + FOOTER_GAP,
             content_width,
             FOOTER_HEIGHT + (INSTALL_BUTTON_EXTRA_HEIGHT if self.show_install_button else 0.0),
         )
 
-        for card_rect in (claude_rect, codex_rect, footer_rect):
+        for card_rect in (claude_rect, footer_rect):
             _rgba(CARD_FILL).setFill()
             fill_rounded_rect(card_rect, CARD_RADIUS)
             _rgba(CARD_BORDER).setStroke()
             stroke_rounded_rect(card_rect, CARD_RADIUS, 1.0)
 
         _rgba((0.0, 0.85, 0.35, 0.22)).setFill()
-        for card_rect in (claude_rect, codex_rect):
-            separator_y = card_rect.origin.y + CARD_ROW_TOP + CARD_ROW_GAP - 12
-            NSRectFill(
-                NSMakeRect(
-                    card_rect.origin.x + CARD_SIDE_INSET,
-                    separator_y,
-                    card_rect.size.width - (CARD_SIDE_INSET * 2),
-                    1,
-                ),
-            )
+        separator_y = claude_rect.origin.y + CARD_ROW_TOP + CARD_ROW_GAP - 12
+        NSRectFill(
+            NSMakeRect(
+                claude_rect.origin.x + CARD_SIDE_INSET,
+                separator_y,
+                claude_rect.size.width - (CARD_SIDE_INSET * 2),
+                1,
+            ),
+        )
         NSRectFill(
             NSMakeRect(
                 footer_rect.origin.x + 18,
@@ -440,8 +402,6 @@ class MatrixContentView(NSView):
         for row_view, row_state in (
             (self.claude_session, state.claude_session),
             (self.claude_weekly, state.claude_weekly),
-            (self.codex_session, state.codex_session),
-            (self.codex_weekly, state.codex_weekly),
         ):
             row_view.setTextColor_mutedTextColor_trackColor_(text, muted, track)
             row_view.setRowState_(row_state)
@@ -460,7 +420,7 @@ class MatrixContentView(NSView):
 
 class MatrixPanel:
     id = "matrix"
-    display_name = "駭客任務"
+    display_name = "Matrix"
 
     def build_view(self, delegate: Any) -> NSView:
         width, height = self.preferred_size()

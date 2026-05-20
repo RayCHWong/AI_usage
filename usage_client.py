@@ -153,7 +153,7 @@ class ClaudeUsageClient:
         if result is None:
             return PollOutcome(
                 state=PollState.TOKEN_ERROR,
-                message="⚠ 找不到狀態檔，請執行 `python3 main.py --setup` 並打開一次 Claude Code",
+                message="⚠ Status file not found, run `python3 main.py --setup` and open Claude Code once",
             )
 
         data, source_path = result
@@ -161,16 +161,16 @@ class ClaudeUsageClient:
         if snapshot is None:
             return PollOutcome(
                 state=PollState.LOADING,
-                message="⚠ 狀態檔尚無配額資料，等 Claude Code 再刷新一次 statusLine",
+                message="⚠ Status file has no quota data yet, wait for Claude Code to refresh the statusLine",
             )
 
         now = time.time()
         is_stale = (now - snapshot.polled_at) > STALE_SECONDS
         source_tag = "tt-status" if source_path == TT_STATUS_FILE else "usage"
-        message = f"✓ 已同步（{source_tag}）"
+        message = f"✓ Synced ({source_tag})"
         if is_stale:
             mins = int((now - snapshot.polled_at) / 60)
-            message = f"⚠ 狀態檔已 {mins} 分鐘未更新，數字可能過時"
+            message = f"⚠ Status file not updated for {mins} min, data may be stale"
 
         return PollOutcome(state=PollState.SUCCESS, snapshot=snapshot, message=message)
 
@@ -186,5 +186,5 @@ class ClaudeUsageClient:
                 current_status="ok",
                 polled_at=now,
             ),
-            message="✓ 已同步",
+            message="✓ Synced",
         )

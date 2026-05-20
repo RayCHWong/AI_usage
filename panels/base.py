@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 POPOVER_WIDTH = 364.0
-CONTENT_HEIGHT = 574.0
+CONTENT_HEIGHT = 376.0
 HEADER_HEIGHT = 98.0
 PADDING = 14.0
 TRACK_HEIGHT = 8.0
@@ -49,7 +49,6 @@ BUTTON_TOP_GAP = 18.0
 BUTTON_HEIGHT = 32.0
 INSTALL_BUTTON_EXTRA_HEIGHT = BUTTON_HEIGHT + 10.0
 CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
-CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
 WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
 DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
 ACTIVE_PANEL_DEFAULTS_KEY = "usage.activePanelId"
@@ -385,13 +384,9 @@ class ThemedContentView(NSView):
     header_label = objc.ivar()
     switch_button = objc.ivar()
     claude_icon = objc.ivar()
-    codex_icon = objc.ivar()
     claude_header = objc.ivar()
-    codex_header = objc.ivar()
     claude_session = objc.ivar()
     claude_weekly = objc.ivar()
-    codex_session = objc.ivar()
-    codex_weekly = objc.ivar()
     rate_label = objc.ivar()
     status_label = objc.ivar()
     today_label = objc.ivar()
@@ -416,7 +411,6 @@ class ThemedContentView(NSView):
         muted = ns_color(config.muted_text_color, 0.7)
         track = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.18, 0.0, 0.01, 0.82)
         claude_accent = ns_color(CLAUDE_COLOR)
-        codex_accent = ns_color(CODEX_COLOR)
         self.header_icon = PanelThemedIconView.alloc().initWithFrame_path_(
             NSMakeRect(0, 0, 88, 88),
             resolve_resource(config.icon_asset),
@@ -427,7 +421,7 @@ class ThemedContentView(NSView):
         self.switch_button = (
             PanelThemeActionButton.alloc().initWithFrame_title_fill_titleColor_border_target_action_(
                 NSMakeRect(0, 0, 88, 38),
-                "⇄ 更換",
+                "⇄ Switch",
                 NSColor.colorWithCalibratedRed_green_blue_alpha_(0.35, 0.0, 0.02, 0.72),
                 text,
                 NSColor.whiteColor().colorWithAlphaComponent_(0.45),
@@ -440,21 +434,13 @@ class ThemedContentView(NSView):
             claude_accent,
             resolve_resource("claude.webp"),
         )
-        self.codex_icon = PanelHeaderIconView.alloc().initWithFrame_color_path_(
-            NSMakeRect(0, 0, 42, 42),
-            codex_accent,
-            resolve_resource("codex.webp"),
-        )
         self.claude_header = label("Claude Code", semibold_font(), text)
-        self.codex_header = label("Codex", semibold_font(), text)
         self.claude_session = themed_row(text, muted, track)
         self.claude_weekly = themed_row(text, muted, track)
-        self.codex_session = themed_row(text, muted, track)
-        self.codex_weekly = themed_row(text, muted, track)
-        self.rate_label = label("速率：--", regular_font(13.5), muted)
-        self.status_label = label("狀態：載入中", regular_font(13.5), muted)
+        self.rate_label = label("Rate: --", regular_font(13.5), muted)
+        self.status_label = label("Status: Loading", regular_font(13.5), muted)
         self.today_label = label(
-            "今日：$0.00 (0 tokens)", NSFont.systemFontOfSize_weight_(15, 0.34), text
+            "Today: $0.00 (0 tokens)", NSFont.systemFontOfSize_weight_(15, 0.34), text
         )
         self.today_label.setAllowsDefaultTighteningForTruncation_(True)
         primary_fg = ns_color(config.primary_button_fg)
@@ -464,7 +450,7 @@ class ThemedContentView(NSView):
         self.install_hook_button = (
             PanelThemeActionButton.alloc().initWithFrame_title_fill_titleColor_border_target_action_(
                 NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-                "立即安裝 hook",
+                "Install Hook Now",
                 primary_bg,
                 primary_fg,
                 NSColor.whiteColor().colorWithAlphaComponent_(0.78),
@@ -476,7 +462,7 @@ class ThemedContentView(NSView):
         self.refresh_button = (
             PanelThemeActionButton.alloc().initWithFrame_title_fill_titleColor_border_target_action_(
                 NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-                "立即更新",
+                "Refresh Now",
                 primary_bg,
                 primary_fg,
                 NSColor.whiteColor().colorWithAlphaComponent_(0.78),
@@ -487,7 +473,7 @@ class ThemedContentView(NSView):
         self.quit_button = (
             PanelThemeActionButton.alloc().initWithFrame_title_fill_titleColor_border_target_action_(
                 NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-                "結束",
+                "Quit",
                 secondary_bg,
                 secondary_fg,
                 NSColor.whiteColor().colorWithAlphaComponent_(0.68),
@@ -503,13 +489,9 @@ class ThemedContentView(NSView):
             views = (self.switch_button,)
         for view in views + (
             self.claude_icon,
-            self.codex_icon,
             self.claude_header,
             self.claude_session,
             self.claude_weekly,
-            self.codex_header,
-            self.codex_session,
-            self.codex_weekly,
             self.rate_label,
             self.status_label,
             self.today_label,
@@ -533,8 +515,7 @@ class ThemedContentView(NSView):
         card_content_width = card_width - (CARD_SIDE_INSET * 2)
         offset = self.header_offset()
         claude_y = PADDING + offset
-        codex_y = claude_y + CARD_HEIGHT + SECTION_GAP
-        footer_y = codex_y + CARD_HEIGHT + FOOTER_GAP
+        footer_y = claude_y + CARD_HEIGHT + FOOTER_GAP
         icon_x = PADDING + CARD_SIDE_INSET
 
         if self.config.header_title:
@@ -555,21 +536,6 @@ class ThemedContentView(NSView):
             NSMakeRect(
                 PADDING + CARD_SIDE_INSET,
                 claude_y + CARD_ROW_TOP + CARD_ROW_GAP,
-                card_content_width,
-                52,
-            )
-        )
-        self.codex_icon.setFrame_(NSMakeRect(icon_x, codex_y + 18, 36, 36))
-        self.codex_header.setFrame_(
-            NSMakeRect(icon_x + 48, codex_y + CARD_HEADER_TOP + 1, card_content_width - 48, 22)
-        )
-        self.codex_session.setFrame_(
-            NSMakeRect(PADDING + CARD_SIDE_INSET, codex_y + CARD_ROW_TOP, card_content_width, 52)
-        )
-        self.codex_weekly.setFrame_(
-            NSMakeRect(
-                PADDING + CARD_SIDE_INSET,
-                codex_y + CARD_ROW_TOP + CARD_ROW_GAP,
                 card_content_width,
                 52,
             )
@@ -602,33 +568,29 @@ class ThemedContentView(NSView):
         content_width = self.bounds().size.width - (PADDING * 2)
         offset = self.header_offset()
         claude_rect = NSMakeRect(PADDING, PADDING + offset, content_width, CARD_HEIGHT)
-        codex_rect = NSMakeRect(
-            PADDING, PADDING + offset + CARD_HEIGHT + SECTION_GAP, content_width, CARD_HEIGHT
-        )
         footer_rect = NSMakeRect(
             PADDING,
-            PADDING + offset + (CARD_HEIGHT * 2) + SECTION_GAP + FOOTER_GAP,
+            PADDING + offset + CARD_HEIGHT + FOOTER_GAP,
             content_width,
             FOOTER_HEIGHT + (INSTALL_BUTTON_EXTRA_HEIGHT if self.show_install_button else 0.0),
         )
 
-        for card_rect in (claude_rect, codex_rect, footer_rect):
+        for card_rect in (claude_rect, footer_rect):
             ns_color_rgba(self.config.card_bg).setFill()
             fill_rounded_rect(card_rect, CARD_RADIUS)
             NSColor.whiteColor().colorWithAlphaComponent_(0.13).setStroke()
             stroke_rounded_rect(card_rect, CARD_RADIUS, 1.0)
 
         NSColor.whiteColor().colorWithAlphaComponent_(0.18).setFill()
-        for card_rect in (claude_rect, codex_rect):
-            separator_y = card_rect.origin.y + CARD_ROW_TOP + CARD_ROW_GAP - 12
-            NSRectFill(
-                NSMakeRect(
-                    card_rect.origin.x + CARD_SIDE_INSET,
-                    separator_y,
-                    card_rect.size.width - (CARD_SIDE_INSET * 2),
-                    1,
-                )
+        separator_y = claude_rect.origin.y + CARD_ROW_TOP + CARD_ROW_GAP - 12
+        NSRectFill(
+            NSMakeRect(
+                claude_rect.origin.x + CARD_SIDE_INSET,
+                separator_y,
+                claude_rect.size.width - (CARD_SIDE_INSET * 2),
+                1,
             )
+        )
         NSRectFill(
             NSMakeRect(
                 footer_rect.origin.x + 18, footer_rect.origin.y + 54, footer_rect.size.width - 36, 1
@@ -638,8 +600,6 @@ class ThemedContentView(NSView):
     def setState_(self, state: PopoverState) -> None:
         self.claude_session.setRowState_(state.claude_session)
         self.claude_weekly.setRowState_(state.claude_weekly)
-        self.codex_session.setRowState_(state.codex_session)
-        self.codex_weekly.setRowState_(state.codex_weekly)
         self.rate_label.setStringValue_(state.rate_text)
         self.status_label.setStringValue_(state.status_text)
         self.today_label.setStringValue_(state.today_text)

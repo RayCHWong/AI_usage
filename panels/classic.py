@@ -30,7 +30,6 @@ from panels.base import (
     CARD_ROW_TOP,
     CARD_SIDE_INSET,
     CLAUDE_COLOR,
-    CODEX_COLOR,
     CONTENT_HEIGHT,
     FOOTER_GAP,
     FOOTER_HEIGHT,
@@ -38,7 +37,6 @@ from panels.base import (
     INSTALL_BUTTON_EXTRA_HEIGHT,
     PADDING,
     POPOVER_WIDTH,
-    SECTION_GAP,
     PanelActionButton,
     PanelHeaderIconView,
     PanelQuotaRowView,
@@ -74,7 +72,7 @@ class ClassicSwitchButton(NSButton):
         self = objc.super(ClassicSwitchButton, self).initWithFrame_(frame)
         if self is None:
             return None
-        self.setTitle_("⇄ 更換面板")
+        self.setTitle_("⇄ Switch Panel")
         self.setBordered_(False)
         self.setTarget_(target)
         self.setAction_(action)
@@ -121,13 +119,9 @@ def _is_dark_appearance(view: NSView) -> bool:
 class ClassicContentView(NSView):
     delegate = objc.ivar()
     claude_icon = objc.ivar()
-    codex_icon = objc.ivar()
     claude_header = objc.ivar()
-    codex_header = objc.ivar()
     claude_session = objc.ivar()
     claude_weekly = objc.ivar()
-    codex_session = objc.ivar()
-    codex_weekly = objc.ivar()
     rate_label = objc.ivar()
     status_label = objc.ivar()
     today_label = objc.ivar()
@@ -144,27 +138,18 @@ class ClassicContentView(NSView):
         self.delegate = delegate
         self.show_install_button = False
         claude_accent = ns_color(CLAUDE_COLOR)
-        codex_accent = ns_color(CODEX_COLOR)
         self.claude_icon = PanelHeaderIconView.alloc().initWithFrame_color_path_(
             NSMakeRect(0, 0, 42, 42),
             claude_accent,
             resolve_resource("claude.webp"),
         )
-        self.codex_icon = PanelHeaderIconView.alloc().initWithFrame_color_path_(
-            NSMakeRect(0, 0, 42, 42),
-            codex_accent,
-            resolve_resource("codex.webp"),
-        )
         self.claude_header = label("Claude Code", semibold_font(), NSColor.labelColor())
-        self.codex_header = label("Codex", semibold_font(), NSColor.labelColor())
         self.claude_session = PanelQuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
         self.claude_weekly = PanelQuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        self.codex_session = PanelQuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        self.codex_weekly = PanelQuotaRowView.alloc().initWithFrame_(NSMakeRect(0, 0, 1, 56))
-        self.rate_label = label("速率：--", regular_font(13.5), muted_label_color())
-        self.status_label = label("狀態：載入中", regular_font(13.5), muted_label_color())
+        self.rate_label = label("Rate: --", regular_font(13.5), muted_label_color())
+        self.status_label = label("Status: Loading", regular_font(13.5), muted_label_color())
         self.today_label = label(
-            "今日：$0.00 (0 tokens)",
+            "Today: $0.00 (0 tokens)",
             NSFont.systemFontOfSize_weight_(15, 0.34),
             NSColor.labelColor(),
         )
@@ -177,7 +162,7 @@ class ClassicContentView(NSView):
         self.install_hook_button = (
             PanelActionButton.alloc().initWithFrame_title_primary_color_target_action_(
                 NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-                "立即安裝 hook",
+                "Install Hook Now",
                 True,
                 claude_accent,
                 delegate,
@@ -188,9 +173,9 @@ class ClassicContentView(NSView):
         self.refresh_button = (
             PanelActionButton.alloc().initWithFrame_title_primary_color_target_action_(
                 NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-                "立即更新",
+                "Refresh Now",
                 True,
-                codex_accent,
+                claude_accent,
                 delegate,
                 "refreshNow:",
             )
@@ -198,7 +183,7 @@ class ClassicContentView(NSView):
         self.quit_button = (
             PanelActionButton.alloc().initWithFrame_title_primary_color_target_action_(
                 NSMakeRect(0, 0, 1, BUTTON_HEIGHT),
-                "結束",
+                "Quit",
                 False,
                 None,
                 delegate,
@@ -208,13 +193,9 @@ class ClassicContentView(NSView):
 
         for view in (
             self.claude_icon,
-            self.codex_icon,
             self.claude_header,
             self.claude_session,
             self.claude_weekly,
-            self.codex_header,
-            self.codex_session,
-            self.codex_weekly,
             self.rate_label,
             self.status_label,
             self.today_label,
@@ -235,8 +216,7 @@ class ClassicContentView(NSView):
         card_width = content_width
         card_content_width = card_width - (CARD_SIDE_INSET * 2)
         claude_y = PADDING
-        codex_y = claude_y + CARD_HEIGHT + SECTION_GAP
-        footer_y = codex_y + CARD_HEIGHT + FOOTER_GAP
+        footer_y = claude_y + CARD_HEIGHT + FOOTER_GAP
         icon_x = PADDING + CARD_SIDE_INSET
 
         switch_x = PADDING + content_width - CARD_SIDE_INSET - SWITCH_BUTTON_WIDTH
@@ -257,22 +237,6 @@ class ClassicContentView(NSView):
             NSMakeRect(
                 PADDING + CARD_SIDE_INSET,
                 claude_y + CARD_ROW_TOP + CARD_ROW_GAP,
-                card_content_width,
-                52,
-            ),
-        )
-
-        self.codex_icon.setFrame_(NSMakeRect(icon_x, codex_y + 18, 36, 36))
-        self.codex_header.setFrame_(
-            NSMakeRect(icon_x + 48, codex_y + CARD_HEADER_TOP + 1, card_content_width - 48, 22),
-        )
-        self.codex_session.setFrame_(
-            NSMakeRect(PADDING + CARD_SIDE_INSET, codex_y + CARD_ROW_TOP, card_content_width, 52),
-        )
-        self.codex_weekly.setFrame_(
-            NSMakeRect(
-                PADDING + CARD_SIDE_INSET,
-                codex_y + CARD_ROW_TOP + CARD_ROW_GAP,
                 card_content_width,
                 52,
             ),
@@ -303,36 +267,29 @@ class ClassicContentView(NSView):
         background_gradient_for_view(self).drawInRect_angle_(self.bounds(), 90.0)
         content_width = self.bounds().size.width - (PADDING * 2)
         claude_rect = NSMakeRect(PADDING, PADDING, content_width, CARD_HEIGHT)
-        codex_rect = NSMakeRect(
-            PADDING,
-            PADDING + CARD_HEIGHT + SECTION_GAP,
-            content_width,
-            CARD_HEIGHT,
-        )
         footer_rect = NSMakeRect(
             PADDING,
-            PADDING + (CARD_HEIGHT * 2) + SECTION_GAP + FOOTER_GAP,
+            PADDING + CARD_HEIGHT + FOOTER_GAP,
             content_width,
             FOOTER_HEIGHT + (INSTALL_BUTTON_EXTRA_HEIGHT if self.show_install_button else 0.0),
         )
 
-        for card_rect in (claude_rect, codex_rect, footer_rect):
+        for card_rect in (claude_rect, footer_rect):
             card_fill_color_for_view(self).setFill()
             fill_rounded_rect(card_rect, CARD_RADIUS)
             card_border_color_for_view(self).setStroke()
             stroke_rounded_rect(card_rect, CARD_RADIUS, 1.0)
 
         card_separator_color_for_view(self).setFill()
-        for card_rect in (claude_rect, codex_rect):
-            separator_y = card_rect.origin.y + CARD_ROW_TOP + CARD_ROW_GAP - 12
-            NSRectFill(
-                NSMakeRect(
-                    card_rect.origin.x + CARD_SIDE_INSET,
-                    separator_y,
-                    card_rect.size.width - (CARD_SIDE_INSET * 2),
-                    1,
-                ),
-            )
+        separator_y = claude_rect.origin.y + CARD_ROW_TOP + CARD_ROW_GAP - 12
+        NSRectFill(
+            NSMakeRect(
+                claude_rect.origin.x + CARD_SIDE_INSET,
+                separator_y,
+                claude_rect.size.width - (CARD_SIDE_INSET * 2),
+                1,
+            ),
+        )
         NSRectFill(
             NSMakeRect(
                 footer_rect.origin.x + 18,
@@ -345,8 +302,6 @@ class ClassicContentView(NSView):
     def setState_(self, state: PopoverState) -> None:
         self.claude_session.setRowState_(state.claude_session)
         self.claude_weekly.setRowState_(state.claude_weekly)
-        self.codex_session.setRowState_(state.codex_session)
-        self.codex_weekly.setRowState_(state.codex_weekly)
         self.rate_label.setStringValue_(state.rate_text)
         self.status_label.setStringValue_(state.status_text)
         self.today_label.setStringValue_(state.today_text)
@@ -361,7 +316,7 @@ class ClassicContentView(NSView):
 
 class ClassicPanel:
     id = "classic"
-    display_name = "預設"
+    display_name = "Default"
 
     def build_view(self, delegate: Any) -> NSView:
         width, height = self.preferred_size()

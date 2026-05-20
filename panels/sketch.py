@@ -27,7 +27,7 @@ from panels.base import POPOVER_WIDTH, fill_rounded_rect, stroke_rounded_rect
 if TYPE_CHECKING:
     from menubar import PopoverState, QuotaRowState
 
-CONTENT_HEIGHT = 590.0
+CONTENT_HEIGHT = 378.0
 
 BG = (0.965, 0.720, 0.620)
 CARD_FILL = (1.000, 0.985, 0.965)
@@ -35,7 +35,6 @@ CARD_BORDER = (0.085, 0.070, 0.070)
 TEXT = (0.080, 0.065, 0.065)
 MUTED = (0.380, 0.340, 0.330)
 CLAUDE_ACC = (0.900, 0.300, 0.160)
-CODEX_ACC = (0.040, 0.560, 0.520)
 
 CARD_X = 20.0
 CARD_WIDTH = 324.0
@@ -43,11 +42,10 @@ CARD_HEIGHT = 200.0
 CARD_RADIUS = 10.0
 
 CLAUDE_CARD_Y = 16.0
-CODEX_CARD_Y = 228.0
-FOOTER_CARD_Y = 440.0
+FOOTER_CARD_Y = 228.0
 FOOTER_CARD_HEIGHT = 96.0
 
-BUTTON_ROW_Y = 548.0
+BUTTON_ROW_Y = 336.0
 BUTTON_ROW_HEIGHT = 34.0
 BUTTON_WIDTH = (CARD_WIDTH - 16.0) / 3.0
 BUTTON_RADIUS = 8.0
@@ -104,7 +102,7 @@ def _placeholder_row(title: str) -> Any:
         title=title,
         percent=None,
         percent_text="--",
-        reset_text="重置 --",
+        reset_text="Resets --",
         available=False,
     )
 
@@ -198,7 +196,7 @@ class SketchContentView(NSView):
         self.refresh_button = (
             SketchButton.alloc().initWithFrame_title_fill_text_border_target_action_(
                 NSMakeRect(0, 0, BUTTON_WIDTH, BUTTON_ROW_HEIGHT),
-                "立即更新",
+                "Refresh Now",
                 fill,
                 text,
                 border,
@@ -209,7 +207,7 @@ class SketchContentView(NSView):
         self.quit_button = (
             SketchButton.alloc().initWithFrame_title_fill_text_border_target_action_(
                 NSMakeRect(0, 0, BUTTON_WIDTH, BUTTON_ROW_HEIGHT),
-                "結束",
+                "Quit",
                 fill,
                 text,
                 border,
@@ -220,7 +218,7 @@ class SketchContentView(NSView):
         self.switch_button = (
             SketchButton.alloc().initWithFrame_title_fill_text_border_target_action_(
                 NSMakeRect(0, 0, BUTTON_WIDTH, BUTTON_ROW_HEIGHT),
-                "切換面板",
+                "Switch Panel",
                 fill,
                 text,
                 border,
@@ -231,7 +229,7 @@ class SketchContentView(NSView):
         self.install_hook_button = (
             SketchButton.alloc().initWithFrame_title_fill_text_border_target_action_(
                 NSMakeRect(0, 0, BUTTON_WIDTH, BUTTON_ROW_HEIGHT),
-                "安裝 Hook",
+                "Install Hook",
                 fill,
                 text,
                 border,
@@ -271,7 +269,6 @@ class SketchContentView(NSView):
         _rgb(BG).setFill()
         NSRectFill(self.bounds())
         self._draw_quota_card("CLAUDE CODE", CLAUDE_CARD_Y, _rgb(CLAUDE_ACC), self._claude_rows())
-        self._draw_quota_card("CODEX", CODEX_CARD_Y, _rgb(CODEX_ACC), self._codex_rows())
         self._draw_footer_card()
 
     def _draw_quota_card(
@@ -373,13 +370,13 @@ class SketchContentView(NSView):
 
         inner_x = CARD_X + 16.0
         inner_w = CARD_WIDTH - 32.0
-        row_ys = [454.0, 478.0, 502.0]
-        div_ys = [474.0, 498.0]
+        row_ys = [242.0, 266.0, 290.0]
+        div_ys = [262.0, 286.0]
         texts = [state.rate_text, state.status_text, state.today_text]
 
         for text, row_y in zip(texts, row_ys, strict=True):
-            if "：" in text:
-                lbl, val = text.split("：", 1)
+            if ": " in text:
+                lbl, val = text.split(": ", 1)
             else:
                 lbl, val = "", text
             _draw_text(lbl, NSMakeRect(inner_x, row_y, inner_w, 18.0), _rgb(MUTED), 11.0, 0.35)
@@ -401,12 +398,6 @@ class SketchContentView(NSView):
             return (_placeholder_row("Session"), _placeholder_row("Weekly"))
         return (state.claude_session, state.claude_weekly)
 
-    def _codex_rows(self) -> tuple[QuotaRowState, QuotaRowState]:
-        state = self.state
-        if state is None:
-            return (_placeholder_row("Session"), _placeholder_row("Weekly"))
-        return (state.codex_session, state.codex_weekly)
-
     def setState_(self, state: PopoverState) -> None:
         self.state = state
         show_install = bool(state.show_install_button)
@@ -418,7 +409,7 @@ class SketchContentView(NSView):
 
 class SketchPanel:
     id = "sketch"
-    display_name = "手繪"
+    display_name = "Sketch"
 
     def build_view(self, delegate: Any) -> NSView:
         width, height = self.preferred_size()

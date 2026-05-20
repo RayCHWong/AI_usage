@@ -27,14 +27,13 @@ from panels.base import POPOVER_WIDTH, fill_rounded_rect, stroke_rounded_rect
 if TYPE_CHECKING:
     from menubar import PopoverState, QuotaRowState
 
-CONTENT_HEIGHT = 590.0
+CONTENT_HEIGHT = 378.0
 
 BG = (0.040, 0.040, 0.048)
 CARD_BG = (0.090, 0.090, 0.105)
 TEXT = (0.960, 0.960, 0.970)
 MUTED = (0.380, 0.380, 0.420)
 CLAUDE_ACC = (0.957, 0.573, 0.431)
-CODEX_ACC = (0.345, 0.839, 0.902)
 
 CARD_X = 20.0
 CARD_WIDTH = 324.0
@@ -42,11 +41,10 @@ CARD_HEIGHT = 200.0
 CARD_RADIUS = 12.0
 
 CLAUDE_CARD_Y = 16.0
-CODEX_CARD_Y = 228.0
-FOOTER_CARD_Y = 440.0
+FOOTER_CARD_Y = 228.0
 FOOTER_CARD_HEIGHT = 96.0
 
-BUTTON_ROW_Y = 548.0
+BUTTON_ROW_Y = 336.0
 BUTTON_ROW_HEIGHT = 34.0
 BUTTON_GAP = 8.0
 BUTTON_WIDTH = (CARD_WIDTH - (BUTTON_GAP * 2)) / 3.0
@@ -111,7 +109,7 @@ def _placeholder_row(title: str) -> Any:
         title=title,
         percent=None,
         percent_text="--",
-        reset_text="重置 --",
+        reset_text="Resets --",
         available=False,
     )
 
@@ -190,7 +188,7 @@ class MinimalContentView(NSView):
         self.refresh_button = (
             MinimalButton.alloc().initWithFrame_title_fill_text_border_target_action_(
                 NSMakeRect(0, 0, BUTTON_WIDTH, BUTTON_ROW_HEIGHT),
-                "立即更新",
+                "Refresh Now",
                 primary_fill,
                 primary_text,
                 None,
@@ -201,7 +199,7 @@ class MinimalContentView(NSView):
         self.quit_button = (
             MinimalButton.alloc().initWithFrame_title_fill_text_border_target_action_(
                 NSMakeRect(0, 0, BUTTON_WIDTH, BUTTON_ROW_HEIGHT),
-                "結束",
+                "Quit",
                 secondary_fill,
                 secondary_text,
                 border,
@@ -212,7 +210,7 @@ class MinimalContentView(NSView):
         self.switch_button = (
             MinimalButton.alloc().initWithFrame_title_fill_text_border_target_action_(
                 NSMakeRect(0, 0, BUTTON_WIDTH, BUTTON_ROW_HEIGHT),
-                "切換面板",
+                "Switch Panel",
                 secondary_fill,
                 secondary_text,
                 border,
@@ -223,7 +221,7 @@ class MinimalContentView(NSView):
         self.install_hook_button = (
             MinimalButton.alloc().initWithFrame_title_fill_text_border_target_action_(
                 NSMakeRect(0, 0, BUTTON_WIDTH, BUTTON_ROW_HEIGHT),
-                "安裝 Hook",
+                "Install Hook",
                 primary_fill,
                 primary_text,
                 None,
@@ -268,7 +266,6 @@ class MinimalContentView(NSView):
         NSRectFill(bounds)
 
         self._draw_quota_card("CLAUDE CODE", CLAUDE_CARD_Y, _rgb(CLAUDE_ACC), self._claude_rows())
-        self._draw_quota_card("CODEX", CODEX_CARD_Y, _rgb(CODEX_ACC), self._codex_rows())
         self._draw_footer_card()
 
     def _draw_quota_card(
@@ -370,8 +367,8 @@ class MinimalContentView(NSView):
         texts = [state.rate_text, state.status_text, state.today_text]
 
         for text, row_y in zip(texts, row_ys, strict=True):
-            if "：" in text:
-                lbl, val = text.split("：", 1)
+            if ": " in text:
+                lbl, val = text.split(": ", 1)
             else:
                 lbl, val = "", text
             _draw_text(lbl, NSMakeRect(inner_x, row_y, inner_w, 18.0), _rgb(MUTED), 11.0, -0.2)
@@ -392,12 +389,6 @@ class MinimalContentView(NSView):
         if state is None:
             return (_placeholder_row("Session"), _placeholder_row("Weekly"))
         return (state.claude_session, state.claude_weekly)
-
-    def _codex_rows(self) -> tuple[QuotaRowState, QuotaRowState]:
-        state = self.state
-        if state is None:
-            return (_placeholder_row("Session"), _placeholder_row("Weekly"))
-        return (state.codex_session, state.codex_weekly)
 
     def setState_(self, state: PopoverState) -> None:
         self.state = state

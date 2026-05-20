@@ -33,7 +33,7 @@ def test_bar_color_thresholds() -> None:
 
 
 def test_quota_row_returns_missing_when_percent_is_none() -> None:
-    row = menubar._quota_row("Session", None, 1_100.0, 1_000.0, menubar.CODEX_COLOR)
+    row = menubar._quota_row("Session", None, 1_100.0, 1_000.0, menubar.CLAUDE_COLOR)
 
     assert row.available is False
     assert row.percent is None
@@ -41,7 +41,7 @@ def test_quota_row_returns_missing_when_percent_is_none() -> None:
 
 
 def test_quota_row_returns_missing_when_reset_is_none() -> None:
-    row = menubar._quota_row("Session", 50.0, None, 1_000.0, menubar.CODEX_COLOR)
+    row = menubar._quota_row("Session", 50.0, None, 1_000.0, menubar.CLAUDE_COLOR)
 
     assert row.available is False
     assert row.percent is None
@@ -49,23 +49,23 @@ def test_quota_row_returns_missing_when_reset_is_none() -> None:
 
 
 def test_quota_row_formats_available_row() -> None:
-    row = menubar._quota_row("Session", 50.5, 1_090.0, 1_000.0, menubar.CODEX_COLOR)
+    row = menubar._quota_row("Session", 50.5, 1_090.0, 1_000.0, menubar.CLAUDE_COLOR)
 
     assert row.available is True
     assert row.percent == 50.5
-    assert row.percent_text == "50.5% 已用"
-    assert row.reset_text.startswith("重置 ")
+    assert row.percent_text == "50.5% used"
+    assert row.reset_text.startswith("Resets ")
     assert row.color == menubar.WARN_COLOR
 
 
 def test_quota_row_clamps_percent_to_range() -> None:
-    high = menubar._quota_row("Session", 150.0, 1_090.0, 1_000.0, menubar.CODEX_COLOR)
-    low = menubar._quota_row("Session", -10.0, 1_090.0, 1_000.0, menubar.CODEX_COLOR)
+    high = menubar._quota_row("Session", 150.0, 1_090.0, 1_000.0, menubar.CLAUDE_COLOR)
+    low = menubar._quota_row("Session", -10.0, 1_090.0, 1_000.0, menubar.CLAUDE_COLOR)
 
     assert high.percent == 100.0
-    assert high.percent_text == "100% 已用"
+    assert high.percent_text == "100% used"
     assert low.percent == 0.0
-    assert low.percent_text == "0% 已用"
+    assert low.percent_text == "0% used"
 
 
 def test_missing_row() -> None:
@@ -74,21 +74,16 @@ def test_missing_row() -> None:
     assert row.available is False
     assert row.percent is None
     assert row.percent_text == "--"
-    assert row.reset_text == "重置 --"
+    assert row.reset_text == "Resets --"
 
 
 def test_today_title_mock() -> None:
-    assert menubar._today_title(mock=True) == "今日：$45.20 (50,193,442 tokens)"
+    assert menubar._today_title(mock=True) == "Today: $45.20 (50,193,442 tokens)"
 
 
 def test_empty_state() -> None:
     state = menubar._empty_state()
-    rows = (
-        state.claude_session,
-        state.claude_weekly,
-        state.codex_session,
-        state.codex_weekly,
-    )
+    rows = (state.claude_session, state.claude_weekly)
 
     assert all(row.available is False for row in rows)
     assert state.show_install_button is False
@@ -98,7 +93,7 @@ def test_error_state_uses_message_and_mock_today_title() -> None:
     state = menubar._error_state("boom", mock=True)
 
     assert "boom" in state.status_text
-    assert state.today_text == "今日：$45.20 (50,193,442 tokens)"
+    assert state.today_text == "Today: $45.20 (50,193,442 tokens)"
 
 
 def test_popover_size_has_positive_dimensions() -> None:
