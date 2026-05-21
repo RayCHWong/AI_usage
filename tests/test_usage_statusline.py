@@ -94,3 +94,20 @@ def test_main_returns_when_stdin_read_raises(
     usage_statusline.main()
 
     assert not status_file.exists()
+
+
+def test_main_logs_invalid_json_in_debug_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    status_file = tmp_path / "usage-status.json"
+    monkeypatch.setattr(usage_statusline, "STATUS_FILE", str(status_file))
+    monkeypatch.setattr(sys, "stdin", io.StringIO("{bad json"))
+    monkeypatch.setenv("USAGE_DEBUG", "1")
+
+    usage_statusline.main()
+
+    captured = capsys.readouterr()
+    assert "usage_statusline: invalid stdin JSON" in captured.err
+    assert not status_file.exists()

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import time
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 STATUS_FILE = os.path.expanduser("~/.claude/usage-status.json")
 LEGACY_STATUS_FILE = os.path.expanduser("~/.claude/usag-status.json")
@@ -79,9 +82,13 @@ def _read_status_file() -> tuple[dict[str, Any], str] | None:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
+            if os.environ.get("USAGE_DEBUG") == "1":
+                logger.warning("failed to read status file %s", path, exc_info=True)
             continue
         if isinstance(data, dict):
             return data, path
+        if os.environ.get("USAGE_DEBUG") == "1":
+            logger.warning("status file %s is not a JSON object", path)
     return None
 
 

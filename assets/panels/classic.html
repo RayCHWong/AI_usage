@@ -376,9 +376,11 @@
     function renderRow(card, key, row) {
       const el = document.querySelector(`[data-card="${card}"] [data-row="${key}"]`);
       if (!el) return;
+      const cardEl = el.closest(".card");
+      if (!cardEl) return;
       const data = row || { percent: null, percentText: "--", resetText: "重置 --", available: false };
       const available = data.available === true && typeof data.percent === "number";
-      const accent = getComputedStyle(el.closest(".card")).getPropertyValue("--accent").trim();
+      const accent = getComputedStyle(cardEl).getPropertyValue("--accent").trim();
       const color = colorFor(data.percent, accent);
       el.dataset.available = available ? "true" : "false";
       el.innerHTML = `
@@ -389,11 +391,15 @@
         <div class="track"><div class="fill"></div></div>
         <div class="reset"></div>
       `;
-      el.querySelector(".row-title").textContent = labels[key];
-      el.querySelector(".percent").textContent = data.percentText || "--";
-      el.querySelector(".reset").textContent = data.resetText || "重置 --";
-      el.querySelector(".percent").style.color = available ? color : "";
+      const title = el.querySelector(".row-title");
+      const percent = el.querySelector(".percent");
+      const reset = el.querySelector(".reset");
       const fill = el.querySelector(".fill");
+      if (!title || !percent || !reset || !fill) return;
+      title.textContent = labels[key];
+      percent.textContent = data.percentText || "--";
+      reset.textContent = data.resetText || "重置 --";
+      percent.style.color = available ? color : "";
       fill.style.width = available ? `${Math.max(0, Math.min(100, data.percent))}%` : "0%";
       fill.style.background = color;
     }
@@ -426,9 +432,12 @@
         : projectRange === "7d" ? state.projects7d
         : state.projects30d
       );
-      document.querySelector('[data-footer="rate"]').textContent = state.footer.rate || "速率：--";
-      document.querySelector('[data-footer="status"]').textContent = state.footer.status || "狀態：--";
-      document.querySelector('[data-footer="today"]').textContent = state.footer.today || "今日：--";
+      const rate = document.querySelector('[data-footer="rate"]');
+      const status = document.querySelector('[data-footer="status"]');
+      const today = document.querySelector('[data-footer="today"]');
+      if (rate) rate.textContent = state.footer.rate || "速率：--";
+      if (status) status.textContent = state.footer.status || "狀態：--";
+      if (today) today.textContent = state.footer.today || "今日：--";
 
     };
 
@@ -447,7 +456,10 @@
         }
         return;
       }
-      window.webkit.messageHandlers.usage.postMessage(button.dataset.action);
+      const bridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.usage;
+      if (bridge && typeof bridge.postMessage === "function") {
+        bridge.postMessage(button.dataset.action);
+      }
     });
 
     window.usageApplyState({

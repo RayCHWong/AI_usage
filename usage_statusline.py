@@ -44,20 +44,30 @@ def save(data: dict[str, Any], now: datetime) -> None:
                 os.unlink(tmp_path)
 
 
+def _debug(message: str, exc: Exception | None = None) -> None:
+    if os.environ.get("USAGE_DEBUG") != "1":
+        return
+    if exc is None:
+        print(f"usage_statusline: {message}", file=sys.stderr)
+        return
+    print(f"usage_statusline: {message}: {exc}", file=sys.stderr)
+
+
 def main() -> None:
     try:
         raw = sys.stdin.read()
     except Exception as exc:
-        if os.environ.get("USAGE_DEBUG") == "1":
-            print(f"usage_statusline: stdin read failed: {exc}", file=sys.stderr)
+        _debug("stdin read failed", exc)
         return
     if not raw.strip():
         return
     try:
         data = json.loads(raw)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        _debug("invalid stdin JSON", exc)
         return
     if not isinstance(data, dict):
+        _debug("stdin JSON root is not an object")
         return
     save(data, datetime.now(timezone.utc))
 

@@ -109,6 +109,8 @@ def _read_cache() -> PricingTable | None:
         try:
             return _normalize_pricing(json.load(file))
         except json.JSONDecodeError:
+            if os.environ.get("USAGE_DEBUG") == "1":
+                logger.warning("failed to decode pricing cache %s", CACHE_PATH, exc_info=True)
             return None
     return None
 
@@ -119,6 +121,8 @@ def _fetch_pricing() -> PricingTable | None:
         with urllib.request.urlopen(request, timeout=10) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (OSError, json.JSONDecodeError, TimeoutError):
+        if os.environ.get("USAGE_DEBUG") == "1":
+            logger.warning("failed to fetch pricing from %s", LITELLM_PRICING_URL, exc_info=True)
         return None
     return _normalize_pricing(payload)
 

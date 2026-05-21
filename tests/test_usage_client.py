@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -82,6 +83,24 @@ def test_read_status_file_returns_none_for_bad_usage_json(
     usage_path.write_text("{bad json", encoding="utf-8")
 
     assert usage_client._read_status_file() is None
+
+
+def test_read_status_file_logs_bad_json_in_debug_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    usage_path = tmp_path / "usage-status.json"
+    monkeypatch.setattr(usage_client, "STATUS_FILE", str(usage_path))
+    monkeypatch.setattr(usage_client, "LEGACY_STATUS_FILE", str(tmp_path / f"{LEGACY_NAME}.json"))
+    monkeypatch.setattr(usage_client, "TT_STATUS_FILE", str(tmp_path / "tt-status.json"))
+    monkeypatch.setenv("USAGE_DEBUG", "1")
+    usage_path.write_text("{bad json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING):
+        assert usage_client._read_status_file() is None
+
+    assert f"failed to read status file {usage_path}" in caplog.text
 
 
 def test_build_snapshot_handles_missing_rate_limits_and_clamps_percentages(
