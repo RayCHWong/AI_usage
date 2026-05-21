@@ -229,6 +229,27 @@ To see internal warnings (e.g. swallowed `OSError`s), set:
 USAGE_DEBUG=1 python3 main.py
 ```
 
+## Language
+
+usage auto-detects the macOS system language. Supported languages:
+
+| System language | Display |
+|----------------|---------|
+| Traditional Chinese | 繁體中文 |
+| Simplified Chinese | 简体中文 |
+| Japanese | 日本語 |
+| Korean | 한국어 |
+| Any other | English |
+
+To force a specific language during development or testing:
+
+```bash
+USAGE_LANG=en python3 main.py      # English
+USAGE_LANG=ja python3 main.py      # Japanese
+USAGE_LANG=ko python3 main.py      # Korean
+USAGE_LANG=zh-CN python3 main.py   # Simplified Chinese
+```
+
 ## Behaviour notes
 
 - usage only reads `~/.claude/usage-status.json`, the v0.1.x legacy `~/.claude/usag-status.json`, `~/.claude/tt-status.json`, and Codex's session files. It does not call the Anthropic / OpenAI API and does not read the Keychain. The only network activity is a one-time download of the LiteLLM pricing table for Codex cost estimates (cached for 7 days; offline fallback available).

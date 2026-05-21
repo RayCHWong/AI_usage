@@ -231,6 +231,27 @@ python3 main.py --tui --mock
 USAGE_DEBUG=1 python3 main.py
 ```
 
+## 語言
+
+usage 會自動偵測 macOS 系統語言，目前支援：
+
+| 系統語言 | 顯示語言 |
+|---------|---------|
+| 繁體中文 | 繁體中文 |
+| 簡體中文 | 簡體中文 |
+| 日文 | 日文 |
+| 韓文 | 韓文 |
+| 其他 | 英文 |
+
+開發或測試時可用環境變數強制指定：
+
+```bash
+USAGE_LANG=en python3 main.py      # 英文
+USAGE_LANG=ja python3 main.py      # 日文
+USAGE_LANG=ko python3 main.py      # 韓文
+USAGE_LANG=zh-CN python3 main.py   # 簡體中文
+```
+
 ## 一些行為說明
 
 - usage 只讀 `~/.claude/usage-status.json`、v0.1.x 留下的 `~/.claude/usag-status.json`、`~/.claude/tt-status.json`，以及 Codex 的 session 檔。不呼叫 Anthropic / OpenAI API、不讀 Keychain。唯一會連網的情況是首次估算 Codex 成本時下載 LiteLLM 價格表（快取 7 天，離線也能用 fallback）。

@@ -174,10 +174,10 @@ class ClaudeUsageClient:
         now = time.time()
         is_stale = (now - snapshot.polled_at) > STALE_SECONDS
         source_tag = "tt-status" if source_path == TT_STATUS_FILE else "usage"
-        message = f"✓ 已同步（{source_tag}）"
+        message = None
         if is_stale:
             mins = int((now - snapshot.polled_at) / 60)
-            message = f"⚠ 狀態檔已 {mins} 分鐘未更新，數字可能過時"
+            message = f"⚠ {source_tag} stale {mins}m"
 
         return PollOutcome(state=PollState.SUCCESS, snapshot=snapshot, message=message)
 
@@ -193,5 +193,5 @@ class ClaudeUsageClient:
                 current_status="ok",
                 polled_at=now,
             ),
-            message="✓ 已同步",
+            message=None,
         )
