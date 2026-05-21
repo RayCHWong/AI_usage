@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from unittest.mock import patch
+from datetime import UTC, datetime
 
 import pytest
 
-import antigravity_loader
+import history_loader
 import menubar
 
 
@@ -86,6 +86,18 @@ def test_today_title_mock() -> None:
     assert menubar._today_title(mock=True) == "今日：$45.20 (50,193,442 tokens)"
 
 
+def test_today_title_returns_zero_fallback_when_loaders_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        menubar,
+        "load_entries",
+        lambda *, hours_back=24: (_ for _ in ()).throw(OSError),
+    )
+
+    assert menubar._today_title(mock=False) == "今日：$0.00 (0 tokens)"
+
+
 def test_empty_state() -> None:
     state = menubar._empty_state()
     rows = (
@@ -93,11 +105,12 @@ def test_empty_state() -> None:
         state.claude_weekly,
         state.codex_session,
         state.codex_weekly,
-        state.antigravity_session,
-        state.antigravity_weekly,
     )
 
     assert all(row.available is False for row in rows)
+    assert state.projects == []
+    assert state.projects_7d == []
+    assert state.projects_30d == []
     assert state.show_install_button is False
 
 
@@ -115,37 +128,107 @@ def test_popover_size_has_positive_dimensions() -> None:
     assert size.height > 0
 
 
-def test_antigravity_rows_mock() -> None:
-    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+def test_project_rows_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(False, 60)
+    monkeypatch.setattr(menubar, "load_entries", lambda *, hours_back=24: [])
 
-    session, weekly = delegate._antigravity_rows()
-
-    assert session.available is True
-    assert session.percent == 28.0
-    assert weekly.available is True
-    assert weekly.percent == 41.0
+    assert delegate._project_rows(hours_back=24) == []
 
 
-def test_antigravity_rows_from_loader(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_project_rows_top3(monkeypatch: pytest.MonkeyPatch) -> None:
     delegate = menubar.AppDelegate.alloc().initWithMock_interval_(False, 60)
 
-    def fake_load() -> antigravity_loader.AntigravitySnapshot:
-        return antigravity_loader.AntigravitySnapshot(
-            used_percent=30,
-            remaining_fraction=0.7,
-            model_id="gemini-3-pro",
-            resets_at=2_000.0,
-            weekly_used_percent=None,
-            weekly_resets_at=None,
-            polled_at=1_000.0,
-        )
+    entries = [
+        history_loader.UsageEntry(
+            timestamp=datetime(2026, 5, 21, tzinfo=UTC),
+            session_id="s1",
+            message_id="m1",
+            request_id="r1",
+            model="claude",
+            input_tokens=4_000_000,
+            output_tokens=1_000_000,
+            cache_creation_tokens=0,
+            cache_read_tokens=0,
+            cost_usd=2.0,
+            project="usage",
+        ),
+        history_loader.UsageEntry(
+            timestamp=datetime(2026, 5, 21, tzinfo=UTC),
+            session_id="s2",
+            message_id="m2",
+            request_id="r2",
+            model="claude",
+            input_tokens=2_000_000,
+            output_tokens=500_000,
+            cache_creation_tokens=0,
+            cache_read_tokens=0,
+            cost_usd=1.0,
+            project="FinMind",
+        ),
+        history_loader.UsageEntry(
+            timestamp=datetime(2026, 5, 21, tzinfo=UTC),
+            session_id="s3",
+            message_id="m3",
+            request_id="r3",
+            model="claude",
+            input_tokens=1_000_000,
+            output_tokens=300_000,
+            cache_creation_tokens=0,
+            cache_read_tokens=0,
+            cost_usd=0.5,
+            project="AI客服",
+        ),
+        history_loader.UsageEntry(
+            timestamp=datetime(2026, 5, 21, tzinfo=UTC),
+            session_id="s4",
+            message_id="m4",
+            request_id="r4",
+            model="claude",
+            input_tokens=600_000,
+            output_tokens=100_000,
+            cache_creation_tokens=0,
+            cache_read_tokens=0,
+            cost_usd=0.2,
+            project="sidecar",
+        ),
+        history_loader.UsageEntry(
+            timestamp=datetime(2026, 5, 21, tzinfo=UTC),
+            session_id="s5",
+            message_id="m5",
+            request_id="r5",
+            model="claude",
+            input_tokens=500_000,
+            output_tokens=100_000,
+            cache_creation_tokens=0,
+            cache_read_tokens=0,
+            cost_usd=None,
+            project="ops",
+        ),
+    ]
 
-    monkeypatch.setattr(antigravity_loader, "load_antigravity", fake_load)
+    monkeypatch.setattr(menubar, "load_entries", lambda *, hours_back=24: entries)
 
-    with patch("menubar.time.time", return_value=1_000.0):
-        session, weekly = delegate._antigravity_rows()
+    rows = delegate._project_rows(hours_back=24)
 
-    assert session.available is True
-    assert session.percent == 30.0
-    assert weekly.available is False
-    assert weekly.percent_text == "--"
+    assert len(rows) == 3
+    assert rows[0] == ("usage", 5_000_000, 2.0)
+    assert rows[1][0] == "FinMind"
+    assert rows[2][0] == "AI客服"
+
+
+def test_project_rows_7d_mock() -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+
+    rows = delegate._project_rows(hours_back=168)
+
+    assert len(rows) == 3
+    assert rows[0][1] == 78_400_000
+
+
+def test_project_rows_30d_mock() -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+
+    rows = delegate._project_rows(hours_back=720)
+
+    assert len(rows) == 3
+    assert rows[0][1] == 312_000_000

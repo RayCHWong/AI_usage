@@ -201,16 +201,16 @@ def _normalize_model_name(model: str) -> str:
 def _fallback_pricing() -> PricingTable:
     return {
         "claude-opus-4-6": {
-            "input_cost_per_token": 15e-6,
-            "output_cost_per_token": 75e-6,
-            "cache_creation_input_token_cost": 18.75e-6,
-            "cache_read_input_token_cost": 1.5e-6,
+            "input_cost_per_token": 5e-6,
+            "output_cost_per_token": 25e-6,
+            "cache_creation_input_token_cost": 6.25e-6,
+            "cache_read_input_token_cost": 0.5e-6,
         },
         "claude-opus-4-7": {
-            "input_cost_per_token": 15e-6,
-            "output_cost_per_token": 75e-6,
-            "cache_creation_input_token_cost": 18.75e-6,
-            "cache_read_input_token_cost": 1.5e-6,
+            "input_cost_per_token": 5e-6,
+            "output_cost_per_token": 25e-6,
+            "cache_creation_input_token_cost": 6.25e-6,
+            "cache_read_input_token_cost": 0.5e-6,
         },
         "claude-sonnet-4-6": {
             "input_cost_per_token": 3e-6,

@@ -49,7 +49,6 @@ if __name__ == "__main__":
             "assets/codex.webp",
             "assets/Google-Antigravity-Icon-Full-Color.png",
             "assets/panels",
-            "assets/taiwan.png",
             "usage_statusline.py",
         ],
         "includes": [

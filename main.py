@@ -93,7 +93,7 @@ async def poll_usage(
             await asyncio.wait_for(stop_event.wait(), timeout=client.interval_seconds)
             return
         except TimeoutError:
-            pass
+            continue
 
         state.poll_state = PollState.LOADING
         outcome = await client.fetch_once()

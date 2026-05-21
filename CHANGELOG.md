@@ -4,6 +4,21 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [0.5.0] - 2026-05-21
+
+### 新增
+- **專案用量新增「月」切換**：「今日 / 7 日 / 月」三段循環，可查看近 30 天各專案的 token 用量與費用。
+
+### 修正
+- **專案用量費用正確計算**：之前因為 Claude Code 的 JSONL 沒有寫入 `costUSD` 欄位，所有專案顯示 $0.00；現在改用與「今日費用」相同的 `calculate_cost()` 計算，數字一致。
+- **備援定價 Opus 修正為 $5/M**：離線時備援的 Opus 單價從 $15/M 修正為 $5/M，與 LiteLLM 實際值一致。
+
+### 改善
+- 專案用量的 SVG 圖示尺寸調整為與 Claude Code / Codex 圖示一致（30×30）。
+
+### 移除
+- 移除 Taiwan、Matrix、ECG、Minimal、Sketch 五個 PyObjC 原生面板，統一改為 HTML/CSS 架構，新面板設計中。
+
 ## [0.4.0] - 2026-05-20
 
 ### 新增

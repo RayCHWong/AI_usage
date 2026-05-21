@@ -191,10 +191,18 @@ def _state_payload(state: PopoverState) -> dict[str, object]:
             "session": _row_payload(state.codex_session),
             "weekly": _row_payload(state.codex_weekly),
         },
-        "antigravity": {
-            "session": _row_payload(state.antigravity_session),
-            "weekly": _row_payload(state.antigravity_weekly),
-        },
+        "projects": [
+            {"name": name, "tokensText": _fmt_tokens(tokens), "costText": _fmt_cost(cost)}
+            for name, tokens, cost in state.projects
+        ],
+        "projects7d": [
+            {"name": name, "tokensText": _fmt_tokens(tokens), "costText": _fmt_cost(cost)}
+            for name, tokens, cost in state.projects_7d
+        ],
+        "projects30d": [
+            {"name": name, "tokensText": _fmt_tokens(tokens), "costText": _fmt_cost(cost)}
+            for name, tokens, cost in state.projects_30d
+        ],
         "footer": {
             "rate": state.rate_text,
             "status": state.status_text,
@@ -202,3 +210,13 @@ def _state_payload(state: PopoverState) -> dict[str, object]:
             "showInstall": state.show_install_button,
         },
     }
+
+
+def _fmt_tokens(n: int) -> str:
+    return f"{n:,}"
+
+
+def _fmt_cost(cost: float | None) -> str:
+    if cost is None:
+        return "--"
+    return f"${cost:.2f}"

@@ -11,7 +11,6 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import objc
@@ -32,14 +31,12 @@ from AppKit import (
     NSViewController,
 )
 from Foundation import (
-    NSBundle,
     NSObject,
     NSRunLoop,
     NSRunLoopCommonModes,
     NSTimer,
 )
 
-import antigravity_loader
 import codex_loader
 import panels
 from history_loader import load_entries
@@ -49,26 +46,10 @@ from pricing import calculate_cost
 from usage_client import ClaudeUsageClient, PollOutcome, PollState
 from usage_rate import GROUP_NAMES, UsageRateTracker
 
-POPOVER_WIDTH = 364.0
-CONTENT_HEIGHT = 574.0
-PADDING = 14.0
-TRACK_HEIGHT = 8.0
-CARD_HEIGHT = 184.0
-FOOTER_HEIGHT = 152.0
-CARD_RADIUS = 18.0
-CARD_HEADER_TOP = 22.0
-CARD_ROW_TOP = 66.0
-CARD_ROW_GAP = 64.0
-CARD_SIDE_INSET = 18.0
-SECTION_GAP = 14.0
-FOOTER_GAP = 12.0
-FOOTER_LINE_GAP = 18.0
-BUTTON_TOP_GAP = 18.0
 BUTTON_HEIGHT = 32.0
 INSTALL_BUTTON_EXTRA_HEIGHT = BUTTON_HEIGHT + 10.0
 CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
 CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
-ANTIGRAVITY_COLOR = (66 / 255, 133 / 255, 244 / 255)
 WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
 DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
 
@@ -82,19 +63,6 @@ def _bar_color(pct: float, brand: tuple[float, float, float]) -> tuple[float, fl
         return WARN_COLOR
     return brand
 
-
-def _resolve_resource(name: str) -> str:
-    bundle = NSBundle.mainBundle()
-    if bundle is not None:
-        stem, _, ext = name.rpartition(".")
-        path = bundle.pathForResource_ofType_(stem, ext)
-        if path:
-            return str(path)
-    return str(Path(__file__).parent / "assets" / name)
-
-
-CLAUDE_ICON_PATH = _resolve_resource("claude.webp")
-CODEX_ICON_PATH = _resolve_resource("codex.webp")
 
 _APP_DELEGATE: AppDelegate | None = None
 
@@ -115,8 +83,9 @@ class PopoverState:
     claude_weekly: QuotaRowState
     codex_session: QuotaRowState
     codex_weekly: QuotaRowState
-    antigravity_session: QuotaRowState
-    antigravity_weekly: QuotaRowState
+    projects: list[tuple[str, int, float | None]]
+    projects_7d: list[tuple[str, int, float | None]]
+    projects_30d: list[tuple[str, int, float | None]]
     rate_text: str
     status_text: str
     today_text: str
@@ -280,9 +249,19 @@ class AppDelegate(NSObject):
         try:
             outcome = asyncio.run(self._fetch())
             codex_rows, codex_5h_pct = self._codex_rows()
-            antigravity_rows = self._antigravity_rows()
-            state = self._state_from_outcome(outcome, codex_rows, antigravity_rows)
+            project_rows = self._project_rows(hours_back=24)
+            project_rows_7d = self._project_rows(hours_back=168)
+            project_rows_30d = self._project_rows(hours_back=720)
+            state = self._state_from_outcome(
+                outcome,
+                codex_rows,
+                project_rows,
+                project_rows_7d,
+                project_rows_30d,
+            )
         except Exception as exc:
+            if os.environ.get("USAGE_DEBUG") == "1":
+                logger.warning("refresh failed", exc_info=True)
             codex_5h_pct = None
             state = _error_state(type(exc).__name__, self.mock)
 
@@ -349,7 +328,9 @@ class AppDelegate(NSObject):
         self,
         outcome: PollOutcome,
         codex_rows: tuple[QuotaRowState, QuotaRowState],
-        antigravity_rows: tuple[QuotaRowState, QuotaRowState],
+        projects: list[tuple[str, int, float | None]],
+        project_rows_7d: list[tuple[str, int, float | None]],
+        project_rows_30d: list[tuple[str, int, float | None]],
     ) -> PopoverState:
         now = time.time()
         today_text = _today_title(self.mock)
@@ -384,8 +365,9 @@ class AppDelegate(NSObject):
             claude_weekly=claude_weekly,
             codex_session=codex_rows[0],
             codex_weekly=codex_rows[1],
-            antigravity_session=antigravity_rows[0],
-            antigravity_weekly=antigravity_rows[1],
+            projects=projects,
+            projects_7d=project_rows_7d,
+            projects_30d=project_rows_30d,
             rate_text=f"速率：{group_name}",
             status_text=status_text,
             today_text=today_text,
@@ -434,45 +416,54 @@ class AppDelegate(NSObject):
         )
         return rows, codex_5h_pct
 
-    def _antigravity_rows(self) -> tuple[QuotaRowState, QuotaRowState]:
+    def _project_rows(self, hours_back: int = 24) -> list[tuple[str, int, float | None]]:
         if self.mock:
-            now = time.time()
-            return (
-                _quota_row("Session", 28.0, now + (3 * 3600) + (42 * 60), now, ANTIGRAVITY_COLOR),
-                _quota_row("Weekly", 41.0, now + (5 * 86400) + (6 * 3600), now, ANTIGRAVITY_COLOR),
-            )
+            if hours_back <= 24:
+                return [
+                    ("usage", 11_200_000, 6.47),
+                    ("FinMind", 3_100_000, 1.82),
+                    ("AI客服", 800_000, 0.48),
+                ]
+            if hours_back <= 168:
+                return [
+                    ("usage", 78_400_000, 45.20),
+                    ("FinMind", 21_700_000, 12.74),
+                    ("AI客服", 5_600_000, 3.36),
+                ]
+            return [
+                ("usage", 312_000_000, 180.50),
+                ("FinMind", 86_400_000, 50.12),
+                ("AI客服", 22_000_000, 13.20),
+            ]
 
         try:
-            snapshot = antigravity_loader.load_antigravity()
+            entries = load_entries(hours_back=hours_back)
         except Exception:
             if os.environ.get("USAGE_DEBUG") == "1":
-                logger.warning("antigravity quota load failed", exc_info=True)
-            return (
-                _missing_row("Session", ANTIGRAVITY_COLOR),
-                _missing_row("Weekly", ANTIGRAVITY_COLOR),
-            )
+                logger.warning("project usage load failed", exc_info=True)
+            return []
 
-        now = time.time()
-        return (
-            _quota_row(
-                "Session",
-                float(snapshot.used_percent) if snapshot.used_percent is not None else None,
-                snapshot.resets_at,
-                now,
-                ANTIGRAVITY_COLOR,
-            ),
-            _quota_row(
-                "Weekly",
-                (
-                    float(snapshot.weekly_used_percent)
-                    if snapshot.weekly_used_percent is not None
-                    else None
-                ),
-                snapshot.weekly_resets_at,
-                now,
-                ANTIGRAVITY_COLOR,
-            ),
+        aggregates: dict[str, list[float]] = {}
+        for entry in entries:
+            bucket = aggregates.setdefault(entry.project, [0.0, 0.0])
+            bucket[0] += entry.total_tokens
+            bucket[1] += calculate_cost(entry)
+
+        ranked = sorted(
+            aggregates.items(),
+            key=lambda item: (int(item[1][0]), item[0]),
+            reverse=True,
         )
+        rows: list[tuple[str, int, float | None]] = []
+        for project, (tokens, cost) in ranked[:3]:
+            rows.append(
+                (
+                    project,
+                    int(tokens),
+                    cost,
+                )
+            )
+        return rows
 
     def _compose_title(self, state: PopoverState) -> str:
         claude_text = state.claude_session.percent_text.replace(" 已用", "")
@@ -503,8 +494,9 @@ def _empty_state() -> PopoverState:
         claude_weekly=_missing_row("Weekly", CLAUDE_COLOR),
         codex_session=_missing_row("Session", CODEX_COLOR),
         codex_weekly=_missing_row("Weekly", CODEX_COLOR),
-        antigravity_session=_missing_row("Session", ANTIGRAVITY_COLOR),
-        antigravity_weekly=_missing_row("Weekly", ANTIGRAVITY_COLOR),
+        projects=[],
+        projects_7d=[],
+        projects_30d=[],
         rate_text="速率：--",
         status_text="狀態：載入中",
         today_text="今日：$0.00 (0 tokens)",
@@ -555,16 +547,21 @@ def _today_title(mock: bool = False) -> str:
     if mock:
         return "今日：$45.20 (50,193,442 tokens)"
 
-    today = datetime.now().astimezone().date()
-    total_tokens = 0
-    total_cost = 0.0
+    try:
+        today = datetime.now().astimezone().date()
+        total_tokens = 0
+        total_cost = 0.0
 
-    entries = load_entries(hours_back=24) + codex_loader.load_entries(hours_back=24)
-    for entry in entries:
-        if entry.timestamp.astimezone().date() != today:
-            continue
-        total_tokens += entry.total_tokens
-        total_cost += calculate_cost(entry)
+        entries = load_entries(hours_back=24) + codex_loader.load_entries(hours_back=24)
+        for entry in entries:
+            if entry.timestamp.astimezone().date() != today:
+                continue
+            total_tokens += entry.total_tokens
+            total_cost += calculate_cost(entry)
+    except Exception:
+        if os.environ.get("USAGE_DEBUG") == "1":
+            logger.warning("today totals load failed", exc_info=True)
+        return "今日：$0.00 (0 tokens)"
 
     return f"今日：${total_cost:.2f} ({total_tokens:,} tokens)"
 

@@ -1,20 +1,10 @@
 from __future__ import annotations
 
 from panels.base import Panel
-from panels.ecg import ECGPanel
-from panels.matrix import MatrixPanel
-from panels.minimal import MinimalPanel
-from panels.sketch import SketchPanel
-from panels.taiwan import TaiwanPanel
 from panels.web_panel import HTMLPanel
 
 PANELS: tuple[Panel, ...] = (
     HTMLPanel("classic", "預設", "classic.html"),
-    TaiwanPanel,
-    MatrixPanel(),
-    ECGPanel(),
-    MinimalPanel(),
-    SketchPanel(),
 )
 
 
@@ -31,7 +21,3 @@ def get_panel(panel_id: str) -> Panel:
         if panel.id == panel_id:
             return panel
     return PANELS[0]
-
-
-def panel_id_exists(panel_id: str) -> bool:
-    return any(panel.id == panel_id for panel in PANELS)

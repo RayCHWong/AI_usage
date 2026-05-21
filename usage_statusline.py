@@ -47,7 +47,9 @@ def save(data: dict[str, Any], now: datetime) -> None:
 def main() -> None:
     try:
         raw = sys.stdin.read()
-    except Exception:
+    except Exception as exc:
+        if os.environ.get("USAGE_DEBUG") == "1":
+            print(f"usage_statusline: stdin read failed: {exc}", file=sys.stderr)
         return
     if not raw.strip():
         return
