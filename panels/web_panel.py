@@ -118,11 +118,22 @@ class HTMLPanel:
     id: str
     display_name: str
     html_filename: str
+    width: float
+    height: float
 
-    def __init__(self, panel_id: str, display_name: str, html_filename: str) -> None:
+    def __init__(
+        self,
+        panel_id: str,
+        display_name: str,
+        html_filename: str,
+        width: float = PANEL_WIDTH,
+        height: float = PANEL_HEIGHT,
+    ) -> None:
         self.id = panel_id
         self.display_name = display_name
         self.html_filename = html_filename
+        self.width = width
+        self.height = height
 
     def build_view(self, delegate: Any) -> NSView:
         if WKUserContentController is None or WKWebViewConfiguration is None:
@@ -132,7 +143,7 @@ class HTMLPanel:
         controller = WKUserContentController.alloc().init()
         configuration.setUserContentController_(controller)
         web_view = WebPanelView.alloc().initWithFrame_configuration_delegate_(
-            NSMakeRect(0, 0, PANEL_WIDTH, PANEL_HEIGHT),
+            NSMakeRect(0, 0, self.width, self.height),
             configuration,
             delegate,
         )
@@ -146,7 +157,7 @@ class HTMLPanel:
         view.injectState_(_state_payload(state))
 
     def preferred_size(self) -> tuple[float, float]:
-        return (PANEL_WIDTH, PANEL_HEIGHT)
+        return (self.width, self.height)
 
 
 def _load_panel_html(filename: str) -> str:
