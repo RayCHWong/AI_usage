@@ -6,6 +6,7 @@ import pytest
 
 import history_loader
 import menubar
+from usage_client import PollOutcome, PollState, UsageSnapshot
 
 
 def test_format_human_time_zero_and_negative() -> None:
@@ -62,6 +63,7 @@ def test_quota_row_formats_available_row() -> None:
     assert row.percent == 50.5
     assert row.percent_text == "50.5% 已用"
     assert row.reset_text.startswith("重置 ")
+    assert row.warning is False
     assert row.color == menubar.WARN_COLOR
 
 
@@ -86,6 +88,37 @@ def test_missing_row() -> None:
     assert row.percent is None
     assert row.percent_text == "--"
     assert row.reset_text == "重置 --"
+    assert row.warning is False
+
+
+def test_quota_row_uses_burn_warning_when_forecast_exceeds_risk_threshold() -> None:
+    row = menubar._quota_row(
+        "Session",
+        82.0,
+        1_000.0 + (51 * 60),
+        1_000.0,
+        menubar.CODEX_COLOR,
+        language="zh-TW",
+        forecast_seconds=18 * 60,
+    )
+
+    assert row.warning is True
+    assert row.reset_text == "⚠ 剩 18分鐘 用完(重置還要 51分鐘)"
+
+
+def test_quota_row_keeps_reset_text_when_forecast_is_not_before_reset() -> None:
+    row = menubar._quota_row(
+        "Session",
+        82.0,
+        1_000.0 + (18 * 60),
+        1_000.0,
+        menubar.CODEX_COLOR,
+        language="zh-TW",
+        forecast_seconds=51 * 60,
+    )
+
+    assert row.warning is False
+    assert row.reset_text == "重置 18分鐘"
 
 
 def test_today_title_mock() -> None:
@@ -238,3 +271,57 @@ def test_project_rows_30d_mock() -> None:
 
     assert len(rows) == 3
     assert rows[0][1] == 312_000_000
+
+
+def test_state_from_outcome_replaces_claude_reset_with_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(False, 60)
+    delegate.language = "zh-TW"
+    monkeypatch.setattr("time.time", lambda: 1_600.0)
+    delegate.burn_rate_trackers["claude_session"].record(1_000.0, 72.0)
+    delegate.burn_rate_trackers["claude_session"].record(1_600.0, 82.0)
+
+    outcome = PollOutcome(
+        state=PollState.SUCCESS,
+        snapshot=UsageSnapshot(
+            current_percent=82,
+            current_reset_at=1_600.0 + (51 * 60),
+            weekly_percent=20,
+            weekly_reset_at=1_600.0 + (2 * 86400),
+            current_status="ok",
+            polled_at=1_600.0,
+        ),
+    )
+
+    state = delegate._state_from_outcome(outcome, delegate._codex_rows()[0], [], [], [])
+
+    assert state.claude_session.warning is True
+    assert state.claude_session.reset_text == "⚠ 剩 18分鐘 用完(重置還要 51分鐘)"
+
+
+def test_state_from_outcome_keeps_reset_when_burn_rate_is_not_positive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(False, 60)
+    delegate.language = "zh-TW"
+    monkeypatch.setattr("time.time", lambda: 1_600.0)
+    delegate.burn_rate_trackers["claude_session"].record(1_000.0, 82.0)
+    delegate.burn_rate_trackers["claude_session"].record(1_600.0, 70.0)
+
+    outcome = PollOutcome(
+        state=PollState.SUCCESS,
+        snapshot=UsageSnapshot(
+            current_percent=70,
+            current_reset_at=1_600.0 + (51 * 60),
+            weekly_percent=20,
+            weekly_reset_at=1_600.0 + (2 * 86400),
+            current_status="ok",
+            polled_at=1_600.0,
+        ),
+    )
+
+    state = delegate._state_from_outcome(outcome, delegate._codex_rows()[0], [], [], [])
+
+    assert state.claude_session.warning is False
+    assert state.claude_session.reset_text == "重置 51分鐘"

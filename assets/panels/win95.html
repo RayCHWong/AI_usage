@@ -222,6 +222,11 @@
       white-space: nowrap;
     }
 
+    .reset[data-warning="true"] {
+      color: #c00000;
+      font-weight: 700;
+    }
+
     .row[data-available="false"] .percent,
     .row[data-available="false"] .reset {
       color: var(--muted);
@@ -467,6 +472,7 @@
         percent: null,
         percentText: "--",
         resetText: t("reset_placeholder"),
+        warning: false,
         available: false,
       };
       const available = data.available === true && typeof data.percent === "number";
@@ -489,6 +495,7 @@
       title.textContent = labels()[key];
       percent.textContent = data.percentText || "--";
       reset.textContent = data.resetText || t("reset_placeholder");
+      reset.dataset.warning = data.warning === true ? "true" : "false";
       percent.style.color = available ? color : "";
       fill.style.width = available ? `${Math.max(0, Math.min(100, data.percent))}%` : "0%";
       fill.style.background = color;

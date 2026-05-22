@@ -44,6 +44,7 @@ from Foundation import (
 import codex_loader
 import login_item
 import panels
+from burn_rate import BurnRateTracker
 from history_loader import load_entries
 from panels.base import Panel as UsagePanel
 from panels.base import load_active_panel_id, save_active_panel_id
@@ -138,6 +139,7 @@ class QuotaRowState:
     percent_text: str
     reset_text: str
     color: tuple[float, float, float]
+    warning: bool = False
     available: bool = True
 
 
@@ -209,6 +211,7 @@ class AppDelegate(NSObject):
     latest_state = objc.ivar()
     active_panel = objc.ivar()
     codex_5h_pct = objc.ivar()
+    burn_rate_trackers = objc.ivar()
     _refresh_in_flight = objc.ivar()
     language = objc.ivar()
 
@@ -223,6 +226,12 @@ class AppDelegate(NSObject):
         self.codex_5h_pct = None
         self.latest_state = _empty_state(self.language)
         self.active_panel = panels.get_panel(load_active_panel_id())
+        self.burn_rate_trackers = {
+            "claude_session": BurnRateTracker(),
+            "claude_weekly": BurnRateTracker(),
+            "codex_session": BurnRateTracker(),
+            "codex_weekly": BurnRateTracker(),
+        }
         self._refresh_in_flight = False
         return self
 
@@ -441,6 +450,16 @@ class AppDelegate(NSObject):
 
         if outcome.state == PollState.SUCCESS and outcome.snapshot is not None:
             snapshot = outcome.snapshot
+            if snapshot.current_percent is not None:
+                self.burn_rate_trackers["claude_session"].record(
+                    snapshot.polled_at,
+                    float(snapshot.current_percent),
+                )
+            if snapshot.weekly_percent is not None:
+                self.burn_rate_trackers["claude_weekly"].record(
+                    snapshot.polled_at,
+                    float(snapshot.weekly_percent),
+                )
             claude_session = _quota_row(
                 "Session",
                 float(snapshot.current_percent) if snapshot.current_percent is not None else None,
@@ -448,6 +467,7 @@ class AppDelegate(NSObject):
                 now,
                 CLAUDE_COLOR,
                 self.language,
+                forecast_seconds=self.burn_rate_trackers["claude_session"].forecast_seconds(),
             )
             claude_weekly = _quota_row(
                 "Weekly",
@@ -456,6 +476,7 @@ class AppDelegate(NSObject):
                 now,
                 CLAUDE_COLOR,
                 self.language,
+                forecast_seconds=self.burn_rate_trackers["claude_weekly"].forecast_seconds(),
             )
             status_text = _t(
                 self.language,
@@ -489,6 +510,8 @@ class AppDelegate(NSObject):
     def _codex_rows(self) -> tuple[tuple[QuotaRowState, QuotaRowState], int | None]:
         if self.mock:
             now = time.time()
+            self.burn_rate_trackers["codex_session"].record(now, 12.0)
+            self.burn_rate_trackers["codex_weekly"].record(now, 28.0)
             rows = (
                 _quota_row(
                     "Session",
@@ -497,8 +520,17 @@ class AppDelegate(NSObject):
                     now,
                     CODEX_COLOR,
                     self.language,
+                    forecast_seconds=self.burn_rate_trackers["codex_session"].forecast_seconds(),
                 ),
-                _quota_row("Weekly", 28.0, now + (4 * 86400), now, CODEX_COLOR, self.language),
+                _quota_row(
+                    "Weekly",
+                    28.0,
+                    now + (4 * 86400),
+                    now,
+                    CODEX_COLOR,
+                    self.language,
+                    forecast_seconds=self.burn_rate_trackers["codex_weekly"].forecast_seconds(),
+                ),
             )
             return rows, 12
 
@@ -520,6 +552,10 @@ class AppDelegate(NSObject):
         codex_5h_pct = (
             round(rate_limits.five_hour_pct) if rate_limits.five_hour_pct is not None else None
         )
+        if rate_limits.five_hour_pct is not None:
+            self.burn_rate_trackers["codex_session"].record(now, rate_limits.five_hour_pct)
+        if rate_limits.seven_day_pct is not None:
+            self.burn_rate_trackers["codex_weekly"].record(now, rate_limits.seven_day_pct)
         rows = (
             _quota_row(
                 "Session",
@@ -528,6 +564,7 @@ class AppDelegate(NSObject):
                 now,
                 CODEX_COLOR,
                 self.language,
+                forecast_seconds=self.burn_rate_trackers["codex_session"].forecast_seconds(),
             ),
             _quota_row(
                 "Weekly",
@@ -536,6 +573,7 @@ class AppDelegate(NSObject):
                 now,
                 CODEX_COLOR,
                 self.language,
+                forecast_seconds=self.burn_rate_trackers["codex_weekly"].forecast_seconds(),
             ),
         )
         return rows, codex_5h_pct
@@ -651,16 +689,32 @@ def _quota_row(
     now: float,
     color: tuple[float, float, float],
     language: str = "en",
+    forecast_seconds: float | None = None,
 ) -> QuotaRowState:
     if pct is None or resets_at is None:
         return _missing_row(title, color, language)
     pct = max(0.0, min(100.0, float(pct)))
+    time_to_reset = resets_at - now
+    warning_seconds: float | None = None
+    if forecast_seconds is not None and 0 < forecast_seconds < time_to_reset:
+        warning_seconds = forecast_seconds
+    warning = warning_seconds is not None
+    if warning_seconds is not None:
+        reset_text = _t(
+            language,
+            "burn_warning",
+            empty=format_human_time(warning_seconds, language),
+            reset=format_human_time(time_to_reset, language),
+        )
+    else:
+        reset_text = _t(language, "reset_in", time=format_human_time(time_to_reset, language))
     return QuotaRowState(
         title=title,
         percent=pct,
         percent_text=_t(language, "percent_used", value=_format_percent(pct)),
-        reset_text=_t(language, "reset_in", time=format_human_time(resets_at - now, language)),
+        reset_text=reset_text,
         color=_bar_color(pct, color),
+        warning=warning,
         available=True,
     )
 
