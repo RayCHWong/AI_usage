@@ -189,6 +189,10 @@ Press `Ctrl+C` to exit.
 
 A LaunchAgent (the macOS service that handles "what should start when this user logs in") makes usage start automatically.
 
+**Easiest way:** click the menu bar icon to open the popover, press the "⇄ Switch Panel" button, and tick "Launch at Login" at the bottom of the menu. Works for both the .app and source builds — no Terminal needed.
+
+The script below is an alternative install method for source users:
+
 1. **Install:**
    ```bash
    ./scripts/install-launchagent.sh

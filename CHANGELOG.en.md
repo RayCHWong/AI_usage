@@ -5,6 +5,14 @@
 All notable changes to usage are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.5] - 2026-05-22
+
+### Added
+- **Launch at Login toggle**: the panel-switcher menu (opened from the "Switch Panel" button) gains a checkable "Launch at Login" item. Ticking it makes usage start automatically at next login, so you don't have to relaunch it manually. The .app and source builds each generate the matching LaunchAgent plist; unticking only removes the plist — it never quits a running app.
+
+### Changed
+- README "Auto-start on login" section now documents the popover toggle (Traditional Chinese / English).
+
 ## [0.6.4] - 2026-05-22
 
 ### Added
