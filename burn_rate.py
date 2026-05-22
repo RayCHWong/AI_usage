@@ -6,6 +6,9 @@ from dataclasses import dataclass
 ROLLING_WINDOW_SECONDS = 15 * 60
 FORECAST_WINDOW_SECONDS = 10 * 60
 RESET_DROP_PERCENT = 5.0
+MIN_FORECAST_SAMPLES = 5
+MIN_FORECAST_SPAN_SECONDS = 5 * 60
+WARNING_PERCENT_FLOOR = 50.0
 
 
 @dataclass(slots=True)
@@ -33,12 +36,12 @@ class BurnRateTracker:
         latest = self._samples[-1]
         cutoff = latest.timestamp - FORECAST_WINDOW_SECONDS
         window = [sample for sample in self._samples if sample.timestamp >= cutoff]
-        if len(window) < 2:
+        if len(window) < MIN_FORECAST_SAMPLES:
             return None
 
         first = window[0]
         elapsed = latest.timestamp - first.timestamp
-        if elapsed <= 0:
+        if elapsed < MIN_FORECAST_SPAN_SECONDS:
             return None
 
         slope_per_second = (latest.percent - first.percent) / elapsed

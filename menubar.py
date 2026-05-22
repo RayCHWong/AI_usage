@@ -44,7 +44,7 @@ from Foundation import (
 import codex_loader
 import login_item
 import panels
-from burn_rate import BurnRateTracker
+from burn_rate import WARNING_PERCENT_FLOOR, BurnRateTracker
 from history_loader import load_entries
 from panels.base import Panel as UsagePanel
 from panels.base import load_active_panel_id, save_active_panel_id
@@ -696,7 +696,11 @@ def _quota_row(
     pct = max(0.0, min(100.0, float(pct)))
     time_to_reset = resets_at - now
     warning_seconds: float | None = None
-    if forecast_seconds is not None and 0 < forecast_seconds < time_to_reset:
+    if (
+        forecast_seconds is not None
+        and 0 < forecast_seconds < time_to_reset
+        and pct >= WARNING_PERCENT_FLOOR
+    ):
         warning_seconds = forecast_seconds
     warning = warning_seconds is not None
     if warning_seconds is not None:

@@ -121,6 +121,21 @@ def test_quota_row_keeps_reset_text_when_forecast_is_not_before_reset() -> None:
     assert row.reset_text == "重置 18分鐘"
 
 
+def test_quota_row_keeps_reset_text_when_percent_is_below_warning_floor() -> None:
+    row = menubar._quota_row(
+        "Session",
+        30.0,
+        1_000.0 + (51 * 60),
+        1_000.0,
+        menubar.CODEX_COLOR,
+        language="zh-TW",
+        forecast_seconds=18 * 60,
+    )
+
+    assert row.warning is False
+    assert row.reset_text == "重置 51分鐘"
+
+
 def test_today_title_mock() -> None:
     assert menubar._today_title(mock=True, language="zh-TW") == "今日：$45.20 (50,193,442 tokens)"
 
@@ -280,6 +295,9 @@ def test_state_from_outcome_replaces_claude_reset_with_warning(
     delegate.language = "zh-TW"
     monkeypatch.setattr("time.time", lambda: 1_600.0)
     delegate.burn_rate_trackers["claude_session"].record(1_000.0, 72.0)
+    delegate.burn_rate_trackers["claude_session"].record(1_150.0, 74.5)
+    delegate.burn_rate_trackers["claude_session"].record(1_300.0, 77.0)
+    delegate.burn_rate_trackers["claude_session"].record(1_450.0, 79.5)
     delegate.burn_rate_trackers["claude_session"].record(1_600.0, 82.0)
 
     outcome = PollOutcome(
@@ -307,6 +325,9 @@ def test_state_from_outcome_keeps_reset_when_burn_rate_is_not_positive(
     delegate.language = "zh-TW"
     monkeypatch.setattr("time.time", lambda: 1_600.0)
     delegate.burn_rate_trackers["claude_session"].record(1_000.0, 82.0)
+    delegate.burn_rate_trackers["claude_session"].record(1_150.0, 79.0)
+    delegate.burn_rate_trackers["claude_session"].record(1_300.0, 76.0)
+    delegate.burn_rate_trackers["claude_session"].record(1_450.0, 73.0)
     delegate.burn_rate_trackers["claude_session"].record(1_600.0, 70.0)
 
     outcome = PollOutcome(
