@@ -34,6 +34,7 @@ from AppKit import (
     NSViewController,
 )
 from Foundation import (
+    NSBundle,
     NSLocale,
     NSObject,
     NSRunLoop,
@@ -60,7 +61,21 @@ WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
 DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
 
 logger = logging.getLogger(__name__)
-I18N_PATH = Path(__file__).with_name("i18n.json")
+
+
+def _i18n_path() -> Path:
+    try:
+        bundle_path = NSBundle.mainBundle().resourcePath()
+        if bundle_path:
+            candidate = Path(str(bundle_path)) / "i18n.json"
+            if candidate.exists():
+                return candidate
+    except Exception:
+        pass
+    return Path(__file__).with_name("i18n.json")
+
+
+I18N_PATH = _i18n_path()
 
 
 def _bar_color(pct: float, brand: tuple[float, float, float]) -> tuple[float, float, float]:

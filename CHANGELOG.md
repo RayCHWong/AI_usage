@@ -4,6 +4,11 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [0.6.8] - 2026-05-22
+
+### 修正
+- **修正 .app 啟動時找不到 i18n.json**：py2app 打包資源清單補上 `i18n.json`，menu bar 與 Web panel 載入多語系檔案時會優先讀取 `.app` bundle 的 `Contents/Resources/i18n.json`，再 fallback 到原始碼路徑，避免 v0.6.0 以上版本啟動即發生 `FileNotFoundError`。
+
 ## [0.6.7] - 2026-05-22
 
 ### 修正

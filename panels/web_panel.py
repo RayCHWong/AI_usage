@@ -29,7 +29,21 @@ if TYPE_CHECKING:
 
 PANEL_WIDTH = 364.0
 PANEL_HEIGHT = 812.0
-I18N_PATH = Path(__file__).resolve().parent.parent / "i18n.json"
+
+
+def _i18n_path() -> Path:
+    try:
+        bundle_path = NSBundle.mainBundle().resourcePath()
+        if bundle_path:
+            candidate = Path(str(bundle_path)) / "i18n.json"
+            if candidate.exists():
+                return candidate
+    except Exception:
+        pass
+    return Path(__file__).resolve().parent.parent / "i18n.json"
+
+
+I18N_PATH = _i18n_path()
 
 
 class UsageScriptBridge(NSObject):

@@ -48,6 +48,7 @@ if __name__ == "__main__":
             "assets/claude.webp",
             "assets/codex.webp",
             "assets/panels",
+            "i18n.json",
             "usage_statusline.py",
         ],
         "includes": [
