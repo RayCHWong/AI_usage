@@ -27,6 +27,7 @@ py-modules = [
     "usage_rate",
     "usage_statusline",
     "setup_hook",
+    "login_item",
     "usage_client",
     "codex_loader",
     "tui_sprite",

@@ -2,6 +2,7 @@
   "zh-TW": {
     "panel_default_name": "預設",
     "switch_panel": "更換面板",
+    "launch_at_login": "開機自動啟動",
     "hook_installed_restart": "已安裝完成，請重開 Claude Code 一次",
     "hook_install_failed": "安裝 hook 失敗",
     "hook_install_failed_default": "setup_hook.setup() 回傳失敗",
@@ -47,6 +48,7 @@
   "en": {
     "panel_default_name": "Default",
     "switch_panel": "Switch Panel",
+    "launch_at_login": "Launch at Login",
     "hook_installed_restart": "Hook installed. Restart Claude Code once.",
     "hook_install_failed": "Hook installation failed",
     "hook_install_failed_default": "setup_hook.setup() returned failure",
@@ -92,6 +94,7 @@
   "zh-CN": {
     "panel_default_name": "默认",
     "switch_panel": "切换面板",
+    "launch_at_login": "开机自动启动",
     "hook_installed_restart": "已安装完成，请重开 Claude Code 一次",
     "hook_install_failed": "安装 hook 失败",
     "hook_install_failed_default": "setup_hook.setup() 返回失败",
@@ -137,6 +140,7 @@
   "ja": {
     "panel_default_name": "デフォルト",
     "switch_panel": "パネル切替",
+    "launch_at_login": "ログイン時に起動",
     "hook_installed_restart": "フックをインストールしました。Claude Code を一度再起動してください。",
     "hook_install_failed": "フックのインストールに失敗しました",
     "hook_install_failed_default": "setup_hook.setup() が失敗を返しました",
@@ -182,6 +186,7 @@
   "ko": {
     "panel_default_name": "기본",
     "switch_panel": "패널 전환",
+    "launch_at_login": "로그인 시 시작",
     "hook_installed_restart": "훅 설치가 완료되었습니다. Claude Code를 한 번 다시 시작하세요.",
     "hook_install_failed": "훅 설치에 실패했습니다",
     "hook_install_failed_default": "setup_hook.setup()가 실패를 반환했습니다",

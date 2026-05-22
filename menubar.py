@@ -42,6 +42,7 @@ from Foundation import (
 )
 
 import codex_loader
+import login_item
 import panels
 from history_loader import load_entries
 from panels.base import Panel as UsagePanel
@@ -281,11 +282,30 @@ class AppDelegate(NSObject):
             item.setRepresentedObject_(panel.id)
             item.setState_(1 if panel.id == self.active_panel.id else 0)
             menu.addItem_(item)
+        menu.addItem_(NSMenuItem.separatorItem())
+        launch_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            _t(self.language, "launch_at_login"),
+            "toggleLaunchAtLogin:",
+            "",
+        )
+        launch_item.setTarget_(self)
+        launch_item.setState_(1 if login_item.is_enabled() else 0)
+        menu.addItem_(launch_item)
         menu.popUpMenuPositioningItem_atLocation_inView_(None, NSMakePoint(0, 0), sender)
 
     def selectPanel_(self, sender: Any) -> None:
         panel_id = str(sender.representedObject())
         self._set_active_panel_id(panel_id)
+
+    def toggleLaunchAtLogin_(self, sender: Any) -> None:
+        try:
+            if login_item.is_enabled():
+                login_item.disable()
+            else:
+                login_item.enable()
+        except Exception:
+            if os.environ.get("USAGE_DEBUG") == "1":
+                logger.warning("toggle launch at login failed", exc_info=True)
 
     def _set_active_panel_id(self, panel_id: str) -> None:
         panel = panels.get_panel(panel_id)
