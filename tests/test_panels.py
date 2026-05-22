@@ -35,6 +35,7 @@ def test_registered_panel_ids_are_unique() -> None:
         "aquarium",
         "prism_arcade",
         "black_hole",
+        "world_cup",
     )
     assert len(ids) == len(set(ids))
 
@@ -51,6 +52,7 @@ def test_registered_panel_display_names() -> None:
         "午夜水族箱",
         "稜鏡街機",
         "黑洞視界",
+        "世界盃 2026",
     ]
 
 

@@ -12,6 +12,7 @@ PANELS: tuple[Panel, ...] = (
     HTMLPanel("aquarium", "午夜水族箱", "aquarium.html"),
     HTMLPanel("prism_arcade", "稜鏡街機", "prism_arcade.html"),
     HTMLPanel("black_hole", "黑洞視界", "black_hole.html"),
+    HTMLPanel("world_cup", "世界盃 2026", "world_cup.html"),
 )
 
 
