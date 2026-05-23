@@ -302,3 +302,10 @@ USAGE_LANG=zh-CN python3 main.py   # 簡體中文
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
 若 fork 或發佈衍生版本，請標注原作者與專案連結：https://github.com/aqua5230/usage
+
+## 支持這個專案
+
+如果這個工具幫到你、歡迎請我喝杯咖啡 ☕
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/lollapalooza)
+
