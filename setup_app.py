@@ -50,6 +50,7 @@ if __name__ == "__main__":
             "assets/panels",
             "i18n.json",
             "pricing_cache.json",
+            "tips/commands.json",
             "usage_statusline.py",
             "usage_statusline_forwarder.py",
         ],

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import html
 import os
+import re
 import webbrowser
 from datetime import date, datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Mapping
 
+from tips_loader import Tip, load_tip
 from usage_lang import detect_lang
 
 
@@ -41,6 +43,12 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "sessions": "會話",
         "share": "占比",
         "start_time": "開始時間",
+        "tip_how": "怎麼用？",
+        "tip_note": "保留 / 丟掉",
+        "tip_scenario": "實際情境",
+        "tip_section_title": "💡 本期 Claude 進階指令",
+        "tip_what": "這個指令做什麼？",
+        "tip_when": "什麼時候用？",
         "title": "你的 AI 用量回顧",
         "tokens": "Tokens",
         "trend_compare_down": "本週比上週少 {pct}%。",
@@ -80,6 +88,12 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "sessions": "会话",
         "share": "占比",
         "start_time": "开始时间",
+        "tip_how": "怎么用？",
+        "tip_note": "保留 / 丢掉",
+        "tip_scenario": "实际情境",
+        "tip_section_title": "💡 本期 Claude 进阶指令",
+        "tip_what": "这个指令做什么？",
+        "tip_when": "什么时候用？",
         "title": "你的 AI 用量回顾",
         "tokens": "Tokens",
         "trend_compare_down": "本周比上周少 {pct}%。",
@@ -119,6 +133,12 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "sessions": "Sessions",
         "share": "Share",
         "start_time": "Start time",
+        "tip_how": "How do I use it?",
+        "tip_note": "Keep / Drop",
+        "tip_scenario": "Real example",
+        "tip_section_title": "💡 This issue's Claude tip",
+        "tip_what": "What does this command do?",
+        "tip_when": "When should I use it?",
         "title": "Your AI Usage Recap",
         "tokens": "Tokens",
         "trend_compare_down": "This week dropped {pct}% vs last week.",
@@ -158,6 +178,12 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "sessions": "セッション",
         "share": "割合",
         "start_time": "開始時刻",
+        "tip_how": "どう使う？",
+        "tip_note": "残るもの / 消えるもの",
+        "tip_scenario": "実際の場面",
+        "tip_section_title": "💡 今回の Claude 上級コマンド",
+        "tip_what": "このコマンドは何をする？",
+        "tip_when": "いつ使う？",
         "title": "AI 使用量の振り返り",
         "tokens": "Tokens",
         "trend_compare_down": "今週は先週より {pct}% 少なくなりました。",
@@ -197,6 +223,12 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "sessions": "세션",
         "share": "비중",
         "start_time": "시작 시간",
+        "tip_how": "어떻게 써요?",
+        "tip_note": "남는 것 / 빠지는 것",
+        "tip_scenario": "실제 상황",
+        "tip_section_title": "💡 이번 회차 Claude 고급 명령어",
+        "tip_what": "이 명령은 무엇을 하나요?",
+        "tip_when": "언제 쓰면 되나요?",
         "title": "AI 사용량 리캡",
         "tokens": "Tokens",
         "trend_compare_down": "이번 주는 지난주보다 {pct}% 적습니다.",
@@ -249,6 +281,17 @@ def _t(lang: str, key: str) -> str:
 
 def _escape(value: object) -> str:
     return html.escape(str(value))
+
+
+def _format_tip_text(value: str) -> str:
+    parts = re.split(r"(\*\*.*?\*\*)", value)
+    formatted: list[str] = []
+    for part in parts:
+        if part.startswith("**") and part.endswith("**") and len(part) >= 4:
+            formatted.append(f"<strong>{html.escape(part[2:-2])}</strong>")
+        else:
+            formatted.append(html.escape(part))
+    return "".join(formatted)
 
 
 def _display_name(value: object, lang: str) -> str:
@@ -360,6 +403,20 @@ def _trend_ascii(daily: list[dict], lang: str) -> str:
     return f'<div class="trend">{trend_rows}{summary}</div>'
 
 
+def _tip_section(tip: Tip, lang: str) -> str:
+    heading = f"{tip.command} ← {tip.title}"
+    body = "".join(
+        (
+            f'<div class="rank-list"><p><strong>{_escape(_t(lang, "tip_what"))}</strong></p><p>{_format_tip_text(tip.what)}</p></div>',
+            f'<div class="rank-list"><p><strong>{_escape(_t(lang, "tip_when"))}</strong></p><p>{_format_tip_text(tip.when)}</p></div>',
+            f'<div class="rank-list"><p><strong>{_escape(_t(lang, "tip_how"))}</strong></p><p>{_format_tip_text(tip.how)}</p></div>',
+            f'<div class="rank-list"><p><strong>{_escape(_t(lang, "tip_note"))}</strong></p><p>{_format_tip_text(tip.note)}</p></div>',
+            f'<div class="rank-list"><p><strong>{_escape(_t(lang, "tip_scenario"))}</strong></p><p>{_format_tip_text(tip.scenario)}</p></div>',
+        )
+    )
+    return _section(_t(lang, "tip_section_title"), f'<div class="prompt">{_escape(heading)}</div>{body}')
+
+
 def _narrative(data: dict, lang: str) -> str:
     summary = data["summary"]
     daily = data.get("daily_trend", [])
@@ -382,6 +439,7 @@ def _cost_value(cost_usd: float, lang: str) -> tuple[str, str]:
 
 def generate_html(data: dict) -> str:
     lang = _detect_lang()
+    tip = load_tip(lang)
     generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     summary = data["summary"]
     total_tokens = int(summary["total_tokens"])
@@ -510,6 +568,7 @@ footer{{text-align:center;font-size:.82rem;margin-top:22px}}
   {_section(_t(lang, "model_section"), model_body)}
   {_section(_t(lang, "trend_section"), _trend_ascii(data.get("daily_trend", []), lang))}
   {_section(_t(lang, "session_section"), session_body)}
+  {_tip_section(tip, lang) if tip else ''}
   <footer>{html.escape(_t(lang, "footer"))}</footer>
 </main>
 </body>

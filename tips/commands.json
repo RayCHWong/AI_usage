@@ -1,0 +1,51 @@
+{
+  "commands": [
+    {
+      "id": "compact",
+      "command": "/compact",
+      "level": "beginner",
+      "translations": {
+        "zh-TW": {
+          "title": "壓縮對話節省 token",
+          "what": "把你目前跟 Claude 的對話『壓縮』成一份摘要。重要的決定、討論結論、寫過的 code 重點都會保留；中間 debug 走過的歪路、改了又改的提示則被刪掉。",
+          "when": "對話超過 100 輪、或你發現 Claude 回應變慢、開始忘事的時候。Claude Code 視窗左下角會顯示 context 剩餘比例，剩 20% 以下就建議壓一次。",
+          "how": "在 Claude Code 對話框直接打 /compact 按 Enter。Claude 會花幾秒讀完所有對話、產出一份摘要，然後用摘要取代原對話——你下一句話送過去時，Claude 看到的只剩摘要 + 你的新問題。",
+          "note": "**保留**：你正在做什麼專案、架構決定、上次修過哪些 bug 的結論。**丟掉**：中間試錯的對話、重複的指令、debug 過程的細節。",
+          "scenario": "你跟 Claude 討論架構 3 小時、寫了 500 行 code、解了 5 個 bug。對話累積到 80 輪、context 剩 25%。這時打 /compact——下次問『我們之前討論的 X 函式怎麼寫的？』Claude 仍答得出來，但那 5 個 debug 過程不會再吃 context。"
+        },
+        "zh-CN": {
+          "title": "压缩对话，省下 token",
+          "what": "把你现在和 Claude 的整段对话“压缩”成一份摘要。重要决定、讨论结论、写过的代码重点会保留下来；中间那些绕路的 debug 过程、改了又改的提示词，会被删掉。",
+          "when": "当对话超过 100 轮，或者你感觉 Claude 回得变慢、开始忘前面讲过什么时就可以用。Claude Code 窗口左下角会显示 context 剩余比例，低于 20% 时就很适合先压一次。",
+          "how": "直接在 Claude Code 对话框输入 /compact，然后按 Enter。Claude 会花几秒把前面的对话读完，生成一份摘要，再用这份摘要替换原本的长对话。你下一句发出去时，Claude 看到的就只剩摘要加上你的新问题。",
+          "note": "**保留**：你正在做什么项目、架构上的决定、之前修过哪些 bug 的结论。**丢掉**：中间试错的对话、重复的指令、debug 过程的细节。",
+          "scenario": "你和 Claude 讨论架构讨论了 3 小时，写了 500 行代码，还修了 5 个 bug。对话已经累积到 80 轮，context 只剩 25%。这时输入 /compact，下一次你再问“我们之前讨论的 X 函数怎么写来着？”，Claude 还是答得出来，但那 5 段 debug 过程不会继续占用 context。"
+        },
+        "en": {
+          "title": "Compress the chat to save tokens",
+          "what": "This turns your current conversation with Claude into a shorter summary. The important decisions, final conclusions, and key code you wrote stay in place; the messy debugging detours and prompts you kept rewriting get dropped.",
+          "when": "Use it when your chat goes past 100 turns, or when Claude starts replying more slowly and forgetting earlier details. In Claude Code, the lower-left corner shows how much context is left. If it drops under 20%, it is a good time to compact.",
+          "how": "Type /compact directly in the Claude Code chat box and press Enter. Claude will spend a few seconds reading the whole conversation, create a summary, and replace the original chat with that summary. When you send your next message, Claude only sees the summary plus your new question.",
+          "note": "**Keep**: what project you are working on, architecture decisions, and the conclusions from bugs you already fixed. **Drop**: trial-and-error chat, repeated commands, and the detailed step-by-step debugging process.",
+          "scenario": "You spent 3 hours discussing architecture with Claude, wrote 500 lines of code, and fixed 5 bugs. The conversation is now 80 turns long, and your remaining context is down to 25%. You run /compact. Later, if you ask, “How did we say that X function should work?”, Claude can still answer, but those 5 debugging detours no longer take up context."
+        },
+        "ja": {
+          "title": "会話を圧縮して token を節約",
+          "what": "いま Claude と話している内容を、短い要約にまとめ直す機能です。大事な判断、話し合いの結論、書いたコードの要点は残り、途中の遠回りした debug や何度も言い直した指示は削られます。",
+          "when": "会話が 100 往復を超えたときや、Claude の返答が遅くなったり、前の内容を忘れ始めたりしたときに使います。Claude Code の左下には残り context の割合が出るので、20% を切ったら一度 compact するのがおすすめです。",
+          "how": "Claude Code の会話欄で /compact と入力して Enter を押します。Claude が数秒かけて会話全体を読み、要約を作って、その要約で元の長い会話を置き換えます。次のメッセージを送る時点では、Claude が見るのは要約とあなたの新しい質問だけです。",
+          "note": "**残るもの**：いま何のプロジェクトをしているか、アーキテクチャの判断、前に直した bug の結論。**消えるもの**：試行錯誤の会話、重複した指示、debug 手順の細かい流れ。",
+          "scenario": "Claude と 3 時間アーキテクチャを相談し、500 行のコードを書いて、5 個の bug を直したとします。会話は 80 往復まで増え、残り context は 25%。ここで /compact を使えば、その後に「前に話した X 関数の形ってどうするんだっけ？」と聞いても Claude は答えられますが、5 回分の debug の寄り道までは持ち続けません。"
+        },
+        "ko": {
+          "title": "대화를 압축해서 token 아끼기",
+          "what": "지금까지 Claude와 나눈 대화를 더 짧은 요약으로 압축해 줍니다. 중요한 결정, 논의한 결론, 작성한 코드의 핵심은 남고, 중간에 헤맸던 debug 과정이나 여러 번 고쳐 쓴 프롬프트는 빠집니다.",
+          "when": "대화가 100턴을 넘었거나, Claude가 답을 늦게 하거나 앞 내용을 잘 잊기 시작할 때 쓰면 좋습니다. Claude Code 창 왼쪽 아래에는 남은 context 비율이 보이는데, 20% 아래로 내려가면 한 번 압축할 타이밍입니다.",
+          "how": "Claude Code 대화창에 /compact 를 입력하고 Enter를 누르면 됩니다. Claude가 몇 초 동안 전체 대화를 읽고 요약을 만든 뒤, 원래 긴 대화를 그 요약으로 바꿉니다. 그다음 메시지를 보낼 때 Claude가 보는 것은 요약과 새 질문뿐입니다.",
+          "note": "**남는 것**: 지금 어떤 프로젝트를 하는지, 아키텍처 결정, 전에 고친 bug의 결론. **빠지는 것**: 시행착오 대화, 반복된 명령, debug 과정의 세부 흐름.",
+          "scenario": "Claude와 3시간 동안 아키텍처를 논의하고, 코드 500줄을 쓰고, bug 5개를 해결했다고 해 봅시다. 대화가 80턴까지 쌓였고 남은 context는 25%입니다. 이때 /compact 를 실행하면, 나중에 “우리가 전에 얘기한 X 함수는 어떻게 만들기로 했지?”라고 물어도 Claude는 답할 수 있지만, 그 5번의 debug 우회 과정까지 계속 들고 있지는 않습니다."
+        }
+      }
+    }
+  ]
+}
