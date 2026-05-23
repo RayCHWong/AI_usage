@@ -46,6 +46,8 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "tip_how": "怎麼用？",
         "tip_note": "保留 / 丟掉",
         "tip_scenario": "實際情境",
+        "tip_copy_btn": "複製",
+        "tip_copied": "已複製",
         "tip_section_title": "💡 本期 Claude 進階指令",
         "tip_what": "這個指令做什麼？",
         "tip_when": "什麼時候用？",
@@ -91,6 +93,8 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "tip_how": "怎么用？",
         "tip_note": "保留 / 丢掉",
         "tip_scenario": "实际情境",
+        "tip_copy_btn": "复制",
+        "tip_copied": "已复制",
         "tip_section_title": "💡 本期 Claude 进阶指令",
         "tip_what": "这个指令做什么？",
         "tip_when": "什么时候用？",
@@ -136,6 +140,8 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "tip_how": "How do I use it?",
         "tip_note": "Keep / Drop",
         "tip_scenario": "Real example",
+        "tip_copy_btn": "Copy",
+        "tip_copied": "Copied",
         "tip_section_title": "💡 This issue's Claude tip",
         "tip_what": "What does this command do?",
         "tip_when": "When should I use it?",
@@ -181,6 +187,8 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "tip_how": "どう使う？",
         "tip_note": "残るもの / 消えるもの",
         "tip_scenario": "実際の場面",
+        "tip_copy_btn": "コピー",
+        "tip_copied": "コピー済み",
         "tip_section_title": "💡 今回の Claude 上級コマンド",
         "tip_what": "このコマンドは何をする？",
         "tip_when": "いつ使う？",
@@ -226,6 +234,8 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "tip_how": "어떻게 써요?",
         "tip_note": "남는 것 / 빠지는 것",
         "tip_scenario": "실제 상황",
+        "tip_copy_btn": "복사",
+        "tip_copied": "복사됨",
         "tip_section_title": "💡 이번 회차 Claude 고급 명령어",
         "tip_what": "이 명령은 무엇을 하나요?",
         "tip_when": "언제 쓰면 되나요?",
@@ -283,6 +293,28 @@ def _escape(value: object) -> str:
     return html.escape(str(value))
 
 
+def _highlight_commands(escaped_text: str) -> str:
+    """Wrap slash commands, CLI flags, and standalone @ in inline code tags.
+
+    Must be called **after** html.escape() so we don't double-escape.
+    Uses an alternation that matches HTML tags first (group 1) to skip them.
+    """
+    _CMD_RE = re.compile(
+        r"(<[^>]+>)"  # group 1: HTML tag — preserve as-is
+        r"|"
+        r"(\/[a-z][a-z0-9-]*"  # group 2: slash command
+        r"|claude\s+--?[a-z-]+"  # CLI flag
+        r"|(?<!\w)@(?!\w))",  # standalone @
+    )
+
+    def _repl(m: re.Match[str]) -> str:
+        if m.group(1):
+            return m.group(1)
+        return f'<code class="tip-cmd-inline">{m.group(2)}</code>'
+
+    return _CMD_RE.sub(_repl, escaped_text)
+
+
 def _format_tip_text(value: str) -> str:
     parts = re.split(r"(\*\*.*?\*\*)", value)
     formatted: list[str] = []
@@ -291,7 +323,7 @@ def _format_tip_text(value: str) -> str:
             formatted.append(f"<strong>{html.escape(part[2:-2])}</strong>")
         else:
             formatted.append(html.escape(part))
-    return "".join(formatted)
+    return _highlight_commands("".join(formatted))
 
 
 def _display_name(value: object, lang: str) -> str:
@@ -404,7 +436,17 @@ def _trend_ascii(daily: list[dict], lang: str) -> str:
 
 
 def _tip_section(tip: Tip, lang: str) -> str:
-    heading = f"{tip.command} ← {tip.title}"
+    escaped_command = html.escape(tip.command)
+    escaped_title = html.escape(tip.title)
+    heading_html = (
+        f'<code class="tip-cmd">{escaped_command}</code>'
+        f'<button class="tip-copy" type="button"'
+        f' data-cmd="{escaped_command}"'
+        f' data-label="{html.escape(_t(lang, "tip_copy_btn"))}"'
+        f' data-copied="{html.escape(_t(lang, "tip_copied"))}"'
+        f'>📋 {html.escape(_t(lang, "tip_copy_btn"))}</button>'
+        f' ← {escaped_title}'
+    )
     body = "".join(
         (
             f'<div class="rank-list"><p><strong>{_escape(_t(lang, "tip_what"))}</strong></p><p>{_format_tip_text(tip.what)}</p></div>',
@@ -414,7 +456,7 @@ def _tip_section(tip: Tip, lang: str) -> str:
             f'<div class="rank-list"><p><strong>{_escape(_t(lang, "tip_scenario"))}</strong></p><p>{_format_tip_text(tip.scenario)}</p></div>',
         )
     )
-    return _section(_t(lang, "tip_section_title"), f'<div class="prompt">{_escape(heading)}</div>{body}')
+    return _section(_t(lang, "tip_section_title"), f'<div class="prompt">{heading_html}</div>{body}')
 
 
 def _narrative(data: dict, lang: str) -> str:
@@ -550,6 +592,11 @@ h1{{margin:0 0 10px;font-size:clamp(1.8rem, 4.2vw, 3rem);line-height:1.02;font-w
 .table-wrap{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;min-width:760px}}th,td{{padding:8px 10px;text-align:left;font-size:.86rem}}th{{color:var(--muted);font-weight:500;text-transform:uppercase}}td{{color:#dce2ea}}td:first-child{{color:var(--warn)}}
 footer{{text-align:center;font-size:.82rem;margin-top:22px}}
 @keyframes blink{{0%,45%{{opacity:1}}46%,100%{{opacity:0}}}}
+.tip-cmd{{background:rgba(56,139,253,0.15);color:#58a6ff;padding:2px 10px;border-radius:4px;font-family:ui-monospace,'SF Mono',monospace;font-size:0.95em}}
+.tip-cmd-inline{{background:rgba(56,139,253,0.10);color:#58a6ff;padding:1px 5px;border-radius:3px;font-size:0.92em}}
+.tip-copy{{background:transparent;border:1px solid #30363d;color:#8b949e;padding:2px 10px;margin-left:8px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit;transition:color 0.15s,border-color 0.15s}}
+.tip-copy:hover{{color:#e6edf3;border-color:#58a6ff}}
+.tip-copy.copied{{color:#56d364;border-color:#56d364}}
 @media (max-width:780px){{.wrap{{padding:28px 14px}}header{{display:block}}.meta{{text-align:left;margin-top:16px}}.cards{{grid-template-columns:repeat(2,1fr)}}.rank-head,.rank-line{{grid-template-columns:24px minmax(0,1fr) 64px}}.rank-head span:nth-child(4),.rank-head span:nth-child(5),.rank-line span:nth-child(4),.rank-line span:nth-child(5){{display:none}}}}
 </style>
 </head>
@@ -571,6 +618,37 @@ footer{{text-align:center;font-size:.82rem;margin-top:22px}}
   {_tip_section(tip, lang) if tip else ''}
   <footer>{html.escape(_t(lang, "footer"))}</footer>
 </main>
+<script>
+document.addEventListener('click', async (e) => {{
+  const btn = e.target.closest('.tip-copy');
+  if (!btn) return;
+  const cmd = btn.dataset.cmd;
+  const ok = btn.dataset.copied;
+  const label = btn.dataset.label;
+  let success = false;
+  try {{
+    await navigator.clipboard.writeText(cmd);
+    success = true;
+  }} catch (_) {{
+    const ta = document.createElement('textarea');
+    ta.value = cmd;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {{ success = document.execCommand('copy'); }} catch (_e) {{}}
+    document.body.removeChild(ta);
+  }}
+  if (success) {{
+    btn.classList.add('copied');
+    btn.textContent = '✓ ' + ok;
+    setTimeout(() => {{
+      btn.classList.remove('copied');
+      btn.textContent = '📋 ' + label;
+    }}, 2000);
+  }}
+}});
+</script>
 </body>
 </html>
 """
