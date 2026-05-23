@@ -8,6 +8,7 @@ import io
 import json
 import logging
 import os
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -473,17 +474,20 @@ class AppDelegate(NSObject):
         self._refresh()
 
     def _toggle_statusline_in_background(self) -> None:
-        action = "uninstall" if _statusline_enabled() else "install"
-        self._statusline_action_in_background(action)
+        self._statusline_action_in_background("toggle")
 
     def _statusline_action_in_background(self, action: str) -> None:
         output = io.StringIO()
         exit_code = 1
+        resolved_action = action
         try:
             with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-                import setup_hook
-
-                exit_code = setup_hook.unsetup() if action == "uninstall" else setup_hook.setup()
+                if action == "toggle":
+                    resolved_action, exit_code = _toggle_statusline_settings()
+                elif action == "uninstall":
+                    exit_code = _disable_statusline_settings()
+                else:
+                    exit_code = _enable_statusline_settings()
         except SystemExit as exc:
             exit_code = exc.code if isinstance(exc.code, int) else 1
             if exc.code:
@@ -492,7 +496,7 @@ class AppDelegate(NSObject):
             print(f"{type(exc).__name__}: {exc}", file=output)
 
         result = {
-            "action": action,
+            "action": resolved_action,
             "success": exit_code == 0,
             "message": output.getvalue().strip(),
         }
@@ -904,20 +908,89 @@ def _statusline_payload(language: str, message: str = "") -> dict[str, object]:
     }
 
 
-def _statusline_enabled() -> bool:
-    settings_path = Path(os.path.expanduser("~/.claude/settings.json"))
-    try:
-        with settings_path.open(encoding="utf-8") as file:
-            settings = json.load(file)
-    except (OSError, json.JSONDecodeError):
-        return False
+def _claude_settings_path() -> Path:
+    return Path(os.path.expanduser("~/.claude/settings.json"))
+
+
+def _load_claude_settings() -> dict[str, Any]:
+    settings_path = _claude_settings_path()
+    if not settings_path.exists():
+        return {}
+    with settings_path.open(encoding="utf-8") as file:
+        settings = json.load(file)
     if not isinstance(settings, dict):
+        raise ValueError(f"{settings_path} must be a JSON object")
+    return settings
+
+
+def _save_claude_settings(settings: dict[str, Any]) -> None:
+    settings_path = _claude_settings_path()
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    trailing_newline = True
+    with contextlib.suppress(OSError):
+        trailing_newline = settings_path.read_bytes().endswith(b"\n")
+    tmp_path: str | None = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=settings_path.parent, suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as file:
+            json.dump(settings, file, indent=2, ensure_ascii=False)
+            if trailing_newline:
+                file.write("\n")
+        os.replace(tmp_path, settings_path)
+        tmp_path = None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+
+
+def _disable_statusline_settings() -> int:
+    settings = _load_claude_settings()
+    if "statusLine" not in settings:
+        return 0
+    usage_settings = settings.setdefault("usage", {})
+    if not isinstance(usage_settings, dict):
+        usage_settings = {}
+        settings["usage"] = usage_settings
+    usage_settings["previousStatusLine"] = settings["statusLine"]
+    del settings["statusLine"]
+    _save_claude_settings(settings)
+    return 0
+
+
+def _enable_statusline_settings() -> int:
+    settings = _load_claude_settings()
+    if "statusLine" in settings:
+        return 0
+    raw_usage_settings = settings.get("usage")
+    usage_settings = raw_usage_settings if isinstance(raw_usage_settings, dict) else None
+    previous = usage_settings.get("previousStatusLine") if usage_settings is not None else None
+    if previous:
+        assert usage_settings is not None
+        settings["statusLine"] = previous
+        del usage_settings["previousStatusLine"]
+        if not usage_settings:
+            del settings["usage"]
+        _save_claude_settings(settings)
+        return 0
+
+    import setup_hook
+
+    return setup_hook.setup()
+
+
+def _toggle_statusline_settings() -> tuple[str, int]:
+    if _statusline_enabled():
+        return "uninstall", _disable_statusline_settings()
+    return "install", _enable_statusline_settings()
+
+
+def _statusline_enabled() -> bool:
+    try:
+        settings = _load_claude_settings()
+    except (OSError, ValueError, json.JSONDecodeError):
         return False
-    status_line = settings.get("statusLine")
-    if not isinstance(status_line, dict):
-        return False
-    command = status_line.get("command")
-    return isinstance(command, str) and "usage-statusline" in command
+    return "statusLine" in settings
 
 
 def _today_title(

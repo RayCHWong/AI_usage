@@ -187,7 +187,7 @@ def test_statusline_enabled_detects_usage_hook(
     assert menubar._statusline_enabled() is True
 
 
-def test_statusline_enabled_returns_false_for_external_hook(
+def test_statusline_enabled_detects_external_hook(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -200,7 +200,38 @@ def test_statusline_enabled_returns_false_for_external_hook(
     )
     monkeypatch.setattr("menubar.os.path.expanduser", lambda value: str(settings))
 
-    assert menubar._statusline_enabled() is False
+    assert menubar._statusline_enabled() is True
+
+
+def test_toggle_statusline_preserves_forwarder_settings(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    settings = claude_dir / "settings.json"
+    original = {
+        "env": {"KEEP": "1"},
+        "statusLine": {
+            "type": "command",
+            "command": "python3 ~/.claude/tt-statusline-usage-statusline-forward.py",
+        },
+    }
+    settings.write_text(json.dumps(original, indent=2, ensure_ascii=False), encoding="utf-8")
+    original_text = settings.read_text(encoding="utf-8")
+    monkeypatch.setattr("menubar.os.path.expanduser", lambda value: str(settings))
+
+    action, exit_code = menubar._toggle_statusline_settings()
+
+    assert (action, exit_code) == ("uninstall", 0)
+    disabled = json.loads(settings.read_text(encoding="utf-8"))
+    assert "statusLine" not in disabled
+    assert disabled["usage"]["previousStatusLine"] == original["statusLine"]
+
+    action, exit_code = menubar._toggle_statusline_settings()
+
+    assert (action, exit_code) == ("install", 0)
+    assert settings.read_text(encoding="utf-8") == original_text
 
 
 def test_error_state_uses_message_and_mock_today_title() -> None:
