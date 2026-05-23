@@ -301,3 +301,10 @@ Each GitHub Release build (push a `v*` tag) automatically builds the app in CI a
 
 If you fork or redistribute a modified version, please credit the original author and link to:
 https://github.com/aqua5230/usage
+
+## Support
+
+If this tool helps you, consider buying me a coffee ☕
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/lollapalooza)
+
