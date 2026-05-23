@@ -24,6 +24,7 @@ from typing import Any
 
 CLAUDE_SETTINGS = Path(os.path.expanduser("~/.claude/settings.json"))
 HOOK_TARGET = Path(os.path.expanduser("~/.claude/usage-statusline.py"))
+FORWARDER_TARGET = Path(os.path.expanduser("~/.claude/usage-statusline-forwarder.py"))
 STATUS_FILE = Path(os.path.expanduser("~/.claude/usage-status.json"))
 LEGACY_NAME = "usag"
 LEGACY_HOOK_TARGET = Path(os.path.expanduser(f"~/.claude/{LEGACY_NAME}-statusline.py"))
@@ -45,6 +46,22 @@ def _resolve_hook_source() -> Path:
     raise SystemExit(f"❌ 找不到 hook 原始檔，tried: {tried}")
 
 
+def _resolve_forwarder_source() -> Path:
+    paths = [
+        Path(__file__).resolve().parent / "usage_statusline_forwarder.py",
+        (
+            Path(sys.executable).resolve().parent.parent
+            / "Resources"
+            / "usage_statusline_forwarder.py"
+        ),
+    ]
+    for path in paths:
+        if path.exists():
+            return path
+    tried = ", ".join(str(path) for path in paths)
+    raise SystemExit(f"❌ 找不到 forwarder 原始檔，tried: {tried}")
+
+
 def _statusline_command() -> str:
     # 用系統 python3，不綁 venv（hook 只用標準庫）
     python = shutil.which("python3") or "python3"
@@ -55,11 +72,32 @@ def _shell_arg(value: str) -> str:
     return shlex.quote(value)
 
 
+def _forwarder_command() -> str:
+    python = shutil.which("python3") or "python3"
+    return f"{shlex.quote(python)} {shlex.quote(str(FORWARDER_TARGET))}"
+
+
 def _is_usage_hook(sl: object) -> bool:
     if not isinstance(sl, dict):
         return False
     cmd = sl.get("command")
     return isinstance(cmd, str) and "usage-statusline" in cmd
+
+
+def _detect_current_state(settings: dict[str, Any] | None = None) -> str:
+    """返回 'none' | 'us-direct' | 'us-forwarder' | 'external'."""
+    data = _load_settings() if settings is None else settings
+    sl = data.get("statusLine")
+    if not isinstance(sl, dict):
+        return "none"
+    cmd = sl.get("command")
+    if not isinstance(cmd, str) or not cmd.strip():
+        return "none"
+    if "usage-statusline-forwarder" in cmd:
+        return "us-forwarder"
+    if "usage-statusline" in cmd:
+        return "us-direct"
+    return "external"
 
 
 def _migrate_from_legacy_usage() -> None:
@@ -159,26 +197,59 @@ def _copy_hook_script() -> None:
     HOOK_TARGET.chmod(HOOK_TARGET.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def setup() -> int:
+def _copy_forwarder_script() -> None:
+    forwarder_source = _resolve_forwarder_source()
+    FORWARDER_TARGET.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(forwarder_source, FORWARDER_TARGET)
+    FORWARDER_TARGET.chmod(
+        FORWARDER_TARGET.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+    )
+
+
+def _backup_existing_statusline(settings: dict[str, Any]) -> None:
+    existing = settings.get("statusLine")
+    if not existing or _is_usage_hook(existing):
+        return
+    backup = settings.get(BACKUP_KEY)
+    if not isinstance(backup, dict):
+        backup = {}
+        settings[BACKUP_KEY] = backup
+    backup[PREV_SL_KEY] = existing
+    print(f"ℹ 已備份原有 statusLine 到 settings.{BACKUP_KEY}.{PREV_SL_KEY}")
+
+
+def _install_forwarder(settings: dict[str, Any]) -> None:
+    """複製 usage_statusline_forwarder.py 到 ~/.claude/，更新 settings.json."""
+    _copy_hook_script()
+    _copy_forwarder_script()
+    _backup_existing_statusline(settings)
+    settings["statusLine"] = {"type": "command", "command": _forwarder_command()}
+    _save_settings(settings)
+
+
+def setup(force_forwarder: bool = False) -> int:
     _migrate_from_legacy_usage()
     if not CLAUDE_SETTINGS.parent.exists():
         print("❌ 找不到 ~/.claude/，請先安裝並執行過 Claude Code 一次", file=sys.stderr)
         return 1
 
     settings = _load_settings()
+    state = _detect_current_state(settings)
+
+    if force_forwarder or state == "external":
+        _install_forwarder(settings)
+        print(f"✓ forwarder 已安裝：{FORWARDER_TARGET}")
+        print(f"✓ hook 已安裝：{HOOK_TARGET}")
+        print(f"✓ settings 已更新：{CLAUDE_SETTINGS}")
+        print("ℹ 請重新開啟 Claude Code 一次（讓它重新讀 settings 並刷新一次 statusLine）")
+        return 0
+
     _copy_hook_script()
-
-    existing = settings.get("statusLine")
-    if existing and not _is_usage_hook(existing):
-        backup = settings.get(BACKUP_KEY)
-        if not isinstance(backup, dict):
-            backup = {}
-            settings[BACKUP_KEY] = backup
-        backup[PREV_SL_KEY] = existing
-        print(f"ℹ 已備份原有 statusLine 到 settings.{BACKUP_KEY}.{PREV_SL_KEY}")
-
-    settings["statusLine"] = {"type": "command", "command": _statusline_command()}
-    _save_settings(settings)
+    if state == "none":
+        settings["statusLine"] = {"type": "command", "command": _statusline_command()}
+        _save_settings(settings)
+    elif state in {"us-direct", "us-forwarder"}:
+        print("ℹ statusLine 已是 usage hook，settings 未動")
 
     print(f"✓ hook 已安裝：{HOOK_TARGET}")
     print(f"✓ settings 已更新：{CLAUDE_SETTINGS}")
@@ -209,9 +280,10 @@ def unsetup() -> int:
     else:
         print("ℹ statusLine 不是 usage 安裝的，settings 未動")
 
-    if HOOK_TARGET.exists():
-        HOOK_TARGET.unlink()
-        print(f"✓ 已刪除 hook：{HOOK_TARGET}")
+    for path in (HOOK_TARGET, FORWARDER_TARGET):
+        if path.exists():
+            path.unlink()
+            print(f"✓ 已刪除 hook：{path}")
 
     if STATUS_FILE.exists():
         STATUS_FILE.unlink()

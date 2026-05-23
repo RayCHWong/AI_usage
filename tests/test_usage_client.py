@@ -40,8 +40,9 @@ def test_read_status_file_skips_bad_json_and_prefers_usage_file(
     result = usage_client._read_status_file()
 
     assert result is not None
-    data, path = result
+    data, path, mtime = result
     assert path == str(usage_path)
+    assert mtime == pytest.approx(usage_path.stat().st_mtime)
     assert data["rate_limits"]["five_hour"]["used_percentage"] == 12
 
 
@@ -66,8 +67,9 @@ def test_read_status_file_uses_legacy_file_before_token_tracker(
     result = usage_client._read_status_file()
 
     assert result is not None
-    data, path = result
+    data, path, mtime = result
     assert path == str(legacy_path)
+    assert mtime == pytest.approx(legacy_path.stat().st_mtime)
     assert data["rate_limits"]["five_hour"]["used_percentage"] == 18
 
 
@@ -208,3 +210,62 @@ def test_fetch_once_without_status_file_returns_non_success(
 
     assert outcome.state is not usage_client.PollState.SUCCESS
     assert outcome.state is usage_client.PollState.TOKEN_ERROR
+
+
+def test_fetch_once_returns_awaiting_rate_limits_when_status_has_no_limits(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    status_path = tmp_path / "usage-status.json"
+    monkeypatch.setattr(usage_client, "STATUS_FILE", str(status_path))
+    monkeypatch.setattr(usage_client, "LEGACY_STATUS_FILE", str(tmp_path / f"{LEGACY_NAME}.json"))
+    monkeypatch.setattr(usage_client, "TT_STATUS_FILE", str(tmp_path / "tt-status.json"))
+    status_path.write_text(json.dumps({"foo": "bar"}), encoding="utf-8")
+
+    outcome = asyncio.run(usage_client.ClaudeUsageClient(mock=False).fetch_once())
+
+    assert outcome.state is usage_client.PollState.LOADING
+    assert outcome.message == "awaiting_rate_limits"
+
+
+def test_fetch_once_skips_rebuild_when_status_mtime_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    status_path = tmp_path / "usage-status.json"
+    monkeypatch.setattr(usage_client, "STATUS_FILE", str(status_path))
+    monkeypatch.setattr(usage_client, "LEGACY_STATUS_FILE", str(tmp_path / f"{LEGACY_NAME}.json"))
+    monkeypatch.setattr(usage_client, "TT_STATUS_FILE", str(tmp_path / "tt-status.json"))
+    status_path.write_text(
+        json.dumps(
+            {
+                "_received_at_ts": 1_700_000_000.0,
+                "rate_limits": {
+                    "five_hour": {"used_percentage": 12, "resets_at": 1_700_000_060.0},
+                    "seven_day": {"used_percentage": 34, "resets_at": 1_700_000_120.0},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    calls = 0
+    original = usage_client._build_snapshot
+
+    def counting_build_snapshot(
+        data: dict[str, object],
+        *,
+        data_source: str = "hook",
+    ) -> usage_client.UsageSnapshot | None:
+        nonlocal calls
+        calls += 1
+        return original(data, data_source=data_source)
+
+    monkeypatch.setattr(usage_client, "_build_snapshot", counting_build_snapshot)
+
+    client = usage_client.ClaudeUsageClient(mock=False)
+    first = asyncio.run(client.fetch_once())
+    second = asyncio.run(client.fetch_once())
+
+    assert first.state is usage_client.PollState.SUCCESS
+    assert second.state is usage_client.PollState.SUCCESS
+    assert second is first
+    assert calls == 1

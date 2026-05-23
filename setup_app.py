@@ -51,6 +51,7 @@ if __name__ == "__main__":
             "i18n.json",
             "pricing_cache.json",
             "usage_statusline.py",
+            "usage_statusline_forwarder.py",
         ],
         "includes": [
             "AppKit",

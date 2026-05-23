@@ -354,6 +354,68 @@ def test_project_rows_30d_mock() -> None:
     assert rows[0][1] == 312_000_000
 
 
+def test_apply_refresh_result_pushes_state_only_when_popover_is_shown() -> None:
+    class FakeController:
+        def __init__(self) -> None:
+            self.calls: list[menubar.PopoverState] = []
+            self.content_view = object()
+
+        def setState_(self, state: menubar.PopoverState) -> None:
+            self.calls.append(state)
+
+    class FakePopover:
+        def __init__(self, shown: bool) -> None:
+            self.shown = shown
+            self.sizes: list[object] = []
+
+        def isShown(self) -> bool:
+            return self.shown
+
+        def setContentSize_(self, size: object) -> None:
+            self.sizes.append(size)
+
+    class FakeButton:
+        def __init__(self) -> None:
+            self.titles: list[str] = []
+
+        def setTitle_(self, title: str) -> None:
+            self.titles.append(title)
+
+    class FakeStatusItem:
+        def __init__(self, button: FakeButton) -> None:
+            self._button = button
+
+        def button(self) -> FakeButton:
+            return self._button
+
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+    state = menubar._empty_state(language="en")
+    button = FakeButton()
+    controller = FakeController()
+
+    delegate.popover_controller = controller
+    delegate.popover = FakePopover(shown=True)
+    delegate.status_item = FakeStatusItem(button)
+    delegate._refresh_in_flight = True
+
+    delegate._applyRefreshResult_({"state": state, "codex_5h_pct": 12})
+
+    assert controller.calls == [state]
+    assert delegate.latest_state == state
+    assert delegate.codex_5h_pct == 12
+    assert button.titles
+
+    controller.calls.clear()
+    delegate.popover = FakePopover(shown=False)
+    delegate._refresh_in_flight = True
+
+    delegate._applyRefreshResult_({"state": state, "codex_5h_pct": 34})
+
+    assert controller.calls == []
+    assert delegate.latest_state == state
+    assert delegate.codex_5h_pct == 34
+
+
 def test_state_from_outcome_replaces_claude_reset_with_warning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -412,3 +474,18 @@ def test_state_from_outcome_keeps_reset_when_burn_rate_is_not_positive(
 
     assert state.claude_session.warning is False
     assert state.claude_session.reset_text == "重置 51分鐘"
+
+
+def test_state_from_outcome_translates_awaiting_rate_limits_message() -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(False, 60)
+    delegate.language = "zh-TW"
+
+    state = delegate._state_from_outcome(
+        PollOutcome(state=PollState.LOADING, message="awaiting_rate_limits"),
+        delegate._codex_rows()[0],
+        [],
+        [],
+        [],
+    )
+
+    assert state.status_text == "狀態：請對 Claude Code 發送一句訊息以同步配額"

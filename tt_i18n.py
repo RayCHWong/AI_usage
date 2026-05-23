@@ -1,4 +1,4 @@
-import os
+from usage_lang import detect_lang
 
 _STRINGS = {
     "zh": {
@@ -177,14 +177,8 @@ _STRINGS = {
 
 
 def _detect_lang() -> str:
-    env_lang = os.environ.get("TT_LANG", "").lower()
-    if env_lang:
-        return "zh" if env_lang.startswith("zh") else "en"
-    for var in ("LANG", "LC_ALL", "LC_MESSAGES"):
-        val = os.environ.get(var, "").lower()
-        if val.startswith("zh"):
-            return "zh"
-    return "en"
+    lang = detect_lang()
+    return "zh" if lang.startswith("zh") else "en"
 
 
 LANG = _detect_lang()

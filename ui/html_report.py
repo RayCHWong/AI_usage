@@ -8,6 +8,8 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Mapping
 
+from usage_lang import detect_lang
+
 
 SUPPORTED_REPORT_LANGS = {"zh-TW", "zh-CN", "en", "ja", "ko"}
 
@@ -238,21 +240,7 @@ def _version() -> str:
 
 
 def _detect_lang(env: Mapping[str, str] | None = None) -> str:
-    source = os.environ if env is None else env
-    raw = source.get("TT_LANG", "").strip() or source.get("LANG", "")
-    code = raw.split(".")[0].replace("_", "-")
-
-    if code in {"zh-TW", "zh-HK"}:
-        return "zh-TW"
-    if code in {"zh-CN", "zh-SG", "zh"}:
-        return "zh-CN"
-    if code.startswith("en"):
-        return "en"
-    if code.startswith("ja"):
-        return "ja"
-    if code.startswith("ko"):
-        return "ko"
-    return "en"
+    return detect_lang(env)
 
 
 def _t(lang: str, key: str) -> str:

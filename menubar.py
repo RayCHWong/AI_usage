@@ -419,7 +419,8 @@ class AppDelegate(NSObject):
         codex_5h_pct = result["codex_5h_pct"]
         self.codex_5h_pct = codex_5h_pct
         self.latest_state = state
-        self.popover_controller.setState_(state)
+        if self.popover.isShown():
+            self.popover_controller.setState_(self.latest_state)
         self.popover.setContentSize_(_popover_size(state, self.active_panel))
         self._inject_web_language(state.language)
         self.status_item.button().setTitle_(self._compose_title(state))
@@ -534,6 +535,11 @@ class AppDelegate(NSObject):
         finally:
             await client.aclose()
 
+    def _status_message_value(self, outcome: PollOutcome, fallback_key: str) -> str:
+        if outcome.message == "awaiting_rate_limits":
+            return _t(self.language, "awaiting_rate_limits")
+        return outcome.message or _t(self.language, fallback_key)
+
     def _state_from_outcome(
         self,
         outcome: PollOutcome,
@@ -549,7 +555,7 @@ class AppDelegate(NSObject):
         status_text = _t(
             self.language,
             "status_text",
-            value=outcome.message or _t(self.language, "status_loading"),
+            value=self._status_message_value(outcome, "status_loading"),
         )
 
         if outcome.state == PollState.SUCCESS and outcome.snapshot is not None:
@@ -596,7 +602,7 @@ class AppDelegate(NSObject):
             status_text = _t(
                 self.language,
                 "status_text",
-                value=outcome.message or _t(self.language, "status_no_data"),
+                value=self._status_message_value(outcome, "status_no_data"),
             )
 
         return PopoverState(
