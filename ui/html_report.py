@@ -24,7 +24,7 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "empty_projects": "這段期間還沒有專案用量",
         "empty_daily": "這段期間還沒有每日用量",
         "empty_sessions": "這段期間還沒有可列出的會話",
-        "footer": "token-tracker · 本機分析 · 資料不離本機",
+        "footer": "usage · 本機分析 · 資料不離本機",
         "generated": "產生時間",
         "kpi_active": "活躍日",
         "kpi_cost": "燒掉成本",
@@ -59,7 +59,8 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "trend_compare_new": "本週是新出現的用量。",
         "trend_compare_up": "本週是上週的 {ratio} 倍。",
         "trend_marker_new": "new",
-        "trend_section": "每週燃燒趶勢",
+        "trend_section": "每週燃燒趨勢",
+        "sponsor": "如果這個工具幫到你、歡迎請我喝杯咖啡 ☕",
         "unknown": "未知",
         "version": "版本",
     },
@@ -71,7 +72,7 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "empty_projects": "这段期间还没有项目用量",
         "empty_daily": "这段期间还没有每日用量",
         "empty_sessions": "这段期间还没有可列出的会话",
-        "footer": "token-tracker · 本机分析 · 数据不离本机",
+        "footer": "usage · 本机分析 · 数据不离本机",
         "generated": "生成时间",
         "kpi_active": "活跃日",
         "kpi_cost": "烧掉成本",
@@ -107,6 +108,7 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "trend_compare_up": "本周是上周的 {ratio} 倍。",
         "trend_marker_new": "new",
         "trend_section": "每周燃烧趋势",
+        "sponsor": "如果这个工具帮到你，欢迎请我喝杯咖啡 ☕",
         "unknown": "未知",
         "version": "版本",
     },
@@ -118,7 +120,7 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "empty_projects": "No project usage in this period",
         "empty_daily": "No daily usage in this period",
         "empty_sessions": "No sessions to list in this period",
-        "footer": "token-tracker · Local-first analytics · Data stays on device",
+        "footer": "usage · Local-first analytics · Data stays on device",
         "generated": "Generated",
         "kpi_active": "Active Days",
         "kpi_cost": "Burned Cost",
@@ -154,6 +156,7 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "trend_compare_up": "This week is {ratio}× of last week.",
         "trend_marker_new": "new",
         "trend_section": "Weekly burn trail",
+        "sponsor": "If this tool helps you, consider buying me a coffee ☕",
         "unknown": "unknown",
         "version": "version",
     },
@@ -165,7 +168,7 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "empty_projects": "この期間のプロジェクト使用量はありません",
         "empty_daily": "この期間の日別使用量はありません",
         "empty_sessions": "この期間に表示できるセッションはありません",
-        "footer": "token-tracker · ローカル分析 · データは端末内に留まる",
+        "footer": "usage · ローカル分析 · データは端末内に留まる",
         "generated": "生成日時",
         "kpi_active": "活動日",
         "kpi_cost": "使った費用",
@@ -201,6 +204,7 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "trend_compare_up": "今週は先週の {ratio} 倍です。",
         "trend_marker_new": "new",
         "trend_section": "週次バーン推移",
+        "sponsor": "このツールが役に立ったら、コーヒーをおごってください ☕",
         "unknown": "不明",
         "version": "バージョン",
     },
@@ -212,7 +216,7 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "empty_projects": "이 기간에는 프로젝트 사용량이 없습니다",
         "empty_daily": "이 기간에는 일별 사용량이 없습니다",
         "empty_sessions": "이 기간에는 표시할 세션이 없습니다",
-        "footer": "token-tracker · 로컬 분석 · 데이터는 기기에만",
+        "footer": "usage · 로컬 분석 · 데이터는 기기에만",
         "generated": "생성 시간",
         "kpi_active": "활동일",
         "kpi_cost": "쓴 비용",
@@ -248,6 +252,7 @@ REPORT_TRANSLATIONS: dict[str, dict[str, str]] = {
         "trend_compare_up": "이번 주는 지난주의 {ratio}배입니다.",
         "trend_marker_new": "new",
         "trend_section": "주간 사용 추이",
+        "sponsor": "이 도구가 도움이 되셨다면, 커피 한 잔 사주세요 ☕",
         "unknown": "알 수 없음",
         "version": "버전",
     },
@@ -276,7 +281,7 @@ def _fmt_duration(minutes: float) -> str:
 
 def _version() -> str:
     try:
-        return version("token-tracker")
+        return version("usage")
     except PackageNotFoundError:
         return "dev"
 
@@ -334,7 +339,7 @@ def _display_name(value: object, lang: str) -> str:
 def _section(title: str, body: str) -> str:
     return f"""
     <section class="section">
-      <div class="prompt"><span>[token-tracker]&gt;</span> {html.escape(title)}</div>
+      <div class="prompt"><span>[usage]&gt;</span> {html.escape(title)}</div>
       <div class="rule" aria-hidden="true">────────────────────────────────────────────────────────</div>
       {body}
     </section>
@@ -590,6 +595,8 @@ h1{{margin:0 0 10px;font-size:clamp(1.8rem, 4.2vw, 3rem);line-height:1.02;font-w
 .trend-row{{display:grid;grid-template-columns:58px minmax(0,1fr) 72px 82px;gap:12px;align-items:center}}
 .trend-row .week{{color:var(--muted)}}.trend-row b{{color:var(--token);font-weight:400;white-space:nowrap;overflow:hidden}}.trend-row em{{font-style:normal;text-align:right;color:#dce2ea}}.delta{{color:var(--muted);white-space:nowrap}}.delta.up{{color:var(--cost)}}.delta.down{{color:var(--warn)}}.delta.flat{{color:var(--muted)}}.trend-summary{{color:#dce2ea;margin-top:8px}}
 .table-wrap{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;min-width:760px}}th,td{{padding:8px 10px;text-align:left;font-size:.86rem}}th{{color:var(--muted);font-weight:500;text-transform:uppercase}}td{{color:#dce2ea}}td:first-child{{color:var(--warn)}}
+.sponsor{{text-align:center;padding:16px 16px 4px;color:var(--muted);font-size:.88rem}}
+.sponsor a{{opacity:.8;transition:opacity .2s}}.sponsor a:hover{{opacity:1}}
 footer{{text-align:center;font-size:.82rem;margin-top:22px}}
 @keyframes blink{{0%,45%{{opacity:1}}46%,100%{{opacity:0}}}}
 .tip-cmd{{background:rgba(56,139,253,0.15);color:#58a6ff;padding:2px 10px;border-radius:4px;font-family:ui-monospace,'SF Mono',monospace;font-size:0.95em}}
@@ -604,11 +611,11 @@ footer{{text-align:center;font-size:.82rem;margin-top:22px}}
 <main class="wrap">
   <header>
     <div>
-      <div class="eyebrow"><span>$</span> tt report --period {html.escape(str(data["period_label"]))}<span class="cursor">_</span></div>
+      <div class="eyebrow"><span>$ usage report</span> --period {html.escape(str(data["period_label"]))}<span class="cursor">_</span></div>
       <h1>{html.escape(title)}</h1>
       <p class="narrative">{html.escape(_narrative(data, lang))}</p>
     </div>
-    <div class="meta">{html.escape(_t(lang, "generated"))} {html.escape(generated_at)}<br>token-tracker {_escape(_t(lang, "version"))} {_escape(_version())}</div>
+    <div class="meta">{html.escape(_t(lang, "generated"))} {html.escape(generated_at)}<br>usage {_escape(_t(lang, "version"))} {_escape(_version())}</div>
   </header>
   <section class="cards">{''.join(f'<div class="card"><span>{html.escape(label)}</span><b>{html.escape(value)}</b>' + (f'<i>{html.escape(sub)}</i>' if sub else '') + '</div>' for label, value, sub in cards)}</section>
   {_section(_t(lang, "project_section"), project_body)}
@@ -616,6 +623,7 @@ footer{{text-align:center;font-size:.82rem;margin-top:22px}}
   {_section(_t(lang, "trend_section"), _trend_ascii(data.get("daily_trend", []), lang))}
   {_section(_t(lang, "session_section"), session_body)}
   {_tip_section(tip, lang) if tip else ''}
+  <p class="sponsor">{html.escape(_t(lang, "sponsor"))}&#32;<a href="https://ko-fi.com/lollapalooza" target="_blank" rel="noopener"><img src="https://img.shields.io/badge/Ko--fi-FF5E5B?logo=ko-fi&amp;logoColor=white" alt="Ko-fi" style="vertical-align:middle"></a></p>
   <footer>{html.escape(_t(lang, "footer"))}</footer>
 </main>
 <script>
@@ -659,10 +667,10 @@ def save_and_open(data: dict, out_path: str | None = None) -> str:
         path = Path(os.path.expanduser(out_path))
         display_path = str(path.expanduser())
     else:
-        reports_dir = Path.home() / ".tt-reports"
+        reports_dir = Path.home() / ".usage-reports"
         reports_dir.mkdir(parents=True, exist_ok=True)
-        path = reports_dir / f"tt-report-{datetime.now().strftime('%Y%m%d-%H%M%S')}.html"
-        display_path = f"~/.tt-reports/{path.name}"
+        path = reports_dir / f"usage-report-{datetime.now().strftime('%Y%m%d-%H%M%S')}.html"
+        display_path = f"~/.usage-reports/{path.name}"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(generate_html(data), encoding="utf-8")
     if out_path is None:

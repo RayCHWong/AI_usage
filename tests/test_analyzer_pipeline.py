@@ -44,7 +44,7 @@ def test_html_panels_expose_analyze_action() -> None:
         assert 'data-action="toggle-statusline"' in html, path.name
 
 
-def test_generate_analysis_report_uses_token_tracker_pipeline(
+def test_generate_analysis_report_uses_analyzer_pipeline(
     monkeypatch: Any,
 ) -> None:
     agents = [AgentInfo("codex", "Codex", "~/.codex", True)]
@@ -58,11 +58,11 @@ def test_generate_analysis_report_uses_token_tracker_pipeline(
 
     def fake_save_and_open(received_data: dict[str, object]) -> str:
         calls["data"] = received_data
-        return "~/.tt-reports/tt-report-test.html"
+        return "~/.usage-reports/usage-report-test.html"
 
     monkeypatch.setattr("adapters.registry.detect_agents", lambda: agents)
     monkeypatch.setattr("analyzer.reporter.build_report_data", fake_build_report_data)
     monkeypatch.setattr("ui.html_report.save_and_open", fake_save_and_open)
 
-    assert menubar._generate_analysis_report() == "~/.tt-reports/tt-report-test.html"
+    assert menubar._generate_analysis_report() == "~/.usage-reports/usage-report-test.html"
     assert calls == {"agents": agents, "period": "month", "data": report_data}

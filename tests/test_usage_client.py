@@ -46,7 +46,7 @@ def test_read_status_file_skips_bad_json_and_prefers_usage_file(
     assert data["rate_limits"]["five_hour"]["used_percentage"] == 12
 
 
-def test_read_status_file_uses_legacy_file_before_token_tracker(
+def test_read_status_file_prefers_legacy_over_tt_compat(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     legacy_path = tmp_path / f"{LEGACY_NAME}-status.json"

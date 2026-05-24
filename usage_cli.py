@@ -5,8 +5,8 @@ from adapters.rate_limits import load_rate_limits as load_claude_rate_limits
 from adapters.registry import detect_agents
 from analyzer.aggregator import aggregate_daily, aggregate_monthly, aggregate_sessions, aggregate_weekly
 from analyzer.blocks import analyze_blocks, calculate_p90
-from tt_hooks import is_setup, needs_update, setup, unsetup, update_hook
-from tt_i18n import t
+from setup_hook import is_setup, needs_update, setup, unsetup, update_hook
+from i18n import t
 from ui.tables import (
     AGENT_LABEL, console, render_daily, render_dashboard,
     render_monthly, render_sessions, render_tab_bar, render_weekly,
@@ -354,7 +354,7 @@ _read_key = _read_key_win if sys.platform == "win32" else _read_key_unix
 
 def _get_version() -> str:
     from importlib.metadata import version
-    return version("token-tracker")
+    return version("usage")
 
 
 def main():
@@ -362,7 +362,7 @@ def main():
     command = args[0] if args else "dashboard"
 
     if command in ("--version", "-v", "-V"):
-        print(f"tt {_get_version()}")
+        print(f"usage {_get_version()}")
         return
     if command == "setup":
         setup()
@@ -386,7 +386,7 @@ def main():
     elif needs_update():
         update_hook()
 
-    # tt claude / tt codex
+    # usage claude / usage codex
     if command in AGENT_ALIASES:
         agent_id = AGENT_ALIASES[command]
         if agent_id not in agent_ids:

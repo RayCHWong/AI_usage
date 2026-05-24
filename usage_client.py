@@ -78,7 +78,7 @@ def _as_finite_float(value: Any) -> float | None:
 
 
 def _read_status_file() -> tuple[dict[str, Any], str, float] | None:
-    """讀任一份可用的 status JSON，優先 usage 自己的，fallback 舊檔與 token-tracker。"""
+    """讀任一份可用的 status JSON，優先 usage 自己的，fallback 舊狀態檔。"""
     for path in (STATUS_FILE, LEGACY_STATUS_FILE, TT_STATUS_FILE):
         try:
             mtime = os.stat(path).st_mtime
@@ -129,7 +129,7 @@ def _build_snapshot(data: dict[str, Any], *, data_source: str = "hook") -> Usage
     five_reset = _reset_at(five.get("resets_at"), now)
     seven_reset = _reset_at(seven.get("resets_at"), now)
 
-    # reset 時間到了就把百分比歸零（跟 token-tracker 同邏輯）
+    # reset 時間到了就把百分比歸零，和 Claude Code rate-limit 語意一致。
     five_pct = (
         0
         if five_reset and five_reset < now

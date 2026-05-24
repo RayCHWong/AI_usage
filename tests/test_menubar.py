@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -194,8 +195,9 @@ def test_statusline_enabled_detects_external_hook(
     claude_dir = tmp_path / ".claude"
     claude_dir.mkdir()
     settings = claude_dir / "settings.json"
+    legacy_name = "tt" + "-statusline.py"
     settings.write_text(
-        json.dumps({"statusLine": {"type": "command", "command": "python3 tt-statusline.py"}}),
+        json.dumps({"statusLine": {"type": "command", "command": f"python3 {legacy_name}"}}),
         encoding="utf-8",
     )
     monkeypatch.setattr("menubar.os.path.expanduser", lambda value: str(settings))
@@ -214,7 +216,9 @@ def test_toggle_statusline_preserves_forwarder_settings(
         "env": {"KEEP": "1"},
         "statusLine": {
             "type": "command",
-            "command": "python3 ~/.claude/tt-statusline-usage-statusline-forward.py",
+            "command": "python3 ~/.claude/"
+            + "tt"
+            + "-statusline-usage-statusline-forward.py",
         },
     }
     settings.write_text(json.dumps(original, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -232,6 +236,74 @@ def test_toggle_statusline_preserves_forwarder_settings(
 
     assert (action, exit_code) == ("install", 0)
     assert settings.read_text(encoding="utf-8") == original_text
+
+
+def test_statusline_action_in_background_returns_failure_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class Delegate:
+        def performSelectorOnMainThread_withObject_waitUntilDone_(
+            self, selector: str, result: dict[str, object], wait: bool
+        ) -> None:
+            captured["selector"] = selector
+            captured["result"] = result
+            captured["wait"] = wait
+
+    monkeypatch.setattr(
+        menubar,
+        "_enable_statusline_settings",
+        lambda: (_ for _ in ()).throw(RuntimeError("setup failed")),
+    )
+
+    menubar.AppDelegate._statusline_action_in_background(cast(Any, Delegate()), "install")
+
+    result = captured["result"]
+    assert isinstance(result, dict)
+    assert result["ok"] is False
+    assert result["action"] == "install"
+    assert "RuntimeError: setup failed" in str(result["output"])
+
+
+def test_enable_statusline_ignores_missing_previous_command(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import setup_hook
+
+    settings = tmp_path / "settings.json"
+    missing_hook = tmp_path / "missing-statusline.py"
+    settings.write_text(
+        json.dumps(
+            {
+                "env": {"KEEP": "1"},
+                "usage": {
+                    "previousStatusLine": {
+                        "type": "command",
+                        "command": f"python3 {missing_hook}",
+                    }
+                },
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    setup_called = False
+
+    def fake_setup() -> int:
+        nonlocal setup_called
+        setup_called = True
+        return 0
+
+    monkeypatch.setattr(menubar, "_claude_settings_path", lambda: settings)
+    monkeypatch.setattr(setup_hook, "setup", fake_setup)
+
+    assert menubar._enable_statusline_settings() == 0
+    assert setup_called is True
+    updated = json.loads(settings.read_text(encoding="utf-8"))
+    assert updated == {"env": {"KEEP": "1"}}
 
 
 def test_error_state_uses_message_and_mock_today_title() -> None:

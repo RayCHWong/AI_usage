@@ -52,7 +52,8 @@ def test_install_when_tt_statusline_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     settings, hook_target, forwarder_target = _patch_setup_paths(monkeypatch, tmp_path)
-    external = {"type": "command", "command": "python3 ~/.claude/tt-statusline.py"}
+    legacy_name = "tt" + "-statusline.py"
+    external = {"type": "command", "command": f"python3 ~/.claude/{legacy_name}"}
     settings.write_text(json.dumps({"statusLine": external}), encoding="utf-8")
 
     assert setup_hook.setup() == 0

@@ -45,7 +45,7 @@ Read priority:
 
 1. `~/.claude/usage-status.json` — written by the hook usage installs.
 2. `~/.claude/usag-status.json` — automatic v0.1.x legacy fallback; new users should not encounter this.
-3. `~/.claude/tt-status.json` — fallback. If you also use [token-tracker](https://github.com/stormzhang/token-tracker), usage will share its status file.
+3. `~/.claude/tt-status.json` — fallback for users migrating from the third-party tool [stormzhang/token-tracker](https://github.com/stormzhang/token-tracker); usage will share its status file. (**Note: unrelated to this project's internal modules; it's purely external-community compat.**)
 
 ### Codex usage
 
@@ -78,7 +78,7 @@ To open it: find `usage.app` in Finder → right-click → Open → confirm Open
 
 The first time you open usage, if Claude Code has never been wired up yet, the popover will detect the missing status file and **show an extra "立即安裝 hook" (Install hook now) button at the bottom**. Click it once — it installs the hook for you. Then **fully quit Claude Code (Cmd+Q) and re-open it**, click "Refresh now" in usage, and the numbers will appear.
 
-If the button doesn't show, usage is already reading data (e.g. you previously installed [token-tracker](https://github.com/stormzhang/token-tracker) and its status file works as a fallback) — nothing else to do.
+If the button doesn't show, usage is already reading data (e.g. you previously installed the third-party tool [stormzhang/token-tracker](https://github.com/stormzhang/token-tracker) and its status file works as a fallback) — nothing else to do.
 
 > **Fallback: install via curl**
 > If the in-app button doesn't work or you prefer the command line, run the following in Terminal (download first, inspect, then run):

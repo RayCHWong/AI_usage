@@ -17,7 +17,7 @@ from adapters.types import (
     SessionStats,
     WeeklyStats,
 )
-from tt_i18n import t
+from i18n import t
 
 console = Console()
 

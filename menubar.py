@@ -8,12 +8,12 @@ import io
 import json
 import logging
 import os
+import shlex
 import tempfile
 import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, cast
 
@@ -34,20 +34,14 @@ from AppKit import (
     NSVariableStatusItemLength,
     NSViewController,
 )
-from Foundation import (
-    NSBundle,
-    NSLocale,
-    NSObject,
-    NSRunLoop,
-    NSRunLoopCommonModes,
-    NSTimer,
-)
+from Foundation import NSLocale, NSObject, NSRunLoop, NSRunLoopCommonModes, NSTimer
 
 import codex_loader
 import login_item
 import panels
 from burn_rate import WARNING_PERCENT_FLOOR, BurnRateTracker
 from history_loader import UsageEntry, load_entries
+from i18n import _t
 from panels.base import Panel as UsagePanel
 from panels.base import load_active_panel_id, save_active_panel_id
 from pricing import calculate_cost
@@ -64,36 +58,12 @@ DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
 logger = logging.getLogger(__name__)
 
 
-def _i18n_path() -> Path:
-    try:
-        bundle_path = NSBundle.mainBundle().resourcePath()
-        if bundle_path:
-            candidate = Path(str(bundle_path)) / "i18n.json"
-            if candidate.exists():
-                return candidate
-    except Exception:
-        pass
-    return Path(__file__).with_name("i18n.json")
-
-
-I18N_PATH = _i18n_path()
-
-
 def _bar_color(pct: float, brand: tuple[float, float, float]) -> tuple[float, float, float]:
     if pct >= 80:
         return DANGER_COLOR
     if pct >= 50:
         return WARN_COLOR
     return brand
-
-
-@lru_cache(maxsize=1)
-def _load_i18n_bundle() -> dict[str, dict[str, str]]:
-    data = json.loads(I18N_PATH.read_text(encoding="utf-8"))
-    return {
-        str(lang): {str(key): str(value) for key, value in values.items()}
-        for lang, values in data.items()
-    }
 
 
 def _normalize_language(code: str | None) -> str:
@@ -130,13 +100,6 @@ def _detect_language() -> str:
         return _normalize_language(str(identifier) if identifier is not None else None)
     except Exception:
         return "en"
-
-
-def _t(language: str, key: str, **kwargs: object) -> str:
-    bundle = _load_i18n_bundle()
-    table = bundle.get(language) or bundle["en"]
-    template = table.get(key) or bundle["en"].get(key) or key
-    return template.format(**kwargs)
 
 
 def _group_name(group: int, language: str) -> str:
@@ -477,6 +440,7 @@ class AppDelegate(NSObject):
 
     def _statusline_action_in_background(self, action: str) -> None:
         output = io.StringIO()
+        ok = True
         try:
             with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
                 if action == "toggle":
@@ -487,19 +451,27 @@ class AppDelegate(NSObject):
                     _enable_statusline_settings()
         except SystemExit as exc:
             if exc.code:
+                ok = False
                 print(exc.code, file=output)
         except Exception as exc:
+            ok = False
             print(f"{type(exc).__name__}: {exc}", file=output)
 
         self.performSelectorOnMainThread_withObject_waitUntilDone_(
             "_finishStatuslineAction:",
-            {},
+            {"ok": ok, "action": action, "output": output.getvalue().strip()},
             False,
         )
 
     def _finishStatuslineAction_(self, result: dict[str, Any]) -> None:
         self._refresh()
         self._refresh_statusline_state()
+        if result.get("ok", True):
+            return
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_(_t(self.language, "statusline_action_failed"))
+        alert.setInformativeText_(str(result.get("output") or result.get("action") or ""))
+        alert.runModal()
 
     def _refresh_statusline_state(self) -> None:
         self.latest_state.statusline = _statusline_payload(self.language)
@@ -926,6 +898,23 @@ def _save_claude_settings(settings: dict[str, Any]) -> None:
                 os.unlink(tmp_path)
 
 
+def _statusline_command_target_exists(statusline: object) -> bool:
+    if not isinstance(statusline, dict):
+        return True
+    command = statusline.get("command")
+    if not isinstance(command, str):
+        return True
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return True
+    for part in parts:
+        if "statusline" not in part or not part.endswith(".py"):
+            continue
+        return Path(os.path.expanduser(part)).exists()
+    return True
+
+
 def _disable_statusline_settings() -> int:
     settings = _load_claude_settings()
     if "statusLine" not in settings:
@@ -949,6 +938,14 @@ def _enable_statusline_settings() -> int:
     previous = usage_settings.get("previousStatusLine") if usage_settings is not None else None
     if previous:
         assert usage_settings is not None
+        if not _statusline_command_target_exists(previous):
+            del usage_settings["previousStatusLine"]
+            if not usage_settings:
+                del settings["usage"]
+            _save_claude_settings(settings)
+            import setup_hook
+
+            return setup_hook.setup()
         settings["statusLine"] = previous
         del usage_settings["previousStatusLine"]
         if not usage_settings:
