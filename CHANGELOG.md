@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-05-24
+
+### 新增
+- **App 內檢查更新（Stage 1）**：開 app 時自動到 GitHub Releases 查最新版（24 小時最多檢查一次，避免每次開都被打擾）；發現新版會跳出視窗顯示版本號＋ release notes，三顆按鈕「前往下載 / 稍後再說 / 跳過此版本」。「前往下載」會用預設瀏覽器打開 Release 頁，你手動下載新版蓋掉舊版即可（Stage 2 才會做 Sparkle 全自動下載＋替換）。
+- **「更換面板」選單新增兩條**：
+  - **自動檢查更新**（可勾選）：取消勾選後完全關閉啟動時的自動檢查，只保留手動入口。
+  - **立刻檢查更新**：手動觸發一次檢查，忽略 24h cooldown 與「跳過此版本」設定；沒新版也會跳視窗告知「已是最新版本」，網路錯誤時跳「檢查更新失敗」。
+- 偏好設定沿用既有 `~/.claude/usage-preferences.json`，新增三個 key：`auto_update_check`（預設 true）、`update_dismissed_at`（Unix 時間戳）、`update_skipped_version`（被跳過的版本號）。
+
+### 變更
+- `setup_app.py` 把 `pyproject.toml` 與 `update_checker` 一併納入 py2app 打包——讓 .app 版在 `importlib.metadata` 抓不到版本時可 fallback 讀 `pyproject.toml`。
+
 ## [0.10.1] - 2026-05-24
 
 ### 修正

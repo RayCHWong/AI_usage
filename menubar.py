@@ -12,8 +12,11 @@ import shlex
 import tempfile
 import threading
 import time
+import tomllib
+import webbrowser
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from importlib import metadata
 from pathlib import Path
 from typing import Any, cast
 
@@ -39,9 +42,11 @@ from Foundation import NSLocale, NSObject, NSRunLoop, NSRunLoopCommonModes, NSTi
 import codex_loader
 import login_item
 import panels
+import update_checker
 from burn_rate import WARNING_PERCENT_FLOOR, BurnRateTracker
 from history_loader import UsageEntry, load_entries
 from i18n import _t
+from main import _load_preferences, _save_preferences
 from panels.base import Panel as UsagePanel
 from panels.base import load_active_panel_id, save_active_panel_id
 from pricing import calculate_cost
@@ -54,6 +59,8 @@ CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
 CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
 WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
 DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
+UPDATE_DISMISS_SECONDS = 24 * 3600
+UPDATE_ALERT_BODY_LIMIT = 2000
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +117,30 @@ def _panel_title(panel: UsagePanel, language: str) -> str:
     if panel.id == "classic":
         return _t(language, "panel_default_name")
     return panel.display_name
+
+
+def _auto_update_check_enabled(prefs: dict[str, Any] | None = None) -> bool:
+    data = _load_preferences() if prefs is None else prefs
+    return data.get("auto_update_check") is not False
+
+
+def _update_dismissed_recently(prefs: dict[str, Any]) -> bool:
+    dismissed_at = prefs.get("update_dismissed_at")
+    if isinstance(dismissed_at, int | float):
+        return (time.time() - float(dismissed_at)) < UPDATE_DISMISS_SECONDS
+    return False
+
+
+def _current_version() -> str:
+    try:
+        return metadata.version("usage")
+    except metadata.PackageNotFoundError as exc:
+        pyproject = Path(__file__).with_name("pyproject.toml")
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        version = data.get("project", {}).get("version")
+        if isinstance(version, str):
+            return version
+        raise RuntimeError("project.version missing from pyproject.toml") from exc
 
 
 _APP_DELEGATE: AppDelegate | None = None
@@ -247,6 +278,8 @@ class AppDelegate(NSObject):
             True,
         )
         NSRunLoop.currentRunLoop().addTimer_forMode_(self.timer, NSRunLoopCommonModes)
+        thread = threading.Thread(target=self._maybe_check_update_in_background, daemon=True)
+        thread.start()
 
     def timerFired_(self, timer: Any) -> None:
         self._refresh()
@@ -308,6 +341,22 @@ class AppDelegate(NSObject):
         launch_item.setTarget_(self)
         launch_item.setState_(1 if login_item.is_enabled() else 0)
         menu.addItem_(launch_item)
+        menu.addItem_(NSMenuItem.separatorItem())
+        auto_update_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            _t(self.language, "auto_update_check"),
+            "toggleAutoUpdateCheck:",
+            "",
+        )
+        auto_update_item.setTarget_(self)
+        auto_update_item.setState_(1 if _auto_update_check_enabled() else 0)
+        menu.addItem_(auto_update_item)
+        check_update_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            _t(self.language, "update_check_now"),
+            "checkUpdateNow:",
+            "",
+        )
+        check_update_item.setTarget_(self)
+        menu.addItem_(check_update_item)
         menu.popUpMenuPositioningItem_atLocation_inView_(None, NSMakePoint(0, 0), sender)
 
     def selectPanel_(self, sender: Any) -> None:
@@ -323,6 +372,113 @@ class AppDelegate(NSObject):
         except Exception:
             if os.environ.get("USAGE_DEBUG") == "1":
                 logger.warning("toggle launch at login failed", exc_info=True)
+
+    def toggleAutoUpdateCheck_(self, sender: Any) -> None:
+        prefs = _load_preferences()
+        enabled = not _auto_update_check_enabled(prefs)
+        prefs["auto_update_check"] = enabled
+        _save_preferences(prefs)
+        if hasattr(sender, "setState_"):
+            sender.setState_(1 if enabled else 0)
+
+    def checkUpdateNow_(self, sender: Any) -> None:
+        thread = threading.Thread(
+            target=self._check_update_in_background,
+            kwargs={"manual": True, "ignore_cooldown": True, "ignore_skipped": True},
+            daemon=True,
+        )
+        thread.start()
+
+    def _maybe_check_update_in_background(self) -> None:
+        self._check_update_in_background(
+            manual=False,
+            ignore_cooldown=False,
+            ignore_skipped=False,
+        )
+
+    def _check_update_in_background(
+        self,
+        *,
+        manual: bool,
+        ignore_cooldown: bool,
+        ignore_skipped: bool,
+    ) -> None:
+        prefs = _load_preferences()
+        if not manual and not _auto_update_check_enabled(prefs):
+            return
+        if not ignore_cooldown and _update_dismissed_recently(prefs):
+            return
+
+        try:
+            current_version = _current_version()
+            check_result = update_checker.check_latest_release_result(current_version)
+        except Exception:
+            if os.environ.get("USAGE_DEBUG") == "1":
+                logger.warning("update check failed", exc_info=True)
+            if manual:
+                self.performSelectorOnMainThread_withObject_waitUntilDone_(
+                    "_showUpdateCheckFailed:",
+                    None,
+                    False,
+                )
+            return
+
+        if check_result.failed:
+            if manual:
+                self.performSelectorOnMainThread_withObject_waitUntilDone_(
+                    "_showUpdateCheckFailed:",
+                    None,
+                    False,
+                )
+            return
+
+        release = check_result.release
+        if release is None:
+            if manual:
+                self.performSelectorOnMainThread_withObject_waitUntilDone_(
+                    "_showNoUpdateAvailable:",
+                    None,
+                    False,
+                )
+            return
+
+        if not ignore_skipped and prefs.get("update_skipped_version") == release.version:
+            return
+
+        self.performSelectorOnMainThread_withObject_waitUntilDone_(
+            "_showUpdateAlert:",
+            release,
+            False,
+        )
+
+    def _showUpdateAlert_(self, release: update_checker.ReleaseInfo) -> None:
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_(_t(self.language, "update_alert_title", version=release.version))
+        alert.setInformativeText_(release.body[:UPDATE_ALERT_BODY_LIMIT])
+        alert.addButtonWithTitle_(_t(self.language, "update_btn_download"))
+        alert.addButtonWithTitle_(_t(self.language, "update_btn_later"))
+        alert.addButtonWithTitle_(_t(self.language, "update_btn_skip"))
+        result = int(alert.runModal())
+        if result == 1000:
+            webbrowser.open(release.html_url)
+            return
+
+        prefs = _load_preferences()
+        if result == 1002:
+            prefs["update_skipped_version"] = release.version
+        else:
+            prefs["update_dismissed_at"] = time.time()
+        _save_preferences(prefs)
+
+    def _showNoUpdateAvailable_(self, result: Any) -> None:
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_(_t(self.language, "update_no_new_version"))
+        alert.runModal()
+
+    def _showUpdateCheckFailed_(self, result: Any) -> None:
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_(_t(self.language, "update_check_failed"))
+        alert.runModal()
 
     def _set_active_panel_id(self, panel_id: str) -> None:
         panel = panels.get_panel(panel_id)

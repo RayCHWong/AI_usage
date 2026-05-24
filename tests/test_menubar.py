@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -10,6 +11,74 @@ import pytest
 import history_loader
 import menubar
 from usage_client import PollOutcome, PollState, UsageSnapshot
+
+
+class _FakeMenu:
+    last: _FakeMenu | None = None
+
+    def __init__(self) -> None:
+        self.items: list[_FakeMenuItem] = []
+        _FakeMenu.last = self
+
+    @classmethod
+    def alloc(cls) -> _FakeMenu:
+        return cls()
+
+    def initWithTitle_(self, title: str) -> _FakeMenu:
+        self.title = title
+        return self
+
+    def addItem_(self, item: _FakeMenuItem) -> None:
+        self.items.append(item)
+
+    def popUpMenuPositioningItem_atLocation_inView_(
+        self,
+        item: object,
+        location: object,
+        view: object,
+    ) -> None:
+        return None
+
+
+class _FakeMenuItem:
+    def __init__(self) -> None:
+        self.title = ""
+        self.state = 0
+        self.target: object | None = None
+        self.represented: object | None = None
+
+    @classmethod
+    def alloc(cls) -> _FakeMenuItem:
+        return cls()
+
+    @classmethod
+    def separatorItem(cls) -> _FakeMenuItem:
+        item = cls()
+        item.title = "---"
+        return item
+
+    def initWithTitle_action_keyEquivalent_(
+        self,
+        title: str,
+        action: str,
+        key: str,
+    ) -> _FakeMenuItem:
+        self.title = title
+        self.action = action
+        self.key = key
+        return self
+
+    def setTarget_(self, target: object) -> None:
+        self.target = target
+
+    def setRepresentedObject_(self, value: object) -> None:
+        self.represented = value
+
+    def representedObject(self) -> object:
+        return self.represented
+
+    def setState_(self, state: int) -> None:
+        self.state = state
 
 
 def test_format_human_time_zero_and_negative() -> None:
@@ -186,6 +255,54 @@ def test_empty_state() -> None:
     assert state.projects_30d == []
     assert isinstance(state.statusline["enabled"], bool)
     assert state.show_install_button is False
+
+
+def test_switch_panel_menu_contains_update_items(monkeypatch: pytest.MonkeyPatch) -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+    delegate.language = "en"
+    delegate.active_panel = SimpleNamespace(id="classic")
+    panels = [
+        SimpleNamespace(id="classic", display_name="Classic"),
+        SimpleNamespace(id="bento", display_name="Bento"),
+    ]
+
+    monkeypatch.setattr(menubar, "NSMenu", _FakeMenu)
+    monkeypatch.setattr(menubar, "NSMenuItem", _FakeMenuItem)
+    monkeypatch.setattr("menubar.panels.all_panels", lambda: panels)
+    monkeypatch.setattr("menubar.login_item.is_enabled", lambda: False)
+    monkeypatch.setattr(menubar, "_load_preferences", lambda: {"auto_update_check": True})
+
+    menubar.AppDelegate.switchPanel_(delegate, object())
+
+    assert _FakeMenu.last is not None
+    titles = [item.title for item in _FakeMenu.last.items]
+    assert "Automatically Check for Updates" in titles
+    assert "Check for Updates Now" in titles
+    auto_item = next(
+        item for item in _FakeMenu.last.items if item.title == "Automatically Check for Updates"
+    )
+    assert auto_item.state == 1
+
+
+def test_auto_update_disabled_skips_background_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    called = False
+
+    def fake_check_latest_release(current_version: str) -> object:
+        nonlocal called
+        called = True
+        return None
+
+    monkeypatch.setattr(menubar, "_load_preferences", lambda: {"auto_update_check": False})
+    monkeypatch.setattr("menubar.update_checker.check_latest_release", fake_check_latest_release)
+
+    menubar.AppDelegate._check_update_in_background(
+        cast(Any, object()),
+        manual=False,
+        ignore_cooldown=False,
+        ignore_skipped=False,
+    )
+
+    assert called is False
 
 
 def test_statusline_enabled_detects_usage_hook(
