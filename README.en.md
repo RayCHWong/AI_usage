@@ -1,6 +1,6 @@
 # usage
 
-[繁體中文](README.md) · English
+[Traditional Chinese](README.md) / English
 
 [![CI](https://github.com/aqua5230/usage/actions/workflows/check.yml/badge.svg)](https://github.com/aqua5230/usage/actions/workflows/check.yml)
 [![Latest Release](https://img.shields.io/github/v/release/aqua5230/usage)](https://github.com/aqua5230/usage/releases/latest)
@@ -76,7 +76,7 @@ To open it: find `usage.app` in Finder → right-click → Open → confirm Open
 
 ### First launch: install the hook
 
-The first time you open usage, if Claude Code has never been wired up yet, the popover will detect the missing status file and **show an extra "立即安裝 hook" (Install hook now) button at the bottom**. Click it once — it installs the hook for you. Then **fully quit Claude Code (Cmd+Q) and re-open it**, click "Refresh now" in usage, and the numbers will appear.
+The first time you open usage, if Claude Code has never been wired up yet, the popover will detect the missing status file and **show an extra "Install hook now" button at the bottom**. Click it once — it installs the hook for you. Then **fully quit Claude Code (Cmd+Q) and re-open it**, click "Refresh now" in usage, and the numbers will appear.
 
 If the button doesn't show, usage is already reading data (e.g. you previously installed the third-party tool [stormzhang/token-tracker](https://github.com/stormzhang/token-tracker) and its status file works as a fallback) — nothing else to do.
 
@@ -84,7 +84,7 @@ If the button doesn't show, usage is already reading data (e.g. you previously i
 > If the in-app button doesn't work or you prefer the command line, run the following in Terminal (download first, inspect, then run):
 >
 > ```bash
-> curl -fsSL https://raw.githubusercontent.com/aqua5230/usage/v0.6.0/scripts/install-hook.sh -o /tmp/usage-install.sh
+> curl -fsSL https://raw.githubusercontent.com/aqua5230/usage/main/scripts/install-hook.sh -o /tmp/usage-install.sh
 > cat /tmp/usage-install.sh   # review the script before running
 > bash /tmp/usage-install.sh
 > ```
@@ -110,7 +110,7 @@ This creates an isolated Python environment (`.venv`) for the project, activates
 
 ## First install (wire up the Claude Code hook — source mode only)
 
-> Using the .app? Just click the "立即安裝 hook" button in the popover on first launch instead — you don't need this section. The steps below are for developers running usage from source.
+> Using the .app? Just click the "Install hook now" button in the popover on first launch instead — you don't need this section. The steps below are for developers running usage from source.
 
 This single command does two things: copies the hook script into `~/.claude/`, and updates your Claude Code settings to point at it.
 
@@ -279,7 +279,7 @@ The "Fix" column distinguishes three kinds of users — find yours first:
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| Menu bar shows `--` | Hook not installed, or Claude Code hasn't refreshed yet | **.app users**: click the "立即安裝 hook" button in the popover. **Source users**: run `python3 main.py --setup`. Either way, restart Claude Code once afterwards |
+| Menu bar shows `--` | Hook not installed, or Claude Code hasn't refreshed yet | **.app users**: click the "Install hook now" button in the popover. **Source users**: run `python3 main.py --setup`. Either way, restart Claude Code once afterwards |
 | Accidentally hit "Quit", paw icon disappeared from the menu bar | "Quit" fully terminates the usage process; you have to relaunch it | **.app users**: press `Cmd+Space` for Spotlight, type `usage`, hit Enter; or double-click `usage.app` from `/Applications`. **LaunchAgent users**: run `launchctl start com.lollapalooza.usage` in Terminal. **Source users**: run `python3 main.py` in Terminal again |
 | Status says "N minutes stale" | Claude Code isn't running | Open Claude Code and let it run; it updates the file on its next status refresh |
 | Codex section is empty | `~/.codex/sessions/` doesn't exist or has no `rate_limits` events yet | Run a Codex conversation to generate log entries |
@@ -308,4 +308,3 @@ https://github.com/aqua5230/usage
 If this tool helps you, consider buying me a coffee ☕
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/lollapalooza)
-

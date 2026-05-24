@@ -262,8 +262,8 @@ def test_switch_panel_menu_contains_update_items(monkeypatch: pytest.MonkeyPatch
     delegate.language = "en"
     delegate.active_panel = SimpleNamespace(id="classic")
     panels = [
-        SimpleNamespace(id="classic", i18n_key="panel_default_name", display_name="Classic"),
-        SimpleNamespace(id="bento", i18n_key="panel_bento", display_name="Bento"),
+        SimpleNamespace(id="classic", i18n_key="panel_default_name"),
+        SimpleNamespace(id="bento", i18n_key="panel_bento"),
     ]
 
     monkeypatch.setattr(menubar, "NSMenu", _FakeMenu)

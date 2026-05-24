@@ -139,7 +139,6 @@ class WebPanelView(WKWebView):
 class HTMLPanel:
     id: str
     i18n_key: str
-    display_name: str
     html_filename: str
     width: float
     height: float
@@ -154,7 +153,6 @@ class HTMLPanel:
     ) -> None:
         self.id = panel_id
         self.i18n_key = i18n_key
-        self.display_name = i18n_key
         self.html_filename = html_filename
         self.width = width
         self.height = height
