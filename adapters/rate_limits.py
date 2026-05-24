@@ -4,17 +4,26 @@ from datetime import datetime, timezone
 
 from .types import RateLimits
 
-STATUS_FILE = os.path.expanduser("~/.claude/tt-status.json")
+STATUS_FILE = os.path.expanduser("~/.claude/usage-status.json")
+LEGACY_STATUS_FILE = os.path.expanduser("~/.claude/usag-status.json")
+TT_STATUS_FILE = os.path.expanduser("~/.claude/tt-status.json")
+
+
+def _read_status() -> dict | None:
+    for path in (STATUS_FILE, LEGACY_STATUS_FILE, TT_STATUS_FILE):
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+    return None
 
 
 def load_rate_limits() -> RateLimits | None:
-    if not os.path.exists(STATUS_FILE):
-        return None
-
-    try:
-        with open(STATUS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    data = _read_status()
+    if data is None:
         return None
 
     rl = data.get("rate_limits") or {}

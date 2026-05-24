@@ -18,7 +18,7 @@ It **never calls the Anthropic / OpenAI API** and **never reads the Keychain**, 
 
 ## How it gets the data
 
-Usage numbers come from local files written by Claude Code and Codex — no Anthropic / OpenAI API calls. The one exception: to estimate Codex costs, usage needs a token pricing table. If no local cache exists (`~/.claude/pricing_cache.json`), it downloads the public [LiteLLM pricing JSON](https://github.com/BerriAI/litellm) once and caches it for 7 days. If the download fails, a built-in fallback price is used — usage percentage display is unaffected. On first launch without a cache, the fetch is synchronous and may take ~10 seconds on slow networks.
+Usage numbers come from local files written by Claude Code and Codex — no Anthropic / OpenAI API calls. Network access is limited to two things: (1) to estimate Codex costs, usage needs a token pricing table — if no local cache exists (`~/.claude/pricing_cache.json`), it downloads the public [LiteLLM pricing JSON](https://github.com/BerriAI/litellm) once and caches it for 7 days. If the download fails, a built-in fallback price is used — usage percentage display is unaffected. On first launch without a cache, the fetch is synchronous and may take ~10 seconds on slow networks. (2) Starting in v0.11.0, usage pings the GitHub Releases API at most once per 24h to check for new versions (toggleable from the "Switch Panel" menu).
 
 ### Claude Code usage
 
@@ -168,6 +168,7 @@ python3 main.py
   </p>
 
   Your choice is persisted via `NSUserDefaults`, so the last selected panel survives restarts.
+- **Update check (v0.11.0+)**: On launch, usage pings GitHub Releases for a newer version (rate-limited to once per 24h so you're not nagged every time you open the app). When a newer version is found, an alert shows the version + release notes with three buttons: **Download / Later / Skip this version**. The "Switch Panel" menu has **Automatically Check for Updates** (toggleable) and **Check for Updates Now** entries.
 - **Permissions:** on first launch, macOS may ask whether to allow background execution. Click Allow.
 
 ### Terminal TUI mode
@@ -264,7 +265,7 @@ USAGE_LANG=zh-CN python3 main.py   # Simplified Chinese
 
 ## Behaviour notes
 
-- usage only reads `~/.claude/usage-status.json`, the v0.1.x legacy `~/.claude/usag-status.json`, `~/.claude/tt-status.json`, and Codex's session files. It does not call the Anthropic / OpenAI API and does not read the Keychain. The only network activity is a one-time download of the LiteLLM pricing table for Codex cost estimates (cached for 7 days; offline fallback available).
+- usage only reads `~/.claude/usage-status.json`, the v0.1.x legacy `~/.claude/usag-status.json`, `~/.claude/tt-status.json`, and Codex's session files. It does not call the Anthropic / OpenAI API and does not read the Keychain. Network activity is limited to two things: (a) a one-time download of the LiteLLM pricing table for Codex cost estimates (cached for 7 days; offline fallback available); (b) starting in v0.11.0, an at-most-daily ping to the GitHub Releases API to check for new versions (toggleable from the "Switch Panel" menu).
 - When Claude Code isn't running, the status file isn't updated — but actual usage isn't changing either (until reset time), so the displayed value is still accurate. After reset time passes, it auto-resets to zero.
 - If the status file hasn't been updated for more than 6 hours, the status line notes "status file is N minutes stale, numbers may be out of date."
 

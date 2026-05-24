@@ -18,7 +18,7 @@
 
 ## 它怎麼拿到你的用量數字
 
-用量數字來自 Claude Code 跟 Codex 在你本機留下的檔案，不呼叫 Anthropic / OpenAI 的 API。唯一的例外：估算 Codex 成本時需要 token 單價表，如果本機沒有快取（`~/.claude/pricing_cache.json`），會嘗試從公開的 [LiteLLM 價格表](https://github.com/BerriAI/litellm) 下載一次並存起來，7 天後過期再抓。下載失敗的話會用內建的 fallback 價格，不影響用量百分比的顯示。首次啟動若沒快取會同步抓一次，網路慢時可能要等 ~10 秒。
+用量數字來自 Claude Code 跟 Codex 在你本機留下的檔案，不呼叫 Anthropic / OpenAI 的 API。會連網的只有兩件事：(1) 估算 Codex 成本時需要 token 單價表，如果本機沒有快取（`~/.claude/pricing_cache.json`），會嘗試從公開的 [LiteLLM 價格表](https://github.com/BerriAI/litellm) 下載一次並存起來，7 天後過期再抓——下載失敗會用內建 fallback 價格，不影響用量百分比顯示，首次啟動若沒快取會同步抓一次，網路慢時可能要等 ~10 秒；(2) v0.11.0 起每天最多一次到 GitHub Releases API 查有沒有新版（可在「更換面板」選單關掉）。
 
 ### Claude Code 用量
 
@@ -170,6 +170,7 @@ python3 main.py
   </p>
 
   選擇會記進 `NSUserDefaults`（macOS 內建的偏好設定儲存區），下次開 app 會記得上次選的面板。
+- **更新檢查（v0.11.0+）**：app 啟動會自動到 GitHub Releases 查最新版（24 小時最多一次，避免每次開都被打擾）。發現新版會跳對話框顯示版本＋ release notes，三顆按鈕：「前往下載 / 稍後再說 / 跳過此版本」。「更換面板」選單裡有「自動檢查更新」（可關閉）和「立即檢查更新」兩個項目。
 - **權限提醒**：第一次啟動時，macOS 可能會問你要不要讓它在背景跑，點「允許」就好。
 
 ### 終端機 TUI 模式
@@ -266,7 +267,7 @@ USAGE_LANG=zh-CN python3 main.py   # 簡體中文
 
 ## 一些行為說明
 
-- usage 只讀 `~/.claude/usage-status.json`、v0.1.x 留下的 `~/.claude/usag-status.json`、`~/.claude/tt-status.json`，以及 Codex 的 session 檔。不呼叫 Anthropic / OpenAI API、不讀 Keychain。唯一會連網的情況是首次估算 Codex 成本時下載 LiteLLM 價格表（快取 7 天，離線也能用 fallback）。
+- usage 只讀 `~/.claude/usage-status.json`、v0.1.x 留下的 `~/.claude/usag-status.json`、`~/.claude/tt-status.json`，以及 Codex 的 session 檔。不呼叫 Anthropic / OpenAI API、不讀 Keychain。會連網的情況有兩個：(a) 首次估算 Codex 成本時下載 LiteLLM 價格表（快取 7 天，離線也能用 fallback）；(b) v0.11.0 起每天最多一次到 GitHub Releases API 查有沒有新版（可在「更換面板」選單關閉）。
 - Claude Code 沒在跑的時候，狀態檔不會更新；但因為實際用量也不會變（除非重置時間到了），所以顯示的數字仍然是有效的；重置時間過了會自動歸零。
 - 如果狀態檔超過 6 小時沒被更新過，會在狀態訊息標註「狀態檔已 N 分鐘未更新，數字可能過時」。
 
