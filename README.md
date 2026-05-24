@@ -160,8 +160,6 @@ python3 main.py
 - **面板**：點右上角「更換面板」按鈕可切換面板樣式。目前內建九款面板——「預設」（簡潔白色卡片）、「駭客任務」（黑底螢光綠＋數位雨動畫）、「視窗 95」（Windows 95 復古介面）、「復古報紙」（米黃報紙風）、「雲圖觀測」（氣象風玻璃卡片）、「午夜水族箱」（深海動畫）、「稜鏡街機」（彩虹全息動畫）、「黑洞視界」（旋轉吸積盤）、以及全新「世界盃 2026」——FIFA 轉播 HUD 風格，鮮綠球場、棒人球員追球踢球互動動畫、雙向對戰記分條。
 
   <p align="center">
-    <img src="docs/popover.png" alt="預設面板" width="220">
-    &nbsp;&nbsp;
     <img src="docs/matrix.png" alt="駭客任務面板" width="220">
     &nbsp;&nbsp;
     <img src="docs/cloud_observation.png" alt="雲圖觀測面板" width="220">
@@ -187,6 +185,36 @@ python3 main.py --tui
 ```
 
 按 `Ctrl+C` 退出。
+
+## 報告與深度分析（CLI）
+
+除了選單列跟 TUI，還有一個分析用的 CLI 進入點 `usage_cli.py`，可以匯出 HTML 報告、或在終端機開互動式 dashboard（儀表板，互動式統計面板）：
+
+```bash
+source .venv/bin/activate
+
+# 互動式 dashboard（自動偵測 Claude / Codex 兩邊用量，用方向鍵切換）
+python3 usage_cli.py
+
+# 只看 Claude Code / 只看 Codex
+python3 usage_cli.py claude
+python3 usage_cli.py codex
+
+# 產生 HTML 報告並用預設瀏覽器打開（預設範圍：近 30 天）
+python3 usage_cli.py report
+python3 usage_cli.py report --today              # 今日
+python3 usage_cli.py report --week               # 本週
+python3 usage_cli.py report --month              # 本月
+python3 usage_cli.py report --all                # 全部資料
+python3 usage_cli.py report --out report.html    # 另存到指定位置
+
+# 純文字統計表
+python3 usage_cli.py daily
+python3 usage_cli.py weekly
+python3 usage_cli.py monthly
+```
+
+HTML 報告包含：每日 / 週 / 月 token 與成本走勢、各專案排名、Top 模型分布。右上角的「分享」按鈕可另存 `.html` 或複製檔案路徑，透過 AirDrop / Mail / Slack / iMessage 把報告傳給同事或主管；對方瀏覽器打開即可閱讀。報告內含「隱藏專案名稱」勾選框（預設打勾，隱私優先），勾選後另存的 HTML 會把所有專案名稱替換成 `Project 1 / Project 2 / ...`，不影響當前螢幕顯示。
 
 ## 開機自動啟動
 
@@ -251,10 +279,10 @@ usage 會自動偵測 macOS 系統語言，目前支援：
 | 系統語言 | 顯示語言 |
 |---------|---------|
 | 繁體中文 | 繁體中文 |
-| 簡體中文 | 簡體中文 |
-| 日文 | 日文 |
-| 韓文 | 韓文 |
-| 其他 | 英文 |
+| 簡體中文 | 简体中文 |
+| 日文 | 日本語 |
+| 韓文 | 한국어 |
+| 其他 | English |
 
 開發或測試時可用環境變數強制指定：
 
@@ -269,7 +297,7 @@ USAGE_LANG=zh-CN python3 main.py   # 簡體中文
 
 - usage 只讀 `~/.claude/usage-status.json`、v0.1.x 留下的 `~/.claude/usag-status.json`、`~/.claude/tt-status.json`，以及 Codex 的 session 檔。不呼叫 Anthropic / OpenAI API、不讀 Keychain。會連網的情況有兩個：(a) 首次估算 Codex 成本時下載 LiteLLM 價格表（快取 7 天，離線也能用 fallback）；(b) v0.11.0 起每天最多一次到 GitHub Releases API 查有沒有新版（可在「更換面板」選單關閉）。
 - Claude Code 沒在跑的時候，狀態檔不會更新；但因為實際用量也不會變（除非重置時間到了），所以顯示的數字仍然是有效的；重置時間過了會自動歸零。
-- 如果狀態檔超過 6 小時沒被更新過，會在狀態訊息標註「狀態檔已 N 分鐘未更新，數字可能過時」。
+- 如果狀態檔超過 6 小時沒被更新過，會在狀態訊息標註 `⚠ usage stale Nm`（N 為實際分鐘數），提示資料可能過時。
 
 ## 常見問題排查
 
@@ -287,6 +315,7 @@ USAGE_LANG=zh-CN python3 main.py   # 簡體中文
 | Codex 那塊空白或不顯示 | `~/.codex/sessions/` 不存在，或還沒有含 rate_limits 的 token_count 事件 | 用 Codex 跑一次對話，等它寫入紀錄 |
 | 今日花費是 $0.00 | 模型名稱對不上 pricing 表，或 pricing 下載 / 快取失敗 | 刪掉 `~/.claude/pricing_cache.json` 讓它重新抓；或設 `USAGE_DEBUG=1` 看錯誤訊息 |
 | app 雙擊打不開 | macOS Gatekeeper 擋住未簽章的 app | Finder → 找到 `usage.app` → 按住 Ctrl 右鍵 → 打開 → 確認打開 |
+| app 一打開就閃退（macOS Sequoia / arm64） | 你裝的是 v0.10.x 或 v0.11.0，這幾版有 py2app 打包 bug | 升級到 **v0.11.1 或更新**，到 [Releases](https://github.com/aqua5230/usage/releases/latest) 重新下載 `usage.app.zip` |
 
 ## 打包成 .app（不開終端機就能跑）
 
@@ -300,9 +329,9 @@ USAGE_LANG=zh-CN python3 main.py   # 簡體中文
 
 每次發 GitHub Release（push 一個 `v*` 開頭的 tag 時），CI 會自動 build 並把 `usage.app.zip` 附加到 Release 頁面。
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+## 授權
 
-若 fork 或發佈衍生版本，請標注原作者與專案連結：https://github.com/aqua5230/usage
+採用 AGPL-3.0-only（見頂部 badge 與 [LICENSE](LICENSE)）。若 fork 或發佈衍生版本，請標注原作者與專案連結：https://github.com/aqua5230/usage
 
 ## 支持這個專案
 

@@ -158,8 +158,6 @@ python3 main.py
 - **Panel**: click the **Switch Panel** button in the top-right corner to change panel styles. Nine built-in panels are available — **Classic** (clean light cards), **Matrix** (neon green digital rain), **Windows 95** (retro Win95 interface), **Newspaper** (aged newsprint), **Cloud Observation** (weather-station glass cards), **Midnight Aquarium** (deep-sea animation), **Prism Arcade** (rainbow holographic animation), **Black Hole** (rotating accretion disk), and the brand-new **World Cup 2026** — FIFA broadcast HUD with a green pitch, stick-figure players that chase and kick the ball, and bidirectional duel bars instead of standard progress bars.
 
   <p align="center">
-    <img src="docs/popover.en.png" alt="classic panel" width="220">
-    &nbsp;&nbsp;
     <img src="docs/matrix.en.png" alt="matrix panel" width="220">
     &nbsp;&nbsp;
     <img src="docs/cloud_observation.en.png" alt="cloud observation panel" width="220">
@@ -185,6 +183,36 @@ python3 main.py --tui
 ```
 
 Press `Ctrl+C` to exit.
+
+## Reports and deep analytics (CLI)
+
+Beyond the menu bar and TUI, there's an analytics CLI entrypoint `usage_cli.py` for exporting HTML reports or running an interactive terminal dashboard:
+
+```bash
+source .venv/bin/activate
+
+# Interactive dashboard (auto-detects Claude / Codex; arrow keys switch between agents)
+python3 usage_cli.py
+
+# Single-agent dashboard
+python3 usage_cli.py claude
+python3 usage_cli.py codex
+
+# Generate an HTML report and open it in your default browser (default range: last 30 days)
+python3 usage_cli.py report
+python3 usage_cli.py report --today              # today
+python3 usage_cli.py report --week               # this week
+python3 usage_cli.py report --month              # this month
+python3 usage_cli.py report --all                # all data
+python3 usage_cli.py report --out report.html    # save to a specific path
+
+# Plain-text tabular stats
+python3 usage_cli.py daily
+python3 usage_cli.py weekly
+python3 usage_cli.py monthly
+```
+
+The HTML report covers daily / weekly / monthly token + cost trends, per-project rankings, and top-model distribution. The top-right Share button lets you save a copy as `.html` or copy the file path to send via AirDrop / Mail / Slack / iMessage — recipients open it in any browser. The built-in "Hide project names" toggle (on by default, privacy-first) swaps every project name to `Project 1 / Project 2 / ...` before the file is saved, while the on-screen view is unaffected.
 
 ## Auto-start on login
 
@@ -267,7 +295,7 @@ USAGE_LANG=zh-CN python3 main.py   # Simplified Chinese
 
 - usage only reads `~/.claude/usage-status.json`, the v0.1.x legacy `~/.claude/usag-status.json`, `~/.claude/tt-status.json`, and Codex's session files. It does not call the Anthropic / OpenAI API and does not read the Keychain. Network activity is limited to two things: (a) a one-time download of the LiteLLM pricing table for Codex cost estimates (cached for 7 days; offline fallback available); (b) starting in v0.11.0, an at-most-daily ping to the GitHub Releases API to check for new versions (toggleable from the "Switch Panel" menu).
 - When Claude Code isn't running, the status file isn't updated — but actual usage isn't changing either (until reset time), so the displayed value is still accurate. After reset time passes, it auto-resets to zero.
-- If the status file hasn't been updated for more than 6 hours, the status line notes "status file is N minutes stale, numbers may be out of date."
+- If the status file hasn't been updated for more than 6 hours, the status message shows `⚠ usage stale Nm` (where N is the actual minute count) to flag potentially out-of-date numbers.
 
 ## Troubleshooting
 
@@ -285,6 +313,7 @@ The "Fix" column distinguishes three kinds of users — find yours first:
 | Codex section is empty | `~/.codex/sessions/` doesn't exist or has no `rate_limits` events yet | Run a Codex conversation to generate log entries |
 | Today's cost shows $0.00 | Model name doesn't match the pricing table, or pricing download/cache failed | Delete `~/.claude/pricing_cache.json` to force a re-fetch; or run with `USAGE_DEBUG=1` for details |
 | App won't open (blocked by macOS) | Gatekeeper blocks unsigned apps | Finder → find `usage.app` → right-click → Open → confirm Open |
+| App crashes immediately on launch (macOS Sequoia / arm64) | You're on v0.10.x or v0.11.0 — these had a py2app bundling bug | Upgrade to **v0.11.1 or newer** by downloading `usage.app.zip` from [Releases](https://github.com/aqua5230/usage/releases/latest) |
 
 ## Build a .app bundle (optional)
 
@@ -298,9 +327,9 @@ The output is `dist/usage.app`. Double-click it or run `open dist/usage.app`.
 
 Each GitHub Release build (push a `v*` tag) automatically builds the app in CI and attaches `usage.app.zip` to the Release page.
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+## License
 
-If you fork or redistribute a modified version, please credit the original author and link to:
+Licensed under AGPL-3.0-only (see the badge at the top and [LICENSE](LICENSE)). If you fork or redistribute a modified version, please credit the original author and link to:
 https://github.com/aqua5230/usage
 
 ## Support
