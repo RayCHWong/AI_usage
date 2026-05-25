@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ctypes
 import io
 import json
 import logging
@@ -52,6 +53,130 @@ from panels.base import load_active_panel_id, save_active_panel_id
 from pricing import calculate_cost
 from usage_client import ClaudeUsageClient, PollOutcome, PollState
 from usage_rate import GROUP_NAMES, UsageRateTracker
+
+# --- FSEvents (ctypes) for event-driven UI refresh ---
+_FSEVENTS_AVAILABLE = False
+_fs_callback_ref: Any = None  # prevent GC of ctypes callback
+
+try:
+    _cs_lib = ctypes.cdll.LoadLibrary(
+        "/System/Library/Frameworks/CoreServices.framework/CoreServices",
+    )
+    _cf_lib = ctypes.cdll.LoadLibrary(
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+    )
+    _FSEventStreamCallback = ctypes.CFUNCTYPE(
+        None,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_size_t,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.POINTER(ctypes.c_uint64),
+    )
+    _cs_lib.FSEventStreamCreate.restype = ctypes.c_void_p
+    _cs_lib.FSEventStreamCreate.argtypes = [
+        ctypes.c_void_p,
+        _FSEventStreamCallback,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_uint64,
+        ctypes.c_double,
+        ctypes.c_uint32,
+    ]
+    _cs_lib.FSEventStreamScheduleWithRunLoop.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+    ]
+    _cs_lib.FSEventStreamStart.restype = ctypes.c_int
+    _cs_lib.FSEventStreamStart.argtypes = [ctypes.c_void_p]
+    _cs_lib.FSEventStreamStop.argtypes = [ctypes.c_void_p]
+    _cs_lib.FSEventStreamInvalidate.argtypes = [ctypes.c_void_p]
+    _cs_lib.FSEventStreamRelease.argtypes = [ctypes.c_void_p]
+    _cf_lib.CFRunLoopGetCurrent.restype = ctypes.c_void_p
+    _cf_lib.CFArrayCreate.restype = ctypes.c_void_p
+    _cf_lib.CFArrayCreate.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_long,
+        ctypes.c_void_p,
+    ]
+    _cf_lib.CFStringCreateWithCString.restype = ctypes.c_void_p
+    _cf_lib.CFStringCreateWithCString.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_char_p,
+        ctypes.c_uint32,
+    ]
+    _kCFStringEncodingUTF8 = 0x08000100
+    _kFSEventStreamCreateFlagNoDefer = 0x00000002
+    _kFSEventStreamEventIdSinceNow = 0xFFFFFFFFFFFFFFFF
+    _FSEVENTS_AVAILABLE = True
+except (OSError, AttributeError):
+    pass
+
+
+def _setup_fsevents(delegate: Any) -> Any:
+    """Start FSEventStream watching ~/.claude/; returns stream handle or None."""
+    global _fs_callback_ref
+    if not _FSEVENTS_AVAILABLE:
+        return None
+    try:
+        watch_path = str(Path.home() / ".claude")
+        cf_path = _cf_lib.CFStringCreateWithCString(
+            None,
+            watch_path.encode("utf-8"),
+            _kCFStringEncodingUTF8,
+        )
+        paths_arr = (ctypes.c_void_p * 1)(cf_path)
+        cf_paths = _cf_lib.CFArrayCreate(None, paths_arr, 1, None)
+
+        def _on_fs_event(
+            _stream: Any,
+            _info: Any,
+            _num: Any,
+            _paths: Any,
+            _flags: Any,
+            _ids: Any,
+        ) -> None:
+            delegate._refresh()
+
+        _fs_callback_ref = _FSEventStreamCallback(_on_fs_event)
+        stream = _cs_lib.FSEventStreamCreate(
+            None,
+            _fs_callback_ref,
+            None,
+            cf_paths,
+            _kFSEventStreamEventIdSinceNow,
+            0.5,
+            _kFSEventStreamCreateFlagNoDefer,
+        )
+        if not stream:
+            return None
+        rl = _cf_lib.CFRunLoopGetCurrent()
+        mode = _cf_lib.CFStringCreateWithCString(
+            None,
+            b"kCFRunLoopDefaultMode",
+            _kCFStringEncodingUTF8,
+        )
+        _cs_lib.FSEventStreamScheduleWithRunLoop(stream, rl, mode)
+        _cs_lib.FSEventStreamStart(stream)
+        return stream
+    except Exception:
+        if os.environ.get("USAGE_DEBUG") == "1":
+            logger.warning("FSEvents setup failed", exc_info=True)
+        return None
+
+
+def _cleanup_fsevents(stream: Any) -> None:
+    """Stop and release an FSEventStream."""
+    if not _FSEVENTS_AVAILABLE or not stream:
+        return
+    with contextlib.suppress(Exception):
+        _cs_lib.FSEventStreamStop(stream)
+        _cs_lib.FSEventStreamInvalidate(stream)
+        _cs_lib.FSEventStreamRelease(stream)
+
 
 BUTTON_HEIGHT = 32.0
 INSTALL_BUTTON_EXTRA_HEIGHT = BUTTON_HEIGHT + 10.0
@@ -228,6 +353,7 @@ class AppDelegate(NSObject):
     codex_5h_pct = objc.ivar()
     burn_rate_trackers = objc.ivar()
     _refresh_in_flight = objc.ivar()
+    _fs_stream = objc.ivar()
     language = objc.ivar()
 
     def initWithMock_interval_(self, mock: bool, interval: int) -> AppDelegate:
@@ -248,6 +374,7 @@ class AppDelegate(NSObject):
             "codex_weekly": BurnRateTracker(),
         }
         self._refresh_in_flight = False
+        self._fs_stream = None
         return self
 
     def applicationDidFinishLaunching_(self, notification: Any) -> None:
@@ -271,13 +398,14 @@ class AppDelegate(NSObject):
 
         self._refresh()
         self.timer = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-            self.interval,
+            300,
             self,
             "timerFired:",
             None,
             True,
         )
         NSRunLoop.currentRunLoop().addTimer_forMode_(self.timer, NSRunLoopCommonModes)
+        self._fs_stream = _setup_fsevents(self)
         thread = threading.Thread(target=self._maybe_check_update_in_background, daemon=True)
         thread.start()
 
@@ -319,6 +447,10 @@ class AppDelegate(NSObject):
         if self.timer is not None:
             self.timer.invalidate()
         NSApp.terminate_(sender)
+
+    def applicationWillTerminate_(self, notification: Any) -> None:
+        _cleanup_fsevents(self._fs_stream)
+        self._fs_stream = None
 
     def switchPanel_(self, sender: Any) -> None:
         menu = NSMenu.alloc().initWithTitle_(_t(self.language, "switch_panel"))

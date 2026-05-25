@@ -161,7 +161,7 @@ def test_statusline_command_quotes_paths_with_spaces(
     fake_python.chmod(0o755)
     hook_file.write_text("print('unused')\n", encoding="utf-8")
 
-    monkeypatch.setattr(shutil, "which", lambda _: str(fake_python))
+    monkeypatch.setattr(setup_hook, "_find_system_python", lambda: str(fake_python))
     monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook_file)
 
     cmd = setup_hook._statusline_command()

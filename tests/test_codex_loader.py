@@ -9,6 +9,11 @@ import pytest
 import codex_loader
 
 
+@pytest.fixture(autouse=True)
+def _clear_jsonl_cache() -> None:
+    codex_loader._jsonl_cache.clear()
+
+
 def _write_session(
     path: Path,
     *,

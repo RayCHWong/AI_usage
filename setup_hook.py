@@ -85,9 +85,18 @@ def _resolve_forwarder_source() -> Path:
 
 
 def _statusline_command() -> str:
-    # Use system python3, not a venv; the hook is stdlib-only.
-    python = shutil.which("python3") or "python3"
+    # Prefer /usr/bin/python3 or bundled app Python, not a venv; the hook is stdlib-only.
+    python = _find_system_python()
     return f"{_shell_arg(python)} {_shell_arg(str(HOOK_TARGET))}"
+
+
+def _find_system_python() -> str:
+    executable = sys.executable
+    if ".app/Contents" in executable:
+        return executable
+    if os.path.exists("/usr/bin/python3"):
+        return "/usr/bin/python3"
+    return shutil.which("python3") or "python3"
 
 
 def _shell_arg(value: str) -> str:
@@ -95,7 +104,7 @@ def _shell_arg(value: str) -> str:
 
 
 def _forwarder_command() -> str:
-    python = shutil.which("python3") or "python3"
+    python = _find_system_python()
     return f"{shlex.quote(python)} {shlex.quote(str(FORWARDER_TARGET))}"
 
 

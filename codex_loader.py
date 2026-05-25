@@ -13,6 +13,8 @@ from history_loader import UsageEntry
 
 logger = logging.getLogger(__name__)
 
+_jsonl_cache: dict[Path, tuple[float, int, UsageEntry | None]] = {}
+
 SESSIONS_DIR = Path(os.path.expanduser("~/.codex/sessions"))
 STATE_DB = Path(os.path.expanduser("~/.codex/state_5.sqlite"))
 
@@ -137,6 +139,21 @@ def _extract_rate_limits(path: Path) -> CodexRateLimits | None:
 
 
 def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) -> UsageEntry | None:
+    try:
+        st = path.stat()
+    except OSError as exc:
+        logger.warning("failed to parse codex session %s: %s", path, exc)
+        return None
+
+    cache_entry = _jsonl_cache.get(path)
+    if cache_entry is not None and cache_entry[0] == st.st_mtime and cache_entry[1] == st.st_size:
+        entry = cache_entry[2]
+        if entry is not None:
+            entry.model = models.get(entry.session_id, "unknown")
+            if cutoff is not None and entry.timestamp < cutoff:
+                return None
+        return entry
+
     session_id = ""
     session_timestamp = ""
     project = "unknown"
@@ -165,11 +182,11 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
                     last_usage_timestamp = _as_str(data.get("timestamp"))
     except OSError as exc:
         logger.warning("failed to parse codex session %s: %s", path, exc)
+        _jsonl_cache[path] = (st.st_mtime, st.st_size, None)
         return None
     timestamp = _parse_timestamp(last_usage_timestamp) or _parse_timestamp(session_timestamp)
     if not session_id or last_usage is None or timestamp is None:
-        return None
-    if cutoff is not None and timestamp < cutoff:
+        _jsonl_cache[path] = (st.st_mtime, st.st_size, None)
         return None
     cached = _as_int(last_usage.get("cached_input_tokens"))
     input_tokens = max(0, _as_int(last_usage.get("input_tokens")) - cached)
@@ -177,8 +194,9 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
         last_usage.get("reasoning_output_tokens"),
     )
     if input_tokens == 0 and output_tokens == 0:
+        _jsonl_cache[path] = (st.st_mtime, st.st_size, None)
         return None
-    return UsageEntry(
+    entry = UsageEntry(
         timestamp=timestamp,
         session_id=session_id,
         message_id=session_id,
@@ -191,6 +209,10 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
         cost_usd=None,
         project=project,
     )
+    _jsonl_cache[path] = (st.st_mtime, st.st_size, entry)
+    if cutoff is not None and entry.timestamp < cutoff:
+        return None
+    return entry
 
 
 def _load_json_line(line: str) -> dict[str, Any] | None:

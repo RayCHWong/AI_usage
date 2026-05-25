@@ -10,6 +10,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_file_cache: dict[Path, tuple[float, int, list[UsageEntry]]] = {}
+
 CLAUDE_PROJECTS_DIR = Path(os.path.expanduser("~/.claude/projects"))
 
 
@@ -69,22 +71,44 @@ def _load_file(
     entries: list[UsageEntry],
 ) -> None:
     try:
+        st = path.stat()
+    except OSError as exc:
+        logger.warning("failed to stat Claude project log %s: %s", path, exc)
+        return
+
+    cached = _file_cache.get(path)
+    if cached is not None and cached[0] == st.st_mtime and cached[1] == st.st_size:
+        for entry in cached[2]:
+            if cutoff is not None and entry.timestamp < cutoff:
+                continue
+            dedup_key = _dedup_key(entry)
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+            entries.append(entry)
+        return
+
+    parsed: list[UsageEntry] = []
+    try:
         with path.open(encoding="utf-8") as file:
             for line in file:
-                entry = _parse_line(line, project)
-                if entry is None:
-                    continue
-                if cutoff is not None and entry.timestamp < cutoff:
-                    continue
-
-                dedup_key = _dedup_key(entry)
-                if dedup_key in seen:
-                    continue
-                seen.add(dedup_key)
-                entries.append(entry)
+                parsed_entry = _parse_line(line, project)
+                if parsed_entry is not None:
+                    parsed.append(parsed_entry)
     except OSError as exc:
         logger.warning("failed to read Claude project log %s: %s", path, exc)
         return
+
+    _file_cache[path] = (st.st_mtime, st.st_size, parsed)
+
+    for entry in parsed:
+        if cutoff is not None and entry.timestamp < cutoff:
+            continue
+        dedup_key = _dedup_key(entry)
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        entries.append(entry)
 
 
 def _parse_line(line: str, project: str) -> UsageEntry | None:

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import glob
 import os
 import subprocess
@@ -12,6 +13,21 @@ __version__ = "1.0"
 TIMEOUT_SECONDS = 5
 HOOK_DIR = os.path.expanduser("~/.claude")
 SELF_NAME = "usage-statusline-forwarder.py"
+
+
+def _run_hook(py: str, hook: str, raw: str) -> str:
+    try:
+        result = subprocess.run(
+            [py, hook],
+            input=raw,
+            text=True,
+            check=False,
+            capture_output=True,
+            timeout=TIMEOUT_SECONDS,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+    return result.stdout or ""
 
 
 def main() -> None:
@@ -29,20 +45,12 @@ def main() -> None:
         hooks.append(path)
 
     py = sys.executable or "/usr/bin/python3"
-    for hook in hooks:
-        try:
-            result = subprocess.run(
-                [py, hook],
-                input=raw,
-                text=True,
-                check=False,
-                capture_output=True,
-                timeout=TIMEOUT_SECONDS,
-            )
-            if result.stdout:
-                sys.stdout.write(result.stdout)
-        except (subprocess.TimeoutExpired, OSError):
-            continue
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(hooks))) as ex:
+        futures = [ex.submit(_run_hook, py, hook, raw) for hook in hooks]
+        for future in futures:
+            out = future.result()
+            if out:
+                sys.stdout.write(out)
 
     sys.stdout.flush()
 

@@ -14,6 +14,7 @@ usage 主程式會反向讀這個檔，呈現給 menubar / TUI。
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import sys
@@ -24,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 __version__ = "1.0"
 
 STATUS_FILE = os.path.expanduser("~/.claude/usage-status.json")
+LOCK_FILE = os.path.expanduser("~/.claude/usage-status.lock")
 STATUSLINE_TRANSLATIONS = {
     "zh-TW": {
         "five_hour": "5小時",
@@ -162,14 +164,21 @@ def save(data: Dict[str, Any], now: datetime) -> None:
     data["_received_at_ts"] = now.timestamp()
     target_dir = os.path.dirname(STATUS_FILE)
     os.makedirs(target_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(LOCK_FILE), exist_ok=True)
     tmp_path: str | None = None
+    lock_fd = os.open(LOCK_FILE, os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        fd, tmp_path = tempfile.mkstemp(dir=target_dir, suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-        os.replace(tmp_path, STATUS_FILE)
-        tmp_path = None
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        try:
+            fd, tmp_path = tempfile.mkstemp(dir=target_dir, suffix=".tmp")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            os.replace(tmp_path, STATUS_FILE)
+            tmp_path = None
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
     finally:
+        os.close(lock_fd)
         if tmp_path and os.path.exists(tmp_path):
             try:
                 os.unlink(tmp_path)

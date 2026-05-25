@@ -10,6 +10,11 @@ import pytest
 import history_loader
 
 
+@pytest.fixture(autouse=True)
+def _clear_file_cache() -> None:
+    history_loader._file_cache.clear()
+
+
 def _line(
     *,
     timestamp: str | None = "2026-01-01T00:00:00Z",
