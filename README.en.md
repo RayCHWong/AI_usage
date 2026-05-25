@@ -53,6 +53,19 @@ Codex CLI doesn't expose a statusLine hook, so usage takes a different route: it
 
 If Codex isn't installed or the directory doesn't exist, that part of the UI hides itself and Claude Code stats continue to work normally.
 
+## Comparison
+
+| Feature | usage | ccusage | TokenTracker |
+|---------|:-----:|:-------:|:------------:|
+| macOS menu bar | ✅ | — | ✅ |
+| Claude Code usage | ✅ | ✅ | ✅ |
+| Codex usage | ✅ | — | ✅ |
+| HTML deep reports | ✅ | ✅ | — |
+| 5-language i18n | ✅ | — | — |
+| 9 visual panel themes | ✅ | — | — |
+| Zero API calls | ✅ | ✅ | ✅ |
+| Open-source license | AGPL-3.0 | MIT | — |
+
 ## Requirements
 
 - macOS
@@ -63,9 +76,24 @@ If Codex isn't installed or the directory doesn't exist, that part of the UI hid
 
 | I want to… | How |
 |-----------|-----|
-| Just use it, no setup | [Download the app](#download-the-app) |
+| Just use it, no setup | [Homebrew install](#homebrew-recommended) or [Download the app](#download-the-app) |
 | Run from source | [Set up the environment](#set-up-the-environment) |
 | Preview the UI without installing | [Preview mode](#preview-mode-no-install-required) |
+
+## Homebrew (recommended)
+
+One command to install; `brew upgrade` keeps it current:
+
+```bash
+brew tap aqua5230/homebrew-usage
+brew install aqua5230/homebrew-usage/usage
+```
+
+After install, find `usage.app` under `/opt/homebrew/Cellar/usage/` and right-click → Open once to pass Gatekeeper. Then optionally symlink it to Applications:
+
+```bash
+ln -s $(brew --prefix)/Cellar/usage/$(brew list --versions usage | awk '{print $2}')/usage.app /Applications/usage.app
+```
 
 ## Download the app
 
@@ -345,6 +373,8 @@ Licensed under AGPL-3.0-only (see the badge at the top and [LICENSE](LICENSE)). 
 https://github.com/aqua5230/usage
 
 ## Support
+
+If usage has ever saved you from a surprise quota cutoff mid-task, a ⭐ helps other developers find it.
 
 If this tool helps you, consider buying me a coffee ☕
 
