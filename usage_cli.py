@@ -5,7 +5,7 @@ from adapters.rate_limits import load_rate_limits as load_claude_rate_limits
 from adapters.registry import detect_agents
 from analyzer.aggregator import aggregate_daily, aggregate_monthly, aggregate_sessions, aggregate_weekly
 from analyzer.blocks import analyze_blocks, calculate_p90
-from setup_hook import is_setup, needs_update, setup, unsetup, update_hook
+from setup_hook import is_setup, setup, unsetup
 from i18n import t
 from ui.tables import (
     AGENT_LABEL, console, render_daily, render_dashboard,
@@ -382,9 +382,7 @@ def main():
         console.print(f"[dim]{t('detected', agents=', '.join(a.name + ' ✓' for a in agents))}[/dim]")
 
     if not is_setup():
-        setup()
-    elif needs_update():
-        update_hook()
+        console.print(f"[yellow]{t('hook_not_installed')}[/yellow]")
 
     # usage claude / usage codex
     if command in AGENT_ALIASES:

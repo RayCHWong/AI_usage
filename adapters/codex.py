@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -46,9 +47,8 @@ def _load_thread_models() -> dict[str, str]:
     if not os.path.exists(STATE_DB):
         return {}
     try:
-        conn = sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True)
-        rows = conn.execute("SELECT id, model FROM threads WHERE model IS NOT NULL").fetchall()
-        conn.close()
+        with closing(sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True)) as conn:
+            rows = conn.execute("SELECT id, model FROM threads WHERE model IS NOT NULL").fetchall()
         return {row[0]: row[1] for row in rows}
     except (sqlite3.Error, OSError):
         return {}

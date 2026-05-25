@@ -48,7 +48,6 @@ def test_main_dashboard_uses_mocked_loaders_without_touching_agent_dirs(
     monkeypatch.setattr(sys, "argv", ["usage", "dashboard"])
     monkeypatch.setattr(usage_cli, "detect_agents", lambda: [agent])
     monkeypatch.setattr(usage_cli, "is_setup", lambda: True)
-    monkeypatch.setattr(usage_cli, "needs_update", lambda: False)
     monkeypatch.setattr(usage_cli, "_load_entries", lambda agent_id: [_entry()])
     monkeypatch.setattr(
         usage_cli,
@@ -77,7 +76,6 @@ def test_main_daily_sort_flag_controls_render_order(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(sys, "argv", ["usage", "daily", "--sort", "tokens", "--asc"])
     monkeypatch.setattr(usage_cli, "detect_agents", lambda: [agent])
     monkeypatch.setattr(usage_cli, "is_setup", lambda: True)
-    monkeypatch.setattr(usage_cli, "needs_update", lambda: False)
     monkeypatch.setattr(usage_cli, "_load_entries", lambda agent_id: [high, low])
     monkeypatch.setattr(
         usage_cli,
