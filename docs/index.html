@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#0a0a0a" />
+<title>usage — pin your Claude Code &amp; Codex quota to the menu bar</title>
+<meta name="description" content="macOS menu bar tracker for Claude Code &amp; Codex quota, tokens, and cost. Local-only — zero API calls. HTML reports, 9 visual themes, AGPL-3.0." />
+<meta property="og:title" content="usage — pin your Claude Code & Codex quota to the menu bar" />
+<meta property="og:description" content="macOS menu bar tracker for Claude Code & Codex quota, tokens, and cost. Local-only — zero API calls." />
+<meta property="og:image" content="https://aqua5230.github.io/usage/popover.png" />
+<meta property="og:url" content="https://aqua5230.github.io/usage/" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+<style>
+:root {
+  --bg: #0a0a0a;
+  --bg-soft: #141414;
+  --bg-card: #1a1a1a;
+  --fg: #f5f5f5;
+  --fg-dim: #a3a3a3;
+  --fg-dimmer: #6b6b6b;
+  --accent: #ff8c42;
+  --accent-soft: rgba(255, 140, 66, 0.12);
+  --border: #2a2a2a;
+  --green: #4ade80;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; height: auto; display: block; }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* Top bar */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(10, 10, 10, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .wrap {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px;
+}
+.brand { font-weight: 600; font-size: 17px; letter-spacing: -0.01em; }
+.brand-dot { color: var(--accent); margin-right: 4px; }
+.topbar nav { display: flex; gap: 24px; font-size: 14px; color: var(--fg-dim); }
+.topbar nav a:hover { color: var(--fg); }
+
+/* Hero */
+.hero { padding: 80px 0 60px; text-align: center; }
+.eyebrow {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 6px 12px;
+  border-radius: 999px;
+  margin-bottom: 24px;
+  letter-spacing: 0.02em;
+}
+.hero h1 {
+  font-size: clamp(36px, 6vw, 60px);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+.hero h1 .accent { color: var(--accent); }
+.hero p.lead {
+  font-size: 19px;
+  color: var(--fg-dim);
+  max-width: 640px;
+  margin: 0 auto 36px;
+}
+.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 48px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 500;
+  padding: 12px 22px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  cursor: pointer;
+}
+.btn-primary { background: var(--accent); color: #0a0a0a; }
+.btn-primary:hover { transform: translateY(-1px); background: #ff9d5c; }
+.btn-secondary { background: transparent; color: var(--fg); border-color: var(--border); }
+.btn-secondary:hover { border-color: var(--fg-dimmer); background: var(--bg-soft); }
+.shot {
+  margin-top: 8px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.6), 0 10px 30px -10px rgba(255, 140, 66, 0.12);
+  max-width: 720px;
+  margin-left: auto; margin-right: auto;
+}
+
+/* Privacy strip */
+.strip {
+  background: var(--bg-soft);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 28px 0;
+}
+.strip .wrap {
+  display: flex; align-items: center; justify-content: center; gap: 32px;
+  flex-wrap: wrap;
+  font-size: 14px; color: var(--fg-dim);
+}
+.strip .item { display: flex; align-items: center; gap: 8px; }
+.strip .dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; box-shadow: 0 0 12px var(--green); }
+.strip .item strong { color: var(--fg); font-weight: 500; }
+
+/* Sections */
+section { padding: 80px 0; }
+section h2 {
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  margin-bottom: 16px;
+  text-align: center;
+}
+section .subtitle {
+  text-align: center;
+  color: var(--fg-dim);
+  max-width: 560px;
+  margin: 0 auto 56px;
+  font-size: 17px;
+}
+
+/* Feature grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 26px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.card:hover { border-color: var(--fg-dimmer); transform: translateY(-2px); }
+.card .icon { font-size: 24px; margin-bottom: 14px; display: block; }
+.card h3 { font-size: 17px; margin-bottom: 8px; letter-spacing: -0.01em; }
+.card p { font-size: 14.5px; color: var(--fg-dim); line-height: 1.55; }
+
+/* Install */
+.install { background: var(--bg-soft); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.install-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 720px) { .install-row { grid-template-columns: 1fr; } }
+.install-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+}
+.install-card .label { font-size: 12px; font-family: var(--mono); color: var(--accent); margin-bottom: 10px; letter-spacing: 0.04em; }
+.install-card h3 { font-size: 20px; margin-bottom: 10px; }
+.install-card p { color: var(--fg-dim); font-size: 14px; margin-bottom: 18px; }
+pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--fg);
+  line-height: 1.5;
+}
+pre code { color: var(--fg); }
+
+/* Screenshot gallery */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.tile {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.tile img { aspect-ratio: 4 / 3; object-fit: cover; }
+.tile .caption {
+  position: absolute; left: 12px; bottom: 12px;
+  background: rgba(10, 10, 10, 0.78);
+  backdrop-filter: blur(8px);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+/* Report block */
+.report {
+  text-align: center;
+  background: linear-gradient(180deg, transparent 0%, var(--accent-soft) 100%);
+  border-radius: 18px;
+  padding: 56px 24px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+}
+.report h3 { font-size: 24px; margin-bottom: 12px; letter-spacing: -0.01em; }
+.report p { color: var(--fg-dim); margin-bottom: 28px; max-width: 540px; margin-left: auto; margin-right: auto; }
+.report img {
+  margin: 0 auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  max-width: 760px;
+  box-shadow: 0 20px 60px -16px rgba(0, 0, 0, 0.6);
+}
+
+/* Footer */
+footer {
+  padding: 56px 0 40px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+footer .wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+footer p { color: var(--fg-dimmer); font-size: 13px; }
+footer .links { display: flex; gap: 24px; font-size: 14px; color: var(--fg-dim); }
+footer .links a:hover { color: var(--fg); }
+footer .kofi {
+  display: inline-block;
+  background: #ff5e5b;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+footer .kofi:hover { background: #ff7572; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a href="#" class="brand"><span class="brand-dot">🐾</span> usage</a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="https://github.com/aqua5230/usage" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">macOS · open source · AGPL-3.0</span>
+    <h1>Pin your <span class="accent">Claude Code</span> &amp; <span class="accent">Codex</span><br>quota to the menu bar.</h1>
+    <p class="lead">A tiny macOS menu bar app that shows how much of your AI quota is left — like a battery percentage for tokens. Reads local files only. Zero API calls.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/aqua5230/usage/releases/latest">↓ Download .app</a>
+      <a class="btn btn-secondary" href="https://github.com/aqua5230/usage" target="_blank" rel="noopener">★ Star on GitHub</a>
+    </div>
+    <div class="shot">
+      <img src="popover.en.png" alt="usage popover showing Claude Code and Codex quota" />
+    </div>
+  </div>
+</section>
+
+<div class="strip">
+  <div class="wrap">
+    <div class="item"><span class="dot"></span><span><strong>Zero API calls</strong> to Anthropic or OpenAI</span></div>
+    <div class="item"><span class="dot"></span><span><strong>Local-only</strong> — reads files on your disk</span></div>
+    <div class="item"><span class="dot"></span><span><strong>No telemetry</strong>, no accounts, no cloud</span></div>
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <h2>Built for developers who burn tokens.</h2>
+    <p class="subtitle">Stop guessing if you're about to hit the rate limit mid-refactor.</p>
+    <div class="grid">
+      <div class="card">
+        <span class="icon">⚡</span>
+        <h3>5-hour &amp; 7-day quota at a glance</h3>
+        <p>Both Claude Code session (5h) and weekly (7d) percentages live in the menu bar. Click for a full popover with per-project usage and cost.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🤝</span>
+        <h3>Claude Code + Codex, one app</h3>
+        <p>Track Anthropic and OpenAI quota side by side. Codex auto-detected from <code>~/.codex/sessions/</code> with no setup.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🔒</span>
+        <h3>Local-only by design</h3>
+        <p>Reads a status file written by an installed statusLine hook + Codex session JSONL logs. Never calls the Anthropic or OpenAI API. Doesn't touch your Keychain.</p>
+      </div>
+      <div class="card">
+        <span class="icon">📊</span>
+        <h3>One-click HTML reports</h3>
+        <p>Today, week, month, or all-time — get a shareable HTML report with token / cost trends, top projects, and model breakdown. Project names hide by default for client-safe sharing.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🎨</span>
+        <h3>9 visual panel themes</h3>
+        <p>Matrix digital rain, Windows 95, retro newspaper, midnight aquarium, World Cup FIFA HUD — pick a mood for your menu bar pop-out.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🌐</span>
+        <h3>5-language interface</h3>
+        <p>Auto-detects your macOS language. Supports 繁體中文, 简体中文, English, 日本語, 한국어 — all strings translated, not just menus.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install" class="install">
+  <div class="wrap">
+    <h2>Install in 10 seconds.</h2>
+    <p class="subtitle">Two ways to get it running. Both free, both AGPL-3.0.</p>
+    <div class="install-row">
+      <div class="install-card">
+        <div class="label">RECOMMENDED</div>
+        <h3>Homebrew tap</h3>
+        <p>One command. <code>brew upgrade</code> keeps it current.</p>
+<pre><code>brew tap aqua5230/homebrew-usage
+brew install aqua5230/homebrew-usage/usage</code></pre>
+      </div>
+      <div class="install-card">
+        <div class="label">DIRECT</div>
+        <h3>Download .app</h3>
+        <p>Latest <code>usage.app.zip</code> from GitHub Releases — unzip, drag to <code>/Applications</code>.</p>
+        <a class="btn btn-secondary" style="width: 100%; justify-content: center;" href="https://github.com/aqua5230/usage/releases/latest">→ Open Releases page</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="screenshots">
+  <div class="wrap">
+    <h2>Pick a panel that fits your mood.</h2>
+    <p class="subtitle">Nine built-in themes. Change anytime from the popover toolbar.</p>
+    <div class="gallery">
+      <div class="tile"><img src="matrix.en.png" alt="Matrix theme" /><span class="caption">matrix</span></div>
+      <div class="tile"><img src="cloud_observation.en.png" alt="Cloud Observation theme" /><span class="caption">cloud_observation</span></div>
+      <div class="tile"><img src="world_cup.en.png" alt="World Cup theme" /><span class="caption">world_cup</span></div>
+      <div class="tile"><img src="newspaper.en.png" alt="Newspaper theme" /><span class="caption">newspaper</span></div>
+      <div class="tile"><img src="win95.en.png" alt="Windows 95 theme" /><span class="caption">win95</span></div>
+      <div class="tile"><img src="popover.en.png" alt="Default theme" /><span class="caption">classic</span></div>
+    </div>
+    <div class="report" style="margin-top: 56px;">
+      <h3>Your AI usage, in one shareable page.</h3>
+      <p>Generate an HTML report with token spend, cost, top projects, and model distribution. Send to your manager. Use as a client invoice attachment. Project names hide by default.</p>
+      <img src="report.en.png" alt="HTML usage report" />
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Built by <a href="https://github.com/aqua5230" target="_blank" rel="noopener" style="color: var(--fg-dim);">@aqua5230</a> · AGPL-3.0 · No cloud. No tracking. Just yours.</p>
+    <div class="links">
+      <a href="https://github.com/aqua5230/usage" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/aqua5230/usage/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/aqua5230/usage/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+      <a href="https://github.com/aqua5230/usage/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+    </div>
+    <a class="kofi" href="https://ko-fi.com/lollapalooza" target="_blank" rel="noopener">☕ Buy me a coffee</a>
+  </div>
+</footer>
+
+</body>
+</html>
