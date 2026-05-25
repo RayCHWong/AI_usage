@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-05-25
+
+### 新增
+- **statusLine 顯示「可更新」提示**：menubar 跑 update check 後會把結果寫進 `~/.claude/usage-preferences.json` 的 `last_update_check`；statusLine 讀這個檔，發現有新版時在 model 行末顯示 `🆕 vX.Y.Z 可更新`（青色）。尊重「跳過此版本」設定，cache 超過 30 天視為過期不顯示。新增五語言翻譯 `update_available_suffix`（zh-TW「可更新」/ zh-CN「可更新」/ en「available」/ ja「更新あり」/ ko「업데이트」）。
+
+### 變更
+- **statusLine 對話窗格式調整**：「對話窗(1.0M):[bar]」改為「對話窗:[bar] 15% / 1.0M」—— 容量上限從中間括號移到尾巴跟百分比並排，讀起來更像「15% of 1M」。
+- **statusLine fast mode 顯示反轉**：以前 on/off 都顯示標籤（`⚡快速` / `/nofast`），改為只有開啟才顯示 `⚡快速`，關閉不顯示 —— 像家裡的冷氣指示燈，亮燈即表示「在運作」。
+- **statusLine 百分比跟進度條同色**：之前百分比都是灰白，現在跟進度條同色（黃 / 綠 / 紅）—— 一眼看數字就知道警示級別。
+- **statusLine 「(剩 X 時間)」亮度提升**：之前用 ANSI dim 在深背景下太暗，現在拿掉 dim 用正常亮度，仍靠括號表達「補充資訊」。
+
 ## [0.11.3] - 2026-05-25
 
 ### 修正
