@@ -482,13 +482,6 @@ class AppDelegate(NSObject):
         auto_update_item.setTarget_(self)
         auto_update_item.setState_(1 if _auto_update_check_enabled() else 0)
         menu.addItem_(auto_update_item)
-        check_update_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-            _t(self.language, "update_check_now"),
-            "checkUpdateNow:",
-            "",
-        )
-        check_update_item.setTarget_(self)
-        menu.addItem_(check_update_item)
         menu.popUpMenuPositioningItem_atLocation_inView_(None, NSMakePoint(0, 0), sender)
 
     def selectPanel_(self, sender: Any) -> None:
@@ -512,14 +505,13 @@ class AppDelegate(NSObject):
         _save_preferences(prefs)
         if hasattr(sender, "setState_"):
             sender.setState_(1 if enabled else 0)
-
-    def checkUpdateNow_(self, sender: Any) -> None:
-        thread = threading.Thread(
-            target=self._check_update_in_background,
-            kwargs={"manual": True, "ignore_cooldown": True, "ignore_skipped": True},
-            daemon=True,
-        )
-        thread.start()
+        if enabled:
+            thread = threading.Thread(
+                target=self._check_update_in_background,
+                kwargs={"manual": True, "ignore_cooldown": True, "ignore_skipped": True},
+                daemon=True,
+            )
+            thread.start()
 
     def _maybe_check_update_in_background(self) -> None:
         self._check_update_in_background(

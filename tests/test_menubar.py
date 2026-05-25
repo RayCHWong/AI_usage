@@ -303,7 +303,6 @@ def test_switch_panel_menu_contains_update_items(monkeypatch: pytest.MonkeyPatch
     assert _FakeMenu.last is not None
     titles = [item.title for item in _FakeMenu.last.items]
     assert "Automatically Check for Updates" in titles
-    assert "Check for Updates Now" in titles
     auto_item = next(
         item for item in _FakeMenu.last.items if item.title == "Automatically Check for Updates"
     )
