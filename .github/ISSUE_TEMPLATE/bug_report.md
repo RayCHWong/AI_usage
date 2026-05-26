@@ -23,7 +23,13 @@ labels: bug
 
 **Logs**
 Run with `USAGE_DEBUG=1 python3 main.py` and paste any warnings here.
-Redact paths or identifiers as needed.
+
+> ⚠️ **Privacy**: usage reads files under `~/.claude/` and `~/.codex/`. **Do not paste**:
+> - the contents of `~/.claude/usage-status.json` or any `tt-status.json` / `usag-status.json`
+> - any `~/.codex/sessions/**/*.jsonl` (these may include prompts, project names, and absolute paths)
+> - absolute paths, project / repo names, session IDs, or cost figures
+>
+> Trim to the smallest snippet that reproduces the issue. When in doubt, replace identifiers with `<redacted>`.
 
 ```
 
