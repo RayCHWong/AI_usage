@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -23,15 +24,10 @@ class ReleaseCheckResult:
 
 
 def _parse_version(version: str) -> tuple[int, int, int] | None:
-    parts = version.split(".")
-    if len(parts) != 3:
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:[-.+].*)?$", version)
+    if match is None:
         return None
-    parsed: list[int] = []
-    for part in parts:
-        if not part.isdigit():
-            return None
-        parsed.append(int(part))
-    return (parsed[0], parsed[1], parsed[2])
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
 
 
 def compare_versions(a: str, b: str) -> int:

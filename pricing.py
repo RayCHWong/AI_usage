@@ -105,10 +105,14 @@ def _load_pricing_with_source() -> tuple[PricingTable, PricingSource]:
         _write_cache(fetched)
         return fetched, "fetched"
 
+    stale_cached = _read_cache(allow_stale=True)
+    if stale_cached:
+        return stale_cached, "cache"
+
     return _fallback_pricing(), "fallback"
 
 
-def _read_cache() -> PricingTable | None:
+def _read_cache(*, allow_stale: bool = False) -> PricingTable | None:
     use_legacy = CACHE_PATH == DEFAULT_CACHE_PATH or LEGACY_CACHE_PATH != DEFAULT_LEGACY_CACHE_PATH
     path = CACHE_PATH if CACHE_PATH.exists() or not use_legacy else LEGACY_CACHE_PATH
     cache_mtime: float | None = None
@@ -116,7 +120,7 @@ def _read_cache() -> PricingTable | None:
         cache_mtime = path.stat().st_mtime
     if cache_mtime is None:
         return None
-    if (time.time() - cache_mtime) > CACHE_TTL_DAYS * 86400:
+    if not allow_stale and (time.time() - cache_mtime) > CACHE_TTL_DAYS * 86400:
         return None
 
     with contextlib.suppress(OSError), path.open(encoding="utf-8") as file:

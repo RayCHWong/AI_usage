@@ -29,6 +29,24 @@ def test_compare_versions_orders_numeric_versions() -> None:
     assert update_checker.compare_versions("0.9.10", "0.10.0") == -1
 
 
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ("1.2.3", (1, 2, 3)),
+        ("0.11.0-beta.1", (0, 11, 0)),
+        ("0.11.0-rc1", (0, 11, 0)),
+        ("0.11.0+build.5", (0, 11, 0)),
+        ("vX.Y", None),
+        ("", None),
+    ],
+)
+def test_parse_version_accepts_prerelease_and_build_suffixes(
+    version: str,
+    expected: tuple[int, int, int] | None,
+) -> None:
+    assert update_checker._parse_version(version) == expected
+
+
 def test_check_latest_release_parses_newer_release(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
@@ -71,7 +89,7 @@ def test_check_latest_release_returns_none_when_remote_is_not_newer(
     "response_body",
     [
         b"not json",
-        b'{"tag_name":"v0.10.2-beta.1","html_url":"https://example.test/release"}',
+        b'{"tag_name":"vX.Y","html_url":"https://example.test/release"}',
     ],
 )
 def test_check_latest_release_returns_none_for_invalid_payloads(

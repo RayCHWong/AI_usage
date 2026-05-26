@@ -108,7 +108,9 @@ def _fmt_tokens(n: int) -> str:
     return str(n)
 
 
-def _fmt_cost(usd: float) -> str:
+def _fmt_cost(usd: float | None) -> str:
+    if usd is None:
+        return "--"
     if usd >= 100:
         return f"${usd:.0f}"
     if usd >= 1:
