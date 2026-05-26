@@ -69,7 +69,12 @@ class UsageScriptBridge(NSObject):
         elif action == "switch":
             self.delegate.switchPanel_(self.web_view)
         elif action == "analyze":
-            self.delegate.analyzeUsage_(None)
+            self.web_view.evaluateJavaScript_completionHandler_(
+                "typeof projectRange === 'string' ? projectRange : '30d'",
+                lambda value, error: self.delegate.analyzeUsage_(
+                    value if error is None else "30d"
+                ),
+            )
         elif action in {"toggle_statusline", "toggle-statusline"}:
             self.delegate.toggleStatusline_(None)
         elif action == "install_statusline":

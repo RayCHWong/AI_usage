@@ -116,6 +116,12 @@ def test_generate_analysis_report_propagates_language(
     assert calls == {"agents": agents, "period": "month", "data": report_data, "language": "zh-TW"}
 
 
+def test_analysis_period_from_project_range() -> None:
+    assert menubar._analysis_period_from_project_range("1d") == "today"
+    assert menubar._analysis_period_from_project_range("7d") == "week"
+    assert menubar._analysis_period_from_project_range("30d") == "month"
+
+
 def test_report_codex_entries_use_shared_loader(monkeypatch: Any) -> None:
     source_entry = history_loader.UsageEntry(
         timestamp=datetime(2026, 5, 21, tzinfo=UTC),
@@ -144,3 +150,59 @@ def test_report_codex_entries_use_shared_loader(monkeypatch: Any) -> None:
     assert len(entries) == 1
     assert entries[0].agent_id == "codex"
     assert entries[0].total_tokens == source_entry.total_tokens
+
+
+def test_report_short_periods_use_recent_codex_loader(monkeypatch: Any) -> None:
+    today = datetime.now(tz=UTC)
+    agent = AgentInfo("codex", "Codex", "~/.codex", True)
+    recent_entry = reporter.UsageEntry(
+        timestamp=today,
+        session_id="recent",
+        message_id="recent",
+        request_id="",
+        model="gpt-test",
+        input_tokens=1,
+        output_tokens=2,
+        cache_creation_tokens=0,
+        cache_read_tokens=0,
+        cost_usd=0.01,
+        project="usage",
+        agent_id="codex",
+    )
+    calls: dict[str, int] = {}
+
+    def fake_recent(hours_back: int) -> list[reporter.UsageEntry]:
+        calls["recent_hours_back"] = hours_back
+        return [recent_entry]
+
+    def fake_full(*, hours_back: int = 0) -> list[history_loader.UsageEntry]:
+        calls["full_hours_back"] = hours_back
+        return []
+
+    monkeypatch.setattr(reporter, "_load_recent_codex_entries", fake_recent)
+    monkeypatch.setattr("analyzer.reporter.codex_loader.load_entries", fake_full)
+
+    data = reporter.build_report_data([agent], "today")
+
+    assert data["summary"]["total_tokens"] == 3
+    assert calls == {"recent_hours_back": 48}
+
+
+def test_report_last30_keeps_full_codex_loader(monkeypatch: Any) -> None:
+    agent = AgentInfo("codex", "Codex", "~/.codex", True)
+    calls: dict[str, int] = {}
+
+    def fake_recent(hours_back: int) -> list[reporter.UsageEntry]:
+        calls["recent_hours_back"] = hours_back
+        return []
+
+    def fake_full(*, hours_back: int = 0) -> list[history_loader.UsageEntry]:
+        calls["full_hours_back"] = hours_back
+        return []
+
+    monkeypatch.setattr(reporter, "_load_recent_codex_entries", fake_recent)
+    monkeypatch.setattr("analyzer.reporter.codex_loader.load_entries", fake_full)
+
+    reporter.build_report_data([agent], "last30")
+
+    assert calls == {"full_hours_back": 744}

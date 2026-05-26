@@ -38,9 +38,16 @@ def _period_bounds(period: str, today: date) -> tuple[date | None, date]:
     return today.replace(day=1), today
 
 
-def _load_agent_entries(agent: AgentInfo, hours_back: int = 0) -> list[UsageEntry]:
+def _load_agent_entries(
+    agent: AgentInfo,
+    hours_back: int = 0,
+    *,
+    use_recent_codex: bool = False,
+) -> list[UsageEntry]:
     if hours_back > 0 and agent.id == "claude-code":
         return _load_recent_claude_entries(hours_back)
+    if agent.id == "codex" and use_recent_codex and hours_back > 0:
+        return _load_recent_codex_entries(hours_back)
     if agent.id == "codex":
         return [
             UsageEntry(
@@ -269,8 +276,11 @@ def build_report_data(agents, period: str = "month") -> dict:
     hours_back = 0 if date_from is None else ((date_to - date_from).days + 2) * 24
 
     raw_entries: list[UsageEntry] = []
+    use_recent_codex = period in {"today", "week", "month"}
     for agent in agents:
-        raw_entries.extend(_load_agent_entries(agent, hours_back))
+        raw_entries.extend(
+            _load_agent_entries(agent, hours_back, use_recent_codex=use_recent_codex)
+        )
 
     if date_from is None and raw_entries:
         date_from = min(_entry_date(entry) for entry in raw_entries)

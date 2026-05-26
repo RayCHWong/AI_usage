@@ -929,4 +929,4 @@ def test_state_from_outcome_translates_awaiting_rate_limits_message() -> None:
         [],
     )
 
-    assert state.status_text == "狀態：請對 Claude Code 發送一句訊息以同步配額"
+    assert state.status_text == "狀態：請對 Claude Code 發送一句訊息以同步配額 · 模型: unknown"

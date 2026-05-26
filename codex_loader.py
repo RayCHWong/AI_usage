@@ -25,6 +25,7 @@ class CodexRateLimits:
     five_hour_resets_at: float | None
     seven_day_pct: float | None
     seven_day_resets_at: float | None
+    model: str | None = "unknown"
     updated_at: str = ""
 
 
@@ -66,8 +67,9 @@ def _is_better_session_entry(candidate: UsageEntry, existing: UsageEntry) -> boo
 def load_rate_limits() -> CodexRateLimits | None:
     if not SESSIONS_DIR.is_dir():
         return None
+    models = _load_thread_models()
     for path in _recent_jsonl_files():
-        rate_limits = _extract_rate_limits(path)
+        rate_limits = _extract_rate_limits(path, models)
         if rate_limits is not None:
             return rate_limits
     return None
@@ -103,13 +105,19 @@ def _recent_jsonl_files() -> list[Path]:
     return [path for _, path in paths_with_mtime[:5]]
 
 
-def _extract_rate_limits(path: Path) -> CodexRateLimits | None:
+def _extract_rate_limits(path: Path, models: dict[str, str]) -> CodexRateLimits | None:
+    session_id = ""
     last_rate_limits: tuple[dict[str, Any], str] | None = None
     try:
         with path.open(encoding="utf-8") as file:
             for line in file:
                 data = _load_json_line(line)
-                if data is None or data.get("type") != "event_msg":
+                if data is None:
+                    continue
+                if data.get("type") == "session_meta":
+                    session_id = _as_str(_as_dict(data.get("payload")).get("id"))
+                    continue
+                if data.get("type") != "event_msg":
                     continue
                 payload = _as_dict(data.get("payload"))
                 if payload.get("type") != "token_count":
@@ -141,6 +149,7 @@ def _extract_rate_limits(path: Path) -> CodexRateLimits | None:
         five_hour_resets_at=five_reset,
         seven_day_pct=seven_pct,
         seven_day_resets_at=seven_reset,
+        model=models.get(session_id, "unknown"),
         updated_at=updated_at,
     )
 

@@ -172,7 +172,12 @@ def test_load_rate_limits_reads_primary_and_secondary_windows(
 ) -> None:
     sessions_dir = tmp_path / "sessions"
     monkeypatch.setattr(codex_loader, "SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr(codex_loader, "_load_thread_models", lambda: {"session-1": "gpt-test"})
     now = datetime.now(UTC)
+    meta = {
+        "type": "session_meta",
+        "payload": {"id": "session-1", "timestamp": now.isoformat(), "cwd": "/tmp/demo"},
+    }
     payload = {
         "type": "event_msg",
         "timestamp": now.isoformat(),
@@ -186,7 +191,7 @@ def test_load_rate_limits_reads_primary_and_secondary_windows(
     }
     path = sessions_dir / "rate.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    path.write_text(f"{json.dumps(meta)}\n{json.dumps(payload)}", encoding="utf-8")
 
     result = codex_loader.load_rate_limits()
 
@@ -195,5 +200,6 @@ def test_load_rate_limits_reads_primary_and_secondary_windows(
         five_hour_resets_at=now.timestamp() + 60,
         seven_day_pct=70.0,
         seven_day_resets_at=now.timestamp() + 120,
+        model="gpt-test",
         updated_at=now.isoformat(),
     )

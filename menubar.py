@@ -320,6 +320,7 @@ class AppDelegate(NSObject):
     latest_state = objc.ivar()
     active_panel = objc.ivar()
     codex_5h_pct = objc.ivar()
+    codex_model = objc.ivar()
     burn_rate_trackers = objc.ivar()
     _refresh_in_flight = objc.ivar()
     _fs_stream = objc.ivar()
@@ -334,6 +335,7 @@ class AppDelegate(NSObject):
         self.tracker = UsageRateTracker(mock=mock)
         self.language = _detect_language()
         self.codex_5h_pct = None
+        self.codex_model = "unknown"
         self.latest_state = _empty_state(self.language)
         self.active_panel = panels.get_panel(load_active_panel_id())
         self.burn_rate_trackers = {
@@ -409,7 +411,12 @@ class AppDelegate(NSObject):
         thread.start()
 
     def analyzeUsage_(self, sender: Any) -> None:
-        thread = threading.Thread(target=self._analyze_usage_in_background, daemon=True)
+        period = _analysis_period_from_project_range(str(sender or "30d"))
+        thread = threading.Thread(
+            target=self._analyze_usage_in_background,
+            args=(period,),
+            daemon=True,
+        )
         thread.start()
 
     def quitApp_(self, sender: Any) -> None:
@@ -618,7 +625,7 @@ class AppDelegate(NSObject):
     def _refresh_in_background(self) -> None:
         try:
             outcome = asyncio.run(self._fetch())
-            codex_rows, codex_5h_pct = self._codex_rows()
+            codex_rows, codex_5h_pct, codex_model = self._codex_rows()
             all_entries = self._load_history_entries()
             project_rows = self._project_rows(hours_back=24, entries=all_entries)
             project_rows_7d = self._project_rows(hours_back=168, entries=all_entries)
@@ -630,14 +637,16 @@ class AppDelegate(NSObject):
                 project_rows_7d,
                 project_rows_30d,
                 history_entries=all_entries,
+                codex_model=codex_model,
             )
         except Exception as exc:
             if os.environ.get("USAGE_DEBUG") == "1":
                 logger.warning("refresh failed", exc_info=True)
             codex_5h_pct = None
+            codex_model = "unknown"
             state = _error_state(type(exc).__name__, self.mock, self.language)
 
-        result = {"state": state, "codex_5h_pct": codex_5h_pct}
+        result = {"state": state, "codex_5h_pct": codex_5h_pct, "codex_model": codex_model}
         self.performSelectorOnMainThread_withObject_waitUntilDone_(
             "_applyRefreshResult:",
             result,
@@ -647,7 +656,9 @@ class AppDelegate(NSObject):
     def _applyRefreshResult_(self, result: dict[str, Any]) -> None:
         state = result["state"]
         codex_5h_pct = result["codex_5h_pct"]
+        codex_model = result.get("codex_model", "unknown")
         self.codex_5h_pct = codex_5h_pct
+        self.codex_model = codex_model
         self.latest_state = state
         if self.popover.isShown():
             self.popover_controller.setState_(self.latest_state)
@@ -744,10 +755,10 @@ class AppDelegate(NSObject):
         self.latest_state.statusline = _statusline_payload(self.language)
         self.popover_controller.setState_(self.latest_state)
 
-    def _analyze_usage_in_background(self) -> None:
+    def _analyze_usage_in_background(self, period: str) -> None:
         result: dict[str, str | bool]
         try:
-            saved = _generate_analysis_report(language=self.language)
+            saved = _generate_analysis_report(period=period, language=self.language)
             result = {"success": True, "message": saved}
         except Exception as exc:
             if os.environ.get("USAGE_DEBUG") == "1":
@@ -787,6 +798,7 @@ class AppDelegate(NSObject):
         project_rows_7d: list[tuple[str, int, float | None]],
         project_rows_30d: list[tuple[str, int, float | None]],
         history_entries: list[UsageEntry] | None = None,
+        codex_model: str = "unknown",
     ) -> PopoverState:
         now = time.time()
         today_text = _today_title(self.mock, self.language, entries=history_entries)
@@ -844,6 +856,9 @@ class AppDelegate(NSObject):
                 "status_text",
                 value=self._status_message_value(outcome, "status_no_data"),
             )
+        status_text = (
+            f"{status_text} · {_t(self.language, 'model_label', model=codex_model or 'unknown')}"
+        )
 
         return PopoverState(
             language=self.language,
@@ -861,7 +876,7 @@ class AppDelegate(NSObject):
             show_install_button=outcome.state == PollState.TOKEN_ERROR,
         )
 
-    def _codex_rows(self) -> tuple[tuple[QuotaRowState, QuotaRowState], int | None]:
+    def _codex_rows(self) -> tuple[tuple[QuotaRowState, QuotaRowState], int | None, str]:
         if self.mock:
             now = time.time()
             self.burn_rate_trackers["codex_session"].record(now, 12.0)
@@ -887,7 +902,7 @@ class AppDelegate(NSObject):
                     warning_max_seconds=24 * 3600,
                 ),
             )
-            return rows, 12
+            return rows, 12, "gpt-5"
 
         try:
             rate_limits = codex_loader.load_rate_limits()
@@ -901,7 +916,8 @@ class AppDelegate(NSObject):
                 _missing_row("Session", CODEX_COLOR, self.language),
                 _missing_row("Weekly", CODEX_COLOR, self.language),
             )
-            return rows, None
+            return rows, None, "unknown"
+        model = rate_limits.model or "unknown"
 
         now = time.time()
         codex_5h_pct = (
@@ -932,7 +948,7 @@ class AppDelegate(NSObject):
                 warning_max_seconds=24 * 3600,
             ),
         )
-        return rows, codex_5h_pct
+        return rows, codex_5h_pct, model
 
     def _load_history_entries(self) -> list[UsageEntry]:
         if self.mock:
@@ -1042,6 +1058,14 @@ def _generate_analysis_report(period: str = "month", language: str | None = None
     agents = detect_agents()
     data = build_report_data(agents, period)
     return cast(str, save_and_open(data, language=language))
+
+
+def _analysis_period_from_project_range(project_range: str) -> str:
+    if project_range == "1d":
+        return "today"
+    if project_range == "7d":
+        return "week"
+    return "month"
 
 
 def _popover_size(state: PopoverState, panel: UsagePanel | None = None) -> Any:

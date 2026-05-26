@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.11.6] - 2026-05-27
+
+### 新增
+- **Codex 模型顯示在 popover footer**：底部現在會顯示目前偵測到的 Codex 模型；沒有資料時顯示 `unknown`，避免空白狀態讓人誤以為讀取失敗。
+
+### 變更
+- **分析報告期間跟隨 Project Usage 範圍**：「分析報告」按鈕現在會依照 project range 切換輸出區間，1d 對應 today、7d 對應 week、30d 對應 month；不新增 UI，沿用現有範圍控制。
+
+### 修正
+- **日文 / 韓文 Codex 模型標籤補完**：補上 `model_label` 的 ja / ko 翻譯，讓 footer 的模型資訊在日韓介面不再空白。
+
+### 效能
+- **Codex today / week / month 報告改走尾端掃描**：session 很多的使用者按報告時不再需要等待完整歷史掃描，today 報告從約 7 秒降到 0.03 秒等級，week / month 也受益於相同路徑。
+
 ## [0.11.5] - 2026-05-26
 
 ### 新增
