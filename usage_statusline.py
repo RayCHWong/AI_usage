@@ -443,7 +443,7 @@ def _render_core(data: Dict[str, Any], now: datetime) -> str:
         line3 = [p for p in line3 if p != duration_part]
 
     update_version = _read_update_hint(now.timestamp())
-    if update_version:
+    if update_version and (line1 or line3):
         line3.append(
             f"{C['cyan']}🆕 v{update_version} {_t('update_available_suffix')}{C['reset']}"
         )
