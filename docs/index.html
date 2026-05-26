@@ -246,7 +246,7 @@ pre {
 /* Screenshot gallery */
 .gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 14px;
 }
 .tile {
@@ -256,7 +256,7 @@ pre {
   border: 1px solid var(--border);
   background: var(--bg-card);
 }
-.tile img { aspect-ratio: 4 / 3; object-fit: cover; }
+.tile img { aspect-ratio: 9 / 20; object-fit: cover; width: 100%; display: block; }
 .tile .caption {
   position: absolute; left: 12px; bottom: 12px;
   background: rgba(10, 10, 10, 0.78);
