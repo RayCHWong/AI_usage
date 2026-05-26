@@ -38,7 +38,7 @@ from AppKit import (
     NSVariableStatusItemLength,
     NSViewController,
 )
-from Foundation import NSLocale, NSObject, NSRunLoop, NSRunLoopCommonModes, NSTimer
+from Foundation import NSObject, NSRunLoop, NSRunLoopCommonModes, NSTimer
 
 import codex_loader
 import login_item
@@ -52,6 +52,7 @@ from panels.base import Panel as UsagePanel
 from panels.base import load_active_panel_id, save_active_panel_id
 from pricing import calculate_cost
 from usage_client import ClaudeUsageClient, PollOutcome, PollState
+from usage_lang import detect_lang
 from usage_rate import GROUP_NAMES, UsageRateTracker
 
 # --- FSEvents (ctypes) for event-driven UI refresh ---
@@ -198,40 +199,8 @@ def _bar_color(pct: float, brand: tuple[float, float, float]) -> tuple[float, fl
     return brand
 
 
-def _normalize_language(code: str | None) -> str:
-    if not code:
-        return "en"
-    normalized = code.strip().lower().replace("_", "-")
-    if normalized in {"zh-tw", "zh-hant"} or normalized.startswith("zh-tw-"):
-        return "zh-TW"
-    if normalized in {"zh-cn", "zh-hans", "zh"} or normalized.startswith("zh-cn-"):
-        return "zh-CN"
-    if normalized.startswith("zh-hans"):
-        return "zh-CN"
-    if normalized.startswith("zh-hant"):
-        return "zh-TW"
-    if normalized.startswith("ja"):
-        return "ja"
-    if normalized.startswith("ko"):
-        return "ko"
-    return "en"
-
-
 def _detect_language() -> str:
-    if override := os.environ.get("USAGE_LANG"):
-        return _normalize_language(override)
-    try:
-        # preferredLanguages reflects the user's system language list and is not
-        # affected by the bundle's CFBundleDevelopmentRegion / .lproj mapping.
-        preferred = NSLocale.preferredLanguages()
-        if preferred:
-            return _normalize_language(str(preferred[0]))
-        locale = NSLocale.currentLocale()
-        identifier_attr = getattr(locale, "localeIdentifier", None)
-        identifier = identifier_attr() if callable(identifier_attr) else identifier_attr
-        return _normalize_language(str(identifier) if identifier is not None else None)
-    except Exception:
-        return "en"
+    return detect_lang()
 
 
 def _group_name(group: int, language: str) -> str:

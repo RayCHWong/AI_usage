@@ -11,6 +11,14 @@ def test_detect_lang_reads_lang_zh_tw_locale() -> None:
     assert detect_lang({"LANG": "zh_TW.UTF-8"}) == "zh-TW"
 
 
+def test_detect_lang_reads_zh_hant_locale() -> None:
+    assert detect_lang({"LANG": "zh-Hant-TW"}) == "zh-TW"
+
+
+def test_detect_lang_reads_zh_hk_locale_as_traditional() -> None:
+    assert detect_lang({"LANG": "zh_HK.UTF-8"}) == "zh-TW"
+
+
 def test_detect_lang_reads_tt_lang_ja() -> None:
     assert detect_lang({"TT_LANG": "ja"}) == "ja"
 
