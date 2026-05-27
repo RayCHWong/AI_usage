@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.11.15] - 2026-05-27
+
+### 修正
+- **含 dash 連字號的 Claude Code 專案名解碼修正**：`history_loader._project_from_path` 之前的解碼邏輯把目錄名所有 `-` 全換成 `/`，例如 `Desktop-claude-tutorial-video` 變成 `/Desktop/claude/tutorial/video`，路徑不存在 → `resolve_project_name` 走 fallback 取最後一段 → 專案被誤標為 `"video"` 而不是 `"claude-tutorial-video"`。現在先試「全 slash」候選，不存在則對 path segments 做 DFS 嘗試合併連續段、用 fs 上實際存在的目錄定錨；都找不到時保留原 dash 形式（`plain-project` → `plain-project`）。多數情境下 JSONL 內的 `cwd` 欄位已經會覆寫 project name，這條修正主要保護沒有 `cwd` 欄位的舊 entry。
+- **TUI 語言偵測統一走 `usage_lang.detect_lang`**：先前 `tui.py` 自寫一份偵測，只認 zh / en（簡中、日韓全部被當英文），且完全沒讀 `USAGE_LANG` / `TT_LANG` / `LANG` 環境變數。結果同一台機器 menubar 顯示日文、TUI 顯示英文。現在 TUI 跟 menubar 共用同一個 `detect_lang()`，五國語言一致。
+
+### 內部改進
+- **history / codex loader cache 加 LRU 上限**：`_file_cache` 與 `_jsonl_cache` 之前是無上限的 module-level dict，menubar app 駐留越久、`~/.claude/projects/` 與 `~/.codex/sessions/` 累積越多 jsonl，parsed `UsageEntry` list 全卡在記憶體永遠不釋放。改用 `OrderedDict` + 各自 512 entry 上限；cache hit `move_to_end` 標 LRU、insert 滿了 `popitem(last=False)` evict 最舊。mtime/size 失效邏輯不動、codex_loader 的 `entry.model` rebind 也保留。
+
+### 開發
+- **測試覆蓋大幅擴張**：`setup_app` / `ui/tables` / `usage_cli` 三個原本欠覆蓋的模組補上單元測試，整體測試數從 234 增加到 363。沒有改動 production code。
+
 ## [0.11.14] - 2026-05-27
 
 ### 修正
