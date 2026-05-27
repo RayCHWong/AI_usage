@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from datetime import UTC, datetime
 from importlib import import_module
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -170,3 +171,211 @@ def test_main_exits_when_no_agents_detected(monkeypatch: pytest.MonkeyPatch) -> 
         usage_cli.main()
 
     assert exc_info.value.code == 1
+
+
+def test_parse_report_args_defaults_to_last30() -> None:
+    assert usage_cli._parse_report_args([]) == ("last30", None, False)
+
+
+@pytest.mark.parametrize(
+    ("flag", "expected_period"),
+    [
+        ("--today", "today"),
+        ("--week", "week"),
+        ("--month", "month"),
+        ("--all", "all"),
+        ("--last30", "last30"),
+    ],
+)
+def test_parse_report_args_sets_period(flag: str, expected_period: str) -> None:
+    period, out_path, show_help = usage_cli._parse_report_args([flag])
+
+    assert period == expected_period
+    assert out_path is None
+    assert show_help is False
+
+
+@pytest.mark.parametrize("flag", ["--help", "-h"])
+def test_parse_report_args_detects_help(flag: str) -> None:
+    assert usage_cli._parse_report_args([flag]) == ("last30", None, True)
+
+
+@pytest.mark.parametrize(
+    ("args", "expected_path"),
+    [
+        (["--out=report.html"], "report.html"),
+        (["--out", "report.html"], "report.html"),
+    ],
+)
+def test_parse_report_args_sets_out_path(args: list[str], expected_path: str) -> None:
+    assert usage_cli._parse_report_args(args) == ("last30", expected_path, False)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--out"],
+        ["--out", "--today"],
+    ],
+)
+def test_parse_report_args_rejects_missing_out_path(
+    monkeypatch: pytest.MonkeyPatch,
+    args: list[str],
+) -> None:
+    printed: list[str] = []
+    monkeypatch.setattr(usage_cli.console, "print", lambda value: printed.append(str(value)))
+
+    with pytest.raises(SystemExit) as exc_info:
+        usage_cli._parse_report_args(args)
+
+    assert exc_info.value.code == 1
+    assert any("--out requires a path" in line for line in printed)
+
+
+@pytest.mark.parametrize(
+    ("args", "expected_message"),
+    [
+        (["--bogus"], "unknown report option"),
+        (["random"], "unexpected report argument"),
+    ],
+)
+def test_parse_report_args_rejects_invalid_args(
+    monkeypatch: pytest.MonkeyPatch,
+    args: list[str],
+    expected_message: str,
+) -> None:
+    printed: list[str] = []
+    monkeypatch.setattr(usage_cli.console, "print", lambda value: printed.append(str(value)))
+
+    with pytest.raises(SystemExit) as exc_info:
+        usage_cli._parse_report_args(args)
+
+    assert exc_info.value.code == 1
+    assert any(expected_message in line for line in printed)
+
+
+def test_apply_sort_uses_default_when_sort_key_is_none() -> None:
+    stats = [
+        SimpleNamespace(start_time=3, total_tokens=0, cost_usd=0.0, message_count=0),
+        SimpleNamespace(start_time=1, total_tokens=0, cost_usd=0.0, message_count=0),
+        SimpleNamespace(start_time=2, total_tokens=0, cost_usd=0.0, message_count=0),
+    ]
+
+    usage_cli._apply_sort(stats, None, True, "start_time", False)
+
+    assert [stat.start_time for stat in stats] == [1, 2, 3]
+
+
+@pytest.mark.parametrize(
+    ("descending", "expected_costs"),
+    [
+        (True, [3.0, 2.0, 1.0]),
+        (False, [1.0, 2.0, 3.0]),
+    ],
+)
+def test_apply_sort_uses_known_sort_key(descending: bool, expected_costs: list[float]) -> None:
+    assert "cost" in usage_cli.SORT_KEYS
+    stats = [
+        SimpleNamespace(start_time=1, total_tokens=0, cost_usd=2.0, message_count=0),
+        SimpleNamespace(start_time=2, total_tokens=0, cost_usd=1.0, message_count=0),
+        SimpleNamespace(start_time=3, total_tokens=0, cost_usd=3.0, message_count=0),
+    ]
+
+    usage_cli._apply_sort(stats, "cost", descending, "start_time", False)
+
+    assert [stat.cost_usd for stat in stats] == expected_costs
+
+
+def test_apply_sort_unknown_key_falls_back_to_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    printed: list[str] = []
+    stats = [
+        SimpleNamespace(start_time=3, total_tokens=0, cost_usd=1.0, message_count=0),
+        SimpleNamespace(start_time=1, total_tokens=0, cost_usd=3.0, message_count=0),
+        SimpleNamespace(start_time=2, total_tokens=0, cost_usd=2.0, message_count=0),
+    ]
+    monkeypatch.setattr(usage_cli.console, "print", lambda value: printed.append(str(value)))
+
+    usage_cli._apply_sort(stats, "unknown_key", True, "start_time", False)
+
+    assert [stat.start_time for stat in stats] == [1, 2, 3]
+    assert any("unknown_key" in line for line in printed)
+
+
+@pytest.mark.parametrize(
+    ("env_name", "expected_id"),
+    [
+        ("CODEX_THREAD_ID", "codex"),
+        ("CODEX_SANDBOX", "codex"),
+        ("CLAUDE_CONFIG_DIR", "claude-code"),
+        ("CLAUDECODE", "claude-code"),
+    ],
+)
+def test_initial_agent_index_uses_environment_preference(
+    monkeypatch: pytest.MonkeyPatch,
+    env_name: str,
+    expected_id: str,
+) -> None:
+    for name in ("CODEX_THREAD_ID", "CODEX_SANDBOX", "CLAUDE_CONFIG_DIR", "CLAUDECODE"):
+        monkeypatch.delenv(name, raising=False)
+    agents = [SimpleNamespace(id="other"), SimpleNamespace(id=expected_id)]
+
+    monkeypatch.setenv(env_name, "1")
+
+    assert usage_cli._initial_agent_index(agents) == 1
+
+
+def test_initial_agent_index_defaults_to_first_without_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in ("CODEX_THREAD_ID", "CODEX_SANDBOX", "CLAUDE_CONFIG_DIR", "CLAUDECODE"):
+        monkeypatch.delenv(name, raising=False)
+
+    assert usage_cli._initial_agent_index([SimpleNamespace(id="codex")]) == 0
+
+
+def test_initial_agent_index_defaults_to_first_when_preferred_agent_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in ("CODEX_THREAD_ID", "CODEX_SANDBOX", "CLAUDE_CONFIG_DIR", "CLAUDECODE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "1")
+
+    assert usage_cli._initial_agent_index([SimpleNamespace(id="claude-code")]) == 0
+
+
+def test_fit_screen_returns_empty_text() -> None:
+    assert usage_cli._fit_screen("", 10, 0) == ("", 0)
+
+
+def test_fit_screen_returns_full_text_when_it_fits() -> None:
+    assert usage_cli._fit_screen("header\nbody", 5, 0) == ("header\nbody", 0)
+
+
+def test_fit_screen_limits_body_to_scroll_window() -> None:
+    screen, max_scroll = usage_cli._fit_screen("h\nb1\nb2\nb3\nb4", 4, 1)
+
+    assert screen == "h\nb2\nb3"
+    assert max_scroll == 2
+
+
+def test_fit_screen_clamps_scroll_offset() -> None:
+    screen, max_scroll = usage_cli._fit_screen("h\nb1\nb2\nb3\nb4", 4, 99)
+
+    assert screen == "h\nb3\nb4"
+    assert max_scroll == 2
+
+
+def test_dashboard_sort_cycle_shape_and_order() -> None:
+    sort_cycle = usage_cli._dashboard_sort_cycle()
+
+    assert len(sort_cycle) == 4
+    assert all(len(item) == 3 for item in sort_cycle)
+    assert [item[0] for item in sort_cycle] == ["time", "tokens", "cost", "messages"]
+    assert [item[1] for item in sort_cycle] == [
+        "start_time",
+        "total_tokens",
+        "cost_usd",
+        "message_count",
+    ]
