@@ -369,6 +369,8 @@ USAGE_LANG=zh-CN python3 main.py   # 簡體中文
 
 跑完產物會在 `dist/usage.app`。雙擊或 `open dist/usage.app` 就能跑。
 
+> **打包環境提醒**：本機打包 `.app` 請使用 `uv`（不要用 conda 的 Python）。conda 自帶的 `libffi` / `libsqlite3`（動態程式庫，程式跑時需要載入的共用程式碼）不會被 py2app 自動帶進 `.app`，會導致打出來的 `.app` 一啟動就閃退。CI 打包流程使用 `uv`，已通過測試。
+
 每次發 GitHub Release（push 一個 `v*` 開頭的 tag 時），CI 會自動 build 並把 `usage.app.zip` 附加到 Release 頁面。
 
 ## 授權

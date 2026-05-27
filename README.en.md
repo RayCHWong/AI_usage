@@ -367,6 +367,8 @@ If you want to launch usage by double-clicking instead of opening a terminal, bu
 
 The output is `dist/usage.app`. Double-click it or run `open dist/usage.app`.
 
+> **Build environment**: Please use `uv` (not conda Python) when building the `.app` locally. Conda bundles its own `libffi` / `libsqlite3` that py2app does not auto-include, which causes the resulting `.app` to crash on startup. CI builds use `uv` and are tested.
+
 Each GitHub Release build (push a `v*` tag) automatically builds the app in CI and attaches `usage.app.zip` to the Release page.
 
 ## License
