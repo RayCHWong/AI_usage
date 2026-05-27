@@ -968,23 +968,57 @@ def test_apply_refresh_result_pushes_state_only_when_popover_is_shown() -> None:
     delegate.popover = FakePopover(shown=True)
     delegate.status_item = FakeStatusItem(button)
     delegate._refresh_in_flight = True
+    delegate._refresh_queued = False
 
     delegate._applyRefreshResult_({"state": state, "codex_5h_pct": 12})
 
     assert controller.calls == [state]
     assert delegate.latest_state == state
     assert delegate.codex_5h_pct == 12
+    assert delegate._refresh_in_flight is False
     assert button.titles
 
     controller.calls.clear()
     delegate.popover = FakePopover(shown=False)
     delegate._refresh_in_flight = True
+    delegate._refresh_queued = False
 
     delegate._applyRefreshResult_({"state": state, "codex_5h_pct": 34})
 
     assert controller.calls == []
     assert delegate.latest_state == state
     assert delegate.codex_5h_pct == 34
+    assert delegate._refresh_in_flight is False
+
+
+def test_refresh_now_queues_when_refresh_is_busy() -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+    delegate._refresh_in_flight = True
+    delegate._refresh_queued = False
+
+    delegate.refreshNow_(None)
+
+    assert delegate._refresh_queued is True
+
+
+def test_apply_refresh_result_clears_busy_flag_when_ui_update_fails() -> None:
+    class FailingPopover:
+        def isShown(self) -> bool:
+            return False
+
+        def setContentSize_(self, size: object) -> None:
+            raise RuntimeError("size failed")
+
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+    delegate.popover = FailingPopover()
+    delegate._refresh_in_flight = True
+    delegate._refresh_queued = False
+
+    with pytest.raises(RuntimeError, match="size failed"):
+        delegate._applyRefreshResult_({"state": menubar._empty_state(), "codex_5h_pct": None})
+
+    assert delegate._refresh_in_flight is False
+    assert delegate._refresh_queued is False
 
 
 def test_switching_visible_panel_reopens_popover(monkeypatch: pytest.MonkeyPatch) -> None:
