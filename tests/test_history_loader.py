@@ -246,3 +246,18 @@ def test_load_entries_deduplicates_sorts_and_filters_hours_back(
         ("newer", "same"),
     ]
     assert [entry.project for entry in entries] == ["alpha", "alpha"]
+
+
+def test_file_cache_evicts_oldest_entry_when_maxsize_exceeded(tmp_path: Path) -> None:
+    paths = [
+        tmp_path / f"session-{index}.jsonl"
+        for index in range(history_loader._FILE_CACHE_MAXSIZE + 1)
+    ]
+
+    for index, path in enumerate(paths):
+        path.write_text(_line(message_id=f"message-{index}"), encoding="utf-8")
+        history_loader._load_file(path, "project", None, set(), [])
+
+    assert len(history_loader._file_cache) == history_loader._FILE_CACHE_MAXSIZE
+    assert paths[0] not in history_loader._file_cache
+    assert paths[-1] in history_loader._file_cache

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import sqlite3
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -14,7 +15,8 @@ from project_resolver import resolve_project_name
 
 logger = logging.getLogger(__name__)
 
-_jsonl_cache: dict[Path, tuple[float, int, list[UsageEntry]]] = {}
+_JSONL_CACHE_MAXSIZE = 512
+_jsonl_cache: OrderedDict[Path, tuple[float, int, list[UsageEntry]]] = OrderedDict()
 
 SESSIONS_DIR = Path(os.path.expanduser("~/.codex/sessions"))
 STATE_DB = Path(os.path.expanduser("~/.codex/state_5.sqlite"))
@@ -174,6 +176,7 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
 
     cache_entry = _jsonl_cache.get(path)
     if cache_entry is not None and cache_entry[0] == st.st_mtime and cache_entry[1] == st.st_size:
+        _jsonl_cache.move_to_end(path)
         cached_entries = cache_entry[2]
         for entry in cached_entries:
             entry.model = models.get(entry.session_id, "unknown")
@@ -231,11 +234,17 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
                 )
     except OSError as exc:
         logger.warning("failed to parse codex session %s: %s", path, exc)
+        if path not in _jsonl_cache and len(_jsonl_cache) >= _JSONL_CACHE_MAXSIZE:
+            _jsonl_cache.popitem(last=False)
         _jsonl_cache[path] = (st.st_mtime, st.st_size, [])
         return []
     if not entries and session_timestamp:
+        if path not in _jsonl_cache and len(_jsonl_cache) >= _JSONL_CACHE_MAXSIZE:
+            _jsonl_cache.popitem(last=False)
         _jsonl_cache[path] = (st.st_mtime, st.st_size, [])
         return []
+    if path not in _jsonl_cache and len(_jsonl_cache) >= _JSONL_CACHE_MAXSIZE:
+        _jsonl_cache.popitem(last=False)
     _jsonl_cache[path] = (st.st_mtime, st.st_size, entries)
     if cutoff is not None:
         return [entry for entry in entries if entry.timestamp >= cutoff]

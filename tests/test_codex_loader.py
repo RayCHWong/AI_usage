@@ -218,6 +218,27 @@ def test_parse_jsonl_skips_bad_lines_and_missing_fields(tmp_path: Path) -> None:
     assert codex_loader._parse_jsonl(path, {}, None) == []
 
 
+def test_jsonl_cache_evicts_oldest_entry_when_maxsize_exceeded(tmp_path: Path) -> None:
+    timestamp = datetime.now(UTC).isoformat()
+    paths = [
+        tmp_path / f"session-{index}.jsonl"
+        for index in range(codex_loader._JSONL_CACHE_MAXSIZE + 1)
+    ]
+
+    for index, path in enumerate(paths):
+        _write_session(
+            path,
+            session_id=f"session-{index}",
+            timestamp=timestamp,
+            usage={"input_tokens": 10, "cached_input_tokens": 2, "output_tokens": 3},
+        )
+        codex_loader._parse_jsonl(path, {}, None)
+
+    assert len(codex_loader._jsonl_cache) == codex_loader._JSONL_CACHE_MAXSIZE
+    assert paths[0] not in codex_loader._jsonl_cache
+    assert paths[-1] in codex_loader._jsonl_cache
+
+
 def test_parse_timestamp_accepts_expected_iso8601_variants() -> None:
     expected = datetime(2026, 1, 1, tzinfo=UTC)
 

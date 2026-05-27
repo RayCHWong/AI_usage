@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -12,7 +13,8 @@ from project_resolver import resolve_project_name
 
 logger = logging.getLogger(__name__)
 
-_file_cache: dict[Path, tuple[float, int, list[UsageEntry]]] = {}
+_FILE_CACHE_MAXSIZE = 512
+_file_cache: OrderedDict[Path, tuple[float, int, list[UsageEntry]]] = OrderedDict()
 
 CLAUDE_PROJECTS_DIR = Path(os.path.expanduser("~/.claude/projects"))
 
@@ -80,6 +82,7 @@ def _load_file(
 
     cached = _file_cache.get(path)
     if cached is not None and cached[0] == st.st_mtime and cached[1] == st.st_size:
+        _file_cache.move_to_end(path)
         for entry in cached[2]:
             if cutoff is not None and entry.timestamp < cutoff:
                 continue
@@ -101,6 +104,8 @@ def _load_file(
         logger.warning("failed to read Claude project log %s: %s", path, exc)
         return
 
+    if path not in _file_cache and len(_file_cache) >= _FILE_CACHE_MAXSIZE:
+        _file_cache.popitem(last=False)
     _file_cache[path] = (st.st_mtime, st.st_size, parsed)
 
     for entry in parsed:
