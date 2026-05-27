@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -19,7 +21,9 @@ def _write_session(
     *,
     session_id: str,
     timestamp: str,
-    usage: dict[str, int],
+    usage: dict[str, int] | None = None,
+    rate_limits: dict[str, Any] | None = None,
+    mtime: float | None = None,
     cwd: str = "/tmp/demo",
 ) -> None:
     lines = [
@@ -30,11 +34,20 @@ def _write_session(
         {
             "type": "event_msg",
             "timestamp": timestamp,
-            "payload": {"type": "token_count", "info": {"total_token_usage": usage}},
+            "payload": {"type": "token_count", "info": {"total_token_usage": usage or {"input_tokens": 1}}, "rate_limits": rate_limits},  # noqa: E501
         },
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps(line) for line in lines), encoding="utf-8")
+    if mtime is not None:
+        os.utime(path, (mtime, mtime))
+
+
+def _write_rate_limit_session(path: Path, timestamp: str, rate_limits: dict[str, Any] | None, mtime: float) -> None:  # noqa: E501
+    _write_session(path, session_id=path.stem, timestamp=timestamp, rate_limits=rate_limits, mtime=mtime)  # noqa: E501
+
+def _rate_limits() -> dict[str, Any]:
+    return {"primary": {"used_percent": 30, "resets_at": 9_999_999_999}, "secondary": {"used_percent": 60, "resets_at": 9_999_999_999}}  # noqa: E501
 
 
 def _write_session_with_usage_events(
@@ -291,3 +304,45 @@ def test_load_rate_limits_reads_primary_and_secondary_windows(
         model="gpt-test",
         updated_at=now.isoformat(),
     )
+
+
+def test_load_rate_limits_skips_null_recent_sessions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:  # noqa: E501
+    sessions_dir = tmp_path / "sessions"
+    monkeypatch.setattr(codex_loader, "SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr(codex_loader, "_load_thread_models", lambda: {})
+    valid_limits = _rate_limits()
+    valid_limits["primary"].update({"limit_id": "primary-window", "plan_type": "pro"})
+    valid_limits["secondary"].update({"limit_name": "weekly", "rate_limit_reached_type": None})
+    for index in range(6):
+        _write_rate_limit_session(sessions_dir / f"session-{index}.jsonl", "2026-05-27T16:39:00+00:00", valid_limits if index == 0 else None, 100 + index)  # noqa: E501
+
+    result = codex_loader.load_rate_limits()
+
+    assert result is not None
+    assert result.five_hour_pct == 30.0
+
+
+def test_load_rate_limits_returns_none_when_all_30_are_null(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:  # noqa: E501
+    sessions_dir = tmp_path / "sessions"
+    monkeypatch.setattr(codex_loader, "SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr(codex_loader, "_load_thread_models", lambda: {})
+    for index in range(codex_loader._RECENT_JSONL_SCAN_LIMIT):
+        _write_rate_limit_session(sessions_dir / f"session-{index}.jsonl", "2026-05-27T16:45:00+00:00", None, 100 + index)  # noqa: E501
+
+    assert codex_loader.load_rate_limits() is None
+
+
+def test_load_rate_limits_picks_most_recent_valid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:  # noqa: E501
+    sessions_dir = tmp_path / "sessions"
+    monkeypatch.setattr(codex_loader, "SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr(codex_loader, "_load_thread_models", lambda: {})
+    old_ts = "2026-05-27T16:39:00+00:00"
+    new_ts = "2026-05-27T16:45:00+00:00"
+    limits = _rate_limits()
+    _write_rate_limit_session(sessions_dir / "old.jsonl", old_ts, limits, 100)
+    _write_rate_limit_session(sessions_dir / "new.jsonl", new_ts, limits, 200)
+
+    result = codex_loader.load_rate_limits()
+
+    assert result is not None
+    assert result.updated_at == new_ts

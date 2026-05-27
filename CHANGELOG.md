@@ -6,7 +6,10 @@
 
 ## [Unreleased]
 
-## [0.11.15] - 2026-05-27
+## [0.11.16] - 2026-05-27
+
+### 修正
+- **Codex 用量區塊在連續開短 session 時整段顯示 `--`**：`codex_loader.load_rate_limits()` 透過 `_recent_jsonl_files()` 只取最新 5 個 jsonl 找 rate_limits。Codex CLI（觀察到的版本 0.134.0）在「短 session」或「被中斷的 session」會寫 `payload.rate_limits == null`；只要最近 5 個 session 剛好全是這種情況（連續跑幾個 `codex exec`、Ctrl-C 中斷等），上一個真正有資料的 session 就會被擠出 lookup window，popover / TUI 整段 Codex 用量都顯示 `--`。掃描範圍從 5 提高到 30、覆蓋 1~2 天 typical 使用範圍；找到第一筆非 null 仍 early-return，`primary.used_percent` / `secondary.used_percent` 解析路徑不動。Codex CLI 0.134.0 新增的 `limit_id` / `limit_name` / `credits` / `plan_type` / `rate_limit_reached_type` 欄位刻意不解析（UI 沒用到）。新增 3 個測試覆蓋「前 5 個 null 第 6 個有效」「全 30 個 null 回 None」「挑最新有效」三種 case。
 
 ### 修正
 - **含 dash 連字號的 Claude Code 專案名解碼修正**：`history_loader._project_from_path` 之前的解碼邏輯把目錄名所有 `-` 全換成 `/`，例如 `Desktop-claude-tutorial-video` 變成 `/Desktop/claude/tutorial/video`，路徑不存在 → `resolve_project_name` 走 fallback 取最後一段 → 專案被誤標為 `"video"` 而不是 `"claude-tutorial-video"`。現在先試「全 slash」候選，不存在則對 path segments 做 DFS 嘗試合併連續段、用 fs 上實際存在的目錄定錨；都找不到時保留原 dash 形式（`plain-project` → `plain-project`）。多數情境下 JSONL 內的 `cwd` 欄位已經會覆寫 project name，這條修正主要保護沒有 `cwd` 欄位的舊 entry。

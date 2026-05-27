@@ -16,6 +16,7 @@ from project_resolver import resolve_project_name
 logger = logging.getLogger(__name__)
 
 _JSONL_CACHE_MAXSIZE = 512
+_RECENT_JSONL_SCAN_LIMIT = 30
 _jsonl_cache: OrderedDict[Path, tuple[float, int, list[UsageEntry]]] = OrderedDict()
 
 SESSIONS_DIR = Path(os.path.expanduser("~/.codex/sessions"))
@@ -81,6 +82,7 @@ def load_rate_limits() -> CodexRateLimits | None:
     if not SESSIONS_DIR.is_dir():
         return None
     models = _load_thread_models()
+    # scan 30 recent sessions because short/interrupted Codex sessions write null rate_limits
     for path in _recent_jsonl_files():
         rate_limits = _extract_rate_limits(path, models)
         if rate_limits is not None:
@@ -115,7 +117,7 @@ def _recent_jsonl_files() -> list[Path]:
         except OSError as exc:
             logger.warning("failed to stat codex session %s: %s", path, exc)
     paths_with_mtime.sort(key=lambda item: item[0], reverse=True)
-    return [path for _, path in paths_with_mtime[:5]]
+    return [path for _, path in paths_with_mtime[:_RECENT_JSONL_SCAN_LIMIT]]
 
 
 def _extract_rate_limits(path: Path, models: dict[str, str]) -> CodexRateLimits | None:
