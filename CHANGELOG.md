@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.11.14] - 2026-05-27
+
+### 修正
+- **升級後底部狀態列不再殘留舊版本提示**：`usage_statusline.py:_read_update_hint` 只比較快取裡的 `current_version` 與 `latest_version`，沒對照「現在實際在跑的版本」。menubar app 又會在 24 小時冷卻期間直接 return、不更新快取，導致使用者已經升到 v0.11.13 卻一直看到「v0.11.5 可更新」直到冷卻結束。現在 `_check_update_in_background` 啟動就先把目前版本寫回快取，若已追上 `latest_version` 就把它一起拉平，badge 立刻消失。
+
+### 變更（社群 contributor 修補）
+- **Codex 用量改用 delta 桶計算（@ericweichun, #11）**：`analyzer/reporter.py` 的 fast path 之前自己 parse Codex `.jsonl` 拿 cumulative snapshot + session-start 時間戳，跟 popover 用的 `codex_loader.load_entries` 走兩條路、結果會分歧。現在 reporter 統一走 shared loader，token_count delta 按 event timestamp 入桶，今日/本週/本月報表跟 popover 完全一致。新增跨日 cumulative session 測試確保只計當日 delta。
+- **All Time 報表跟著 project range 一起切換（@ericweichun, #15）**：v0.11.6 重整 analyze bridge 時漏掉 All Time 這個區段，使用者點 All Time 看到的是 720h 快取資料而非真正全期。現在 `_analysis_period_from_project_range("all") → "all"`，project 資料載入改 `hours_back=0` 真的拉全部。9 個 panel HTML 都加 `projectRange === "all"` 分支；五語 i18n 補齊 `project_range_all`。
+- **手動重整按鈕在 busy 期間改成排隊（@ericweichun, #12）**：之前 refresh 正在跑時再按一次會直接被丟掉。現在改成排隊一次，refresh 完成的 finally block 依序：先 `codex_model = result.get("codex_model", "unknown")`、再注入 web 語言、再清 busy 旗標、再 drain 一筆 queued refresh。
+- **setup 指引改為 agent-neutral（@ericweichun, #16）**：之前 setup 按鈕只看 `~/.claude/` 存不存在當顯示條件，Codex-only 使用者看不到。現在改成「status-line target 任一存在即可」（`~/.claude/` 或 `~/.codex/config.toml`），既有 `setup_hook.setup()` 路徑已會自動偵測 agent。README（繁中 + 英文）同步改成 agent-neutral 措辭；補齊 ja/ko `hook_not_installed` 翻譯。
+
 ## [0.11.13] - 2026-05-27
 
 ### 變更

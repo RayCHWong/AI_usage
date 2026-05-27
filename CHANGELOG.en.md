@@ -7,6 +7,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.11.14] - 2026-05-27
+
+### Fixed
+- **Stale update badge clears immediately after upgrading**: `usage_statusline.py:_read_update_hint` only compared the cached `current_version` against `latest_version` without consulting the actual running version. The menubar app's 24h dismiss cooldown returned early before refreshing the cache, so a user already on v0.11.13 would keep seeing "v0.11.5 available" until cooldown expired. `_check_update_in_background` now refreshes `current_version` in the cache on startup (even during cooldown), and if the running version has caught up to `latest_version`, both fields are leveled so the badge disappears immediately.
+
+### Changed (community contributions)
+- **Codex usage bucketed by token_count deltas (@ericweichun, #11)**: `analyzer/reporter.py`'s fast path previously parsed Codex `.jsonl` files to extract a cumulative snapshot keyed by session-start timestamp, which diverged from the popover (which uses `codex_loader.load_entries` with per-event delta logic). The reporter now shares the same loader, so today/week/month reports match the popover exactly. Added a reporter-layer test exercising a cross-day cumulative Codex session to verify only the current-day delta is counted.
+- **All-Time reports tied to the project range selector (@ericweichun, #15)**: v0.11.6's analyze-bridge refactor left out the All-Time period, so clicking All-Time showed 720h cached data instead of true all-time. The bridge now maps `projectRange === "all"` through `_analysis_period_from_project_range("all") → "all"`, and project history loads with `hours_back=0` for true all-time data. All 9 panels gained a `projectRange === "all"` branch; `project_range_all` i18n keys added across all 5 locales.
+- **Manual refresh button queues while busy (@ericweichun, #12)**: previously, pressing refresh while one was already running silently dropped the second request. Now a single follow-up is queued, and the completion `finally` block runs in order: `codex_model = result.get("codex_model", "unknown")`, web language injection, clear the busy flag, then drain one queued refresh.
+- **Setup guidance made agent-neutral (@ericweichun, #16)**: the setup button previously gated on `~/.claude/` existence, hiding it from Codex-only users. The check is now "any status-line target available" (`~/.claude/` or `~/.codex/config.toml`); the existing `setup_hook.setup()` flow already auto-detects which agent to configure. Both README variants (zh-TW + en) reworded to agent-neutral phrasing; ja/ko `hook_not_installed` translations filled in.
+
 ## [0.11.13] - 2026-05-27
 
 ### Changed
