@@ -512,6 +512,26 @@ class AppDelegate(NSObject):
         prefs = _load_preferences()
         if not manual and not _auto_update_check_enabled(prefs):
             return
+
+        # Always refresh current_version in the cache so the statusline badge
+        # clears immediately after an upgrade, even during the cooldown window.
+        try:
+            current_version = _current_version()
+            cached = prefs.get("last_update_check")
+            if (
+                isinstance(cached, dict)
+                and isinstance(cached.get("latest_version"), str)
+                and update_checker.compare_versions(current_version, cached["latest_version"]) >= 0
+            ):
+                prefs["last_update_check"] = {
+                    **cached,
+                    "current_version": current_version,
+                    "latest_version": current_version,
+                }
+                _save_preferences(prefs)
+        except Exception:
+            current_version = None  # type: ignore[assignment]
+
         if not ignore_cooldown and _update_dismissed_recently(prefs):
             return
 
