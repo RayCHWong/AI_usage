@@ -177,8 +177,37 @@ def _project_from_path(jsonl_path: Path) -> str:
         project_dir = jsonl_path.relative_to(CLAUDE_PROJECTS_DIR).parts[0]
     except (IndexError, ValueError):
         return "unknown"
-    decoded = project_dir.replace("-", os.sep).strip(os.sep)
-    return resolve_project_name(Path(os.sep) / decoded) if decoded else "unknown"
+
+    parts = [part for part in project_dir.split("-") if part]
+    if not parts:
+        return "unknown"
+
+    slash_candidate = Path(os.sep, *parts)
+    if slash_candidate.is_dir():
+        return slash_candidate.name or "unknown"
+
+    existing_project = _existing_encoded_project_path(parts)
+    if existing_project is not None:
+        return existing_project.name or "unknown"
+
+    fallback = project_dir.removeprefix("-")
+    return fallback or "unknown"
+
+
+def _existing_encoded_project_path(parts: list[str]) -> Path | None:
+    def search(index: int, current: Path) -> Path | None:
+        for end in range(index + 1, len(parts) + 1):
+            candidate = current / "-".join(parts[index:end])
+            if not candidate.is_dir():
+                continue
+            if end == len(parts):
+                return candidate
+            result = search(end, candidate)
+            if result is not None:
+                return result
+        return None
+
+    return search(0, Path(os.sep))
 
 
 def _project_from_cwd(cwd: str) -> str:
