@@ -184,7 +184,7 @@ class AppDelegate(NSObject):
             NSVariableStatusItemLength,
         )
         button = self.status_item.button()
-        button.setTitle_("🐾 ...")
+        button.setTitle_("⏳ ...")
         button.setTarget_(self)
         button.setAction_("togglePopover:")
 
@@ -367,7 +367,7 @@ class AppDelegate(NSObject):
 
     def _compose_title(self, state: PopoverState) -> str:
         claude_text = state.claude_session.percent_text.replace(" used", "")
-        return "🐾 --" if claude_text == "--" else f"🐾 {claude_text}"
+        return "⏳ --" if claude_text == "--" else f"⏳ {claude_text}"
 
 
 def run_app(mock: bool = False, interval: int = 60) -> None:

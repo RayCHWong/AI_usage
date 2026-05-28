@@ -99,21 +99,8 @@ def _build_snapshot(data: dict[str, Any]) -> UsageSnapshot | None:
     five_reset = _reset_at(five.get("resets_at"), now)
     seven_reset = _reset_at(seven.get("resets_at"), now)
 
-    # reset 時間到了就把百分比歸零（跟 token-tracker 同邏輯）
-    five_pct = (
-        0
-        if five_reset and five_reset < now
-        else _pct(five_pct_raw)
-        if five_pct_raw is not None
-        else None
-    )
-    seven_pct = (
-        0
-        if seven_reset and seven_reset < now
-        else _pct(seven_pct_raw)
-        if seven_pct_raw is not None
-        else None
-    )
+    five_pct = _pct(five_pct_raw) if five_pct_raw is not None else None
+    seven_pct = _pct(seven_pct_raw) if seven_pct_raw is not None else None
 
     polled_at = _as_finite_float(data.get("_received_at_ts")) or now
 
