@@ -156,7 +156,8 @@ class HTMLPanel:
         html_filename: str,
         width: float = PANEL_WIDTH,
         height: float = PANEL_HEIGHT,
-        codex_card_height: float = 192.0,
+        *,
+        codex_card_height: float,
     ) -> None:
         self.id = panel_id
         self.i18n_key = i18n_key

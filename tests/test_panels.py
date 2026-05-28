@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 import panels
 from panels.base import (
@@ -8,6 +11,7 @@ from panels.base import (
     load_active_panel_id,
     save_active_panel_id,
 )
+from panels.web_panel import HTMLPanel
 
 
 class FakeDefaults:
@@ -124,3 +128,10 @@ def test_defaults_round_trip() -> None:
     assert defaults.values[ACTIVE_PANEL_DEFAULTS_KEY] == "classic"
     assert load_active_panel_id(defaults) == "classic"
     assert defaults.synchronized is True
+
+
+def test_html_panel_requires_explicit_codex_card_height() -> None:
+    constructor: Any = HTMLPanel
+
+    with pytest.raises(TypeError):
+        constructor("test", "panel_test", "test.html")
