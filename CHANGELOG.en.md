@@ -7,6 +7,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.11.16] - 2026-05-27
+
+### Fixed
+- **Codex usage panel no longer falls back to `--` after a burst of short sessions**: `codex_loader.load_rate_limits()` only scanned the 5 most recent jsonl files via `_recent_jsonl_files()` to find rate_limits. Codex CLI (observed on 0.134.0) writes `payload.rate_limits == null` for short or interrupted sessions (a quick `codex exec` run, Ctrl-C, etc.); when the latest 5 sessions all fall into that bucket, the genuinely-valid prior session gets evicted from the lookup window and the entire Codex block in the popover / TUI renders as `--`. The scan window is widened from 5 to 30 (covers a typical 1–2 day usage range); the first non-null result still early-returns, and the `primary.used_percent` / `secondary.used_percent` parsing path is unchanged. The new Codex CLI 0.134.0 schema fields (`limit_id`, `limit_name`, `credits`, `plan_type`, `rate_limit_reached_type`) are deliberately not parsed — UI doesn't use them. Three new tests cover the "5 null then 6th valid", "all 30 null returns None", and "pick most recent valid" scenarios.
+
+### Fixed
+- **Dashed Claude Code project names now decode correctly**: `history_loader._project_from_path` previously replaced every `-` in the encoded directory name with `/`, so `Desktop-claude-tutorial-video` would become `/Desktop/claude/tutorial/video` — a non-existent path. `resolve_project_name`'s fallback then took the last segment, mis-labeling the project as `"video"` instead of `"claude-tutorial-video"`. The decoder now tries the all-slash candidate first; on miss, it DFS-walks the segments, joining adjacent ones with `-` and preferring whichever variant actually exists on disk. When nothing matches, the encoded name (minus the leading `-`) is kept as-is so dashes round-trip (`plain-project` stays `plain-project`). For most users, the JSONL `cwd` field already overrides the project name, so this primarily fixes older entries that lack `cwd`.
+- **TUI language detection routed through `usage_lang.detect_lang`**: `tui.py` had its own detector that only returned `zh-TW` or `en` (treating simplified Chinese, Japanese, and Korean as English), and ignored `USAGE_LANG` / `TT_LANG` / `LANG` entirely. The menubar already used `usage_lang.detect_lang()`, so the same machine could show Japanese in the menubar and English in the TUI. The TUI now shares the same detector — all five languages render consistently.
+
+### Internal improvements
+- **LRU cap on history / codex loader caches**: `_file_cache` and `_jsonl_cache` were unbounded module-level dicts. As `~/.claude/projects/` and `~/.codex/sessions/` accumulated more jsonl files over time, the menubar's resident memory grew without bound — parsed `UsageEntry` lists never got released. Both caches are now `OrderedDict`s with a 512-entry ceiling: cache hits `move_to_end` to mark MRU, inserts on a full cache `popitem(last=False)` the oldest. The mtime/size invalidation logic and codex_loader's `entry.model` rebind on cache hit are unchanged.
+
+### Development
+- **Significantly expanded test coverage**: previously undercovered modules `setup_app` / `ui/tables` / `usage_cli` now have direct unit tests; the suite grew from 234 to 363 tests. No production code was changed.
+
+## [0.11.14] - 2026-05-27
+
+### Fixed
+- **Stale update badge clears immediately after upgrading**: `usage_statusline.py:_read_update_hint` only compared the cached `current_version` against `latest_version` without consulting the actual running version. The menubar app's 24h dismiss cooldown returned early before refreshing the cache, so a user already on v0.11.13 would keep seeing "v0.11.5 available" until cooldown expired. `_check_update_in_background` now refreshes `current_version` in the cache on startup (even during cooldown), and if the running version has caught up to `latest_version`, both fields are leveled so the badge disappears immediately.
+
+### Changed (community contributions)
+- **Codex usage bucketed by token_count deltas (@ericweichun, #11)**: `analyzer/reporter.py`'s fast path previously parsed Codex `.jsonl` files to extract a cumulative snapshot keyed by session-start timestamp, which diverged from the popover (which uses `codex_loader.load_entries` with per-event delta logic). The reporter now shares the same loader, so today/week/month reports match the popover exactly. Added a reporter-layer test exercising a cross-day cumulative Codex session to verify only the current-day delta is counted.
+- **All-Time reports tied to the project range selector (@ericweichun, #15)**: v0.11.6's analyze-bridge refactor left out the All-Time period, so clicking All-Time showed 720h cached data instead of true all-time. The bridge now maps `projectRange === "all"` through `_analysis_period_from_project_range("all") → "all"`, and project history loads with `hours_back=0` for true all-time data. All 9 panels gained a `projectRange === "all"` branch; `project_range_all` i18n keys added across all 5 locales.
+- **Manual refresh button queues while busy (@ericweichun, #12)**: previously, pressing refresh while one was already running silently dropped the second request. Now a single follow-up is queued, and the completion `finally` block runs in order: `codex_model = result.get("codex_model", "unknown")`, web language injection, clear the busy flag, then drain one queued refresh.
+- **Setup guidance made agent-neutral (@ericweichun, #16)**: the setup button previously gated on `~/.claude/` existence, hiding it from Codex-only users. The check is now "any status-line target available" (`~/.claude/` or `~/.codex/config.toml`); the existing `setup_hook.setup()` flow already auto-detects which agent to configure. Both README variants (zh-TW + en) reworded to agent-neutral phrasing; ja/ko `hook_not_installed` translations filled in.
+
+## [0.11.13] - 2026-05-27
+
+### Changed
+- **Removed Codex model footer from popover**: the "· model: gpt-5.5" suffix added in v0.11.6 (`menubar.py:868-870`) misled users into thinking the model was being used *right now*, when in fact it reflects the model of the most recent Codex session with rate_limits data — possibly hours old. Without a timestamp context, this information is noise that can't be acted on. TUI model displays (`ui/tables.py:818,857`) are kept since they live inside different contexts (active session block / idle panel). The `model_label` i18n key and `CodexRateLimits.model` field are preserved; only the popover footer concatenation is removed.
+
+## [0.11.12] - 2026-05-27
+
+### Changed
+- **Hook self-heal: broken installs fix themselves, silently**: every startup now runs `setup_hook.self_heal()`, which silently repairs three clearly-safe scenarios: (1) first-run (`is_setup()==False` and no `statusLine` key in settings) → invokes `setup()`; (2) hook script version is out of date (`needs_update()==True`) → `update_hook()`; (3) settings points to a missing hook file with state `us-direct`/`us-forwarder` → re-runs `_copy_hook_script()` + `_copy_forwarder_script()`. When state is `external`/`legacy-tt`, all three skip (no silent override of third-party tools). Each action appends to `settings["usage"]["selfHealLog"]` (FIFO, 20 entries). Failures are swallowed; stderr is printed only when `USAGE_DEBUG=1`.
+- **Coexistence prompt consolidated**: when an external statusLine tool is detected, usage shows a single NSAlert with two buttons ("Enable Coexistence Mode" / "Keep Current Setup"). Either button sets `settings["usage"]["forwarderModePromptDismissed"]=True` and the prompt never appears again. Replaces the previous three-button repair dialog in `main.py:health_check()`; the "remind me later (24h cooldown)" path is removed. Users who previously chose "Do Not Ask Again" on the old dialog will be re-prompted once (one click resolves it).
+- **`--doctor` hidden CLI flag**: `python3 main.py --doctor` prints a plain-text diagnostic report (English-only for easier GitHub issue searches) covering hook state, version, script file status, status file mtime, external hook detection (recognizes `ccusage` / `lord-kali` keywords), forwarder prompt ack state, last 5 self-heal log entries, and Codex sessions scan count. Hidden from `--help` via `argparse.SUPPRESS` so it doesn't distract typical users. New `doctor.py` renderer module.
+
+### Changed
+- **Weekly burn warning no longer over-reacts to short bursts**: previously the weekly warning extrapolated from the most recent 10-minute sample window, so a single large prompt could trigger a scary "8 hours until empty" warning that vanished once the user took a break. The weekly warning now uses a 30-minute sample window with a 30-minute minimum span, requiring sustained high usage for at least half an hour before triggering. Session warnings keep the 10-minute window (session resets are frequent, can't be too strict). `burn_rate.ROLLING_WINDOW_SECONDS` was raised from 15 to 60 minutes so the longer window has enough history.
+- **Burn warning text now says "at current pace"**: all 5 languages' burn warning strings now explicitly include "按目前速度 / At current pace / 現在のペース / 현재 속도", making it clear that this is a momentary extrapolation rather than a stable prediction.
+
+## [0.11.10] - 2026-05-27
+
+### Fixed
+- **"Launch at login" toggle now takes effect immediately, no reboot needed**: `login_item.enable()` / `disable()` now invoke `launchctl bootstrap gui/<uid> <plist>` / `launchctl bootout gui/<uid>/<label>` in addition to writing/removing `~/Library/LaunchAgents/com.lollapalooza.usage.plist`, so launchd learns about the change right away. Previously only the plist file was touched, so the toggle did nothing until the next reboot, and disabling left a KeepAlive orphan process behind. `launchctl` "already bootstrapped" (exit 17) and "not bootstrapped" (exit 113) are treated as success; other failures log a warning without affecting the plist operation (signatures stay `() -> None`).
+
+## [0.11.9] - 2026-05-27
+
+### Fixed
+- **TUI session table no longer crashes on `cost_usd=None`**: widened `ui/tables.py:_fmt_cost` to `float | None` so entries written without a cost (a known path on the Codex side) now render as `--`, matching the popover-side behavior in `panels/web_panel.py`. Previously the `>=` comparison raised `TypeError` and broke the whole table.
+- **Update check now handles pre-release versions**: `update_checker._parse_version` now strips pre-release / build suffixes via regex, so `0.11.0-beta.1` / `0.11.0+build.5` no longer return `None` and no longer make `compare_versions` raise. Beta testers receive update prompts correctly. No new package dependencies were added.
+- **Pricing falls back to a stale cache when offline**: the fallback order in `pricing.py` is now fresh cache → network fetch → stale cache → hardcoded fallback. Previously a >7-day-old cache combined with no network dropped straight to the hardcoded prices, skewing cost estimates; the real (if stale) historical cache is now preferred.
+
 ## [0.11.8] - 2026-05-27
 
 ### Changed

@@ -6,6 +6,60 @@
 
 ## [Unreleased]
 
+## [0.11.16] - 2026-05-27
+
+### 修正
+- **Codex 用量區塊在連續開短 session 時整段顯示 `--`**：`codex_loader.load_rate_limits()` 透過 `_recent_jsonl_files()` 只取最新 5 個 jsonl 找 rate_limits。Codex CLI（觀察到的版本 0.134.0）在「短 session」或「被中斷的 session」會寫 `payload.rate_limits == null`；只要最近 5 個 session 剛好全是這種情況（連續跑幾個 `codex exec`、Ctrl-C 中斷等），上一個真正有資料的 session 就會被擠出 lookup window，popover / TUI 整段 Codex 用量都顯示 `--`。掃描範圍從 5 提高到 30、覆蓋 1~2 天 typical 使用範圍；找到第一筆非 null 仍 early-return，`primary.used_percent` / `secondary.used_percent` 解析路徑不動。Codex CLI 0.134.0 新增的 `limit_id` / `limit_name` / `credits` / `plan_type` / `rate_limit_reached_type` 欄位刻意不解析（UI 沒用到）。新增 3 個測試覆蓋「前 5 個 null 第 6 個有效」「全 30 個 null 回 None」「挑最新有效」三種 case。
+
+### 修正
+- **含 dash 連字號的 Claude Code 專案名解碼修正**：`history_loader._project_from_path` 之前的解碼邏輯把目錄名所有 `-` 全換成 `/`，例如 `Desktop-claude-tutorial-video` 變成 `/Desktop/claude/tutorial/video`，路徑不存在 → `resolve_project_name` 走 fallback 取最後一段 → 專案被誤標為 `"video"` 而不是 `"claude-tutorial-video"`。現在先試「全 slash」候選，不存在則對 path segments 做 DFS 嘗試合併連續段、用 fs 上實際存在的目錄定錨；都找不到時保留原 dash 形式（`plain-project` → `plain-project`）。多數情境下 JSONL 內的 `cwd` 欄位已經會覆寫 project name，這條修正主要保護沒有 `cwd` 欄位的舊 entry。
+- **TUI 語言偵測統一走 `usage_lang.detect_lang`**：先前 `tui.py` 自寫一份偵測，只認 zh / en（簡中、日韓全部被當英文），且完全沒讀 `USAGE_LANG` / `TT_LANG` / `LANG` 環境變數。結果同一台機器 menubar 顯示日文、TUI 顯示英文。現在 TUI 跟 menubar 共用同一個 `detect_lang()`，五國語言一致。
+
+### 內部改進
+- **history / codex loader cache 加 LRU 上限**：`_file_cache` 與 `_jsonl_cache` 之前是無上限的 module-level dict，menubar app 駐留越久、`~/.claude/projects/` 與 `~/.codex/sessions/` 累積越多 jsonl，parsed `UsageEntry` list 全卡在記憶體永遠不釋放。改用 `OrderedDict` + 各自 512 entry 上限；cache hit `move_to_end` 標 LRU、insert 滿了 `popitem(last=False)` evict 最舊。mtime/size 失效邏輯不動、codex_loader 的 `entry.model` rebind 也保留。
+
+### 開發
+- **測試覆蓋大幅擴張**：`setup_app` / `ui/tables` / `usage_cli` 三個原本欠覆蓋的模組補上單元測試，整體測試數從 234 增加到 363。沒有改動 production code。
+
+## [0.11.14] - 2026-05-27
+
+### 修正
+- **升級後底部狀態列不再殘留舊版本提示**：`usage_statusline.py:_read_update_hint` 只比較快取裡的 `current_version` 與 `latest_version`，沒對照「現在實際在跑的版本」。menubar app 又會在 24 小時冷卻期間直接 return、不更新快取，導致使用者已經升到 v0.11.13 卻一直看到「v0.11.5 可更新」直到冷卻結束。現在 `_check_update_in_background` 啟動就先把目前版本寫回快取，若已追上 `latest_version` 就把它一起拉平，badge 立刻消失。
+
+### 變更（社群 contributor 修補）
+- **Codex 用量改用 delta 桶計算（@ericweichun, #11）**：`analyzer/reporter.py` 的 fast path 之前自己 parse Codex `.jsonl` 拿 cumulative snapshot + session-start 時間戳，跟 popover 用的 `codex_loader.load_entries` 走兩條路、結果會分歧。現在 reporter 統一走 shared loader，token_count delta 按 event timestamp 入桶，今日/本週/本月報表跟 popover 完全一致。新增跨日 cumulative session 測試確保只計當日 delta。
+- **All Time 報表跟著 project range 一起切換（@ericweichun, #15）**：v0.11.6 重整 analyze bridge 時漏掉 All Time 這個區段，使用者點 All Time 看到的是 720h 快取資料而非真正全期。現在 `_analysis_period_from_project_range("all") → "all"`，project 資料載入改 `hours_back=0` 真的拉全部。9 個 panel HTML 都加 `projectRange === "all"` 分支；五語 i18n 補齊 `project_range_all`。
+- **手動重整按鈕在 busy 期間改成排隊（@ericweichun, #12）**：之前 refresh 正在跑時再按一次會直接被丟掉。現在改成排隊一次，refresh 完成的 finally block 依序：先 `codex_model = result.get("codex_model", "unknown")`、再注入 web 語言、再清 busy 旗標、再 drain 一筆 queued refresh。
+- **setup 指引改為 agent-neutral（@ericweichun, #16）**：之前 setup 按鈕只看 `~/.claude/` 存不存在當顯示條件，Codex-only 使用者看不到。現在改成「status-line target 任一存在即可」（`~/.claude/` 或 `~/.codex/config.toml`），既有 `setup_hook.setup()` 路徑已會自動偵測 agent。README（繁中 + 英文）同步改成 agent-neutral 措辭；補齊 ja/ko `hook_not_installed` 翻譯。
+
+## [0.11.13] - 2026-05-27
+
+### 變更
+- **拿掉 popover footer 的 Codex 模型顯示**：v0.11.6 加進去的「· 模型: gpt-5.5」拼接（`menubar.py:868-870`）會讓使用者誤以為「現在這一秒正在用 gpt-5.5」，但實際語意是「Codex 最近一個有 rate_limits 紀錄的 session 用的模型」——可能是好幾小時前。在沒有時間戳脈絡的情況下，這個資訊「看得到但不知道怎麼用」，純粹噪音。TUI 那邊的 model 顯示（`ui/tables.py:818,857`）脈絡不同（active session 區塊內 / idle panel），保留不動。`model_label` i18n key 與 `CodexRateLimits.model` 欄位皆保留，僅移除 popover footer 的拼接。
+
+## [0.11.12] - 2026-05-27
+
+### 變更
+- **hook 自癒：壞了自己修，使用者無感**：每次 usage 啟動會跑一輪 `setup_hook.self_heal()`，在三種「明確安全」的情境下默默修復：(1) 首次安裝（`is_setup()==False` 且 settings 沒有 `statusLine` 鍵）→ 呼叫 `setup()`；(2) hook script 版本過舊（`needs_update()==True`）→ `update_hook()`；(3) settings 指向的 hook 檔案不存在但 state 為 `us-direct`/`us-forwarder` → 重新 `_copy_hook_script()` + `_copy_forwarder_script()`。state 為 `external`/`legacy-tt` 時三段都跳過（不會默默覆蓋第三方工具）。每筆動作寫入 `settings["usage"]["selfHealLog"]`（FIFO 20 筆）。失敗全 swallow，僅 `USAGE_DEBUG=1` 時印 stderr。
+- **共存模式提示整合**：偵測到外部 statusLine 工具時跳一次 NSAlert 兩按鈕（「啟用共存模式」/「保留現狀」），按任一鍵後寫 `settings["usage"]["forwarderModePromptDismissed"]=True` 永不再跳。取代原本 `main.py:health_check()` 的三按鈕修復對話框；舊的「稍後 24h 冷卻」機制移除。舊使用者若已選過「不要再問」會被視為未 ack，更新後會再跳一次（按一下即解決）。
+- **`--doctor` 隱藏 CLI 指令**：`python3 main.py --doctor` 印純文字診斷報告（全英文，方便 GitHub issue 搜尋），包含 hook state、版本、script 檔案狀態、status file mtime、外部 hook 偵測（識別 `ccusage` / `lord-kali` 關鍵字）、forwarder prompt ack 狀態、最近 5 筆 self-heal log、Codex sessions 掃描數。`argparse.SUPPRESS` 隱藏於 `--help`，預設不打擾一般使用者。新增 `doctor.py` renderer。
+
+### 變更
+- **本週燒率警告不再被瞬間高使用激動**：之前用最近 10 分鐘樣本線性外推到整週剩餘額度，使用者跑一個大 prompt 就會看到「剩 8 小時用完」之類嚇人數字，但其實休息一下警告就消失。本週警告現在改看 30 分鐘窗口、要求至少 30 分鐘樣本跨距，需要使用者**持續高燒率半小時以上**才會觸發；session 警告維持原本 10 分鐘窗口（session reset 較頻繁，不能太嚴）。`burn_rate.ROLLING_WINDOW_SECONDS` 從 15 分鐘拉到 60 分鐘讓樣本能保留更久。
+- **燒率警告文字明說「按目前速度」**：5 國語言的警告文字統一加上「按目前速度 / At current pace / 现在のペース / 현재 속도」，把「這只是瞬間外推、不是穩定預測」的責任明說推給使用者，不再讓人誤以為系統在預言未來。
+
+## [0.11.10] - 2026-05-27
+
+### 修正
+- **「開機啟動」開關立刻生效，不用重開機**：`login_item.enable()` / `disable()` 現在會在寫/刪 `~/Library/LaunchAgents/com.lollapalooza.usage.plist` 之外，呼叫 `launchctl bootstrap gui/<uid> <plist>` / `launchctl bootout gui/<uid>/<label>`，讓 launchd 當下就知道狀態變了。先前只動 plist 檔，launchd 守護程式不會接到通知，使用者點完開關要等下次重開機才會生效，關掉時還會留下 KeepAlive 孤兒程序清不掉。`launchctl` 的「已 bootstrapped」(exit 17) 與「未 bootstrapped」(exit 113) 視為成功；其他失敗只記 warning，plist 操作結果不受影響（簽名維持 `() -> None`）。
+
+## [0.11.9] - 2026-05-27
+
+### 修正
+- **TUI session 表遇 `cost_usd=None` 不再崩潰**：`ui/tables.py` 的 `_fmt_cost` 簽名擴成 `float | None`，Codex 端可能寫入 None 的紀錄現在會顯示 `--`，與 popover 側 `panels/web_panel.py` 行為一致。先前直接 `>=` 比較會丟 `TypeError`，整張表渲染失敗。
+- **更新檢查支援預發布版號**：`update_checker._parse_version` 改用 regex 切預發布後綴，`0.11.0-beta.1` / `0.11.0+build.5` 不再回 `None`、不再讓 `compare_versions` 報錯，beta tester 也能正常收到更新提示。沒有新增任何套件依賴。
+- **離線時退回過期 pricing 快取**：`pricing.py` 的 fallback 順序改成 fresh cache → 線上抓取 → stale cache → 硬編 fallback。先前快取過 7 天又斷網會直接掉到硬編值，導致成本估算大偏移；現在會優先用過期但真實的歷史快取。
+
 ## [0.11.8] - 2026-05-27
 
 ### 變更

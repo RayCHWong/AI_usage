@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from Foundation import NSLocale
 from rich.align import Align
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
@@ -17,6 +16,7 @@ from rich.text import Text
 from i18n import packaged_resource_path
 from tui_sprite import render_sprite
 from usage_client import PollState, UsageSnapshot
+from usage_lang import detect_lang
 
 BG = "#000000"
 PANEL = "#1f1f1e"
@@ -43,22 +43,6 @@ def _load_i18n_bundle() -> dict[str, dict[str, str]]:
     }
 
 
-def _normalize_language(code: str | None) -> str:
-    if code and code.lower().startswith("zh"):
-        return "zh-TW"
-    return "en"
-
-
-def _detect_language() -> str:
-    try:
-        locale = NSLocale.currentLocale()
-        code_attr = getattr(locale, "languageCode", None)
-        code = code_attr() if callable(code_attr) else code_attr
-        return _normalize_language(str(code) if code is not None else None)
-    except Exception:
-        return "en"
-
-
 def _t(language: str, key: str, **kwargs: object) -> str:
     bundle = _load_i18n_bundle()
     table = bundle.get(language) or bundle["en"]
@@ -72,7 +56,7 @@ def _loading_phrases(language: str) -> list[str]:
 
 @dataclass(slots=True)
 class AppViewState:
-    language: str = field(default_factory=_detect_language)
+    language: str = field(default_factory=detect_lang)
     poll_state: PollState = PollState.LOADING
     snapshot: UsageSnapshot | None = None
     message: str = ""

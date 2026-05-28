@@ -29,6 +29,8 @@ def _patch_setup_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple
     monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook_target)
     monkeypatch.setattr(setup_hook, "FORWARDER_TARGET", forwarder_target)
     monkeypatch.setattr(setup_hook, "STATUS_FILE", claude_dir / "usage-status.json")
+    monkeypatch.setattr(setup_hook, "CODEX_CONFIG", tmp_path / ".codex" / "config.toml")
+    monkeypatch.setattr(setup_hook, "CODEX_BACKUP", tmp_path / ".codex" / "usage-backup.json")
     monkeypatch.setattr(setup_hook, "_resolve_hook_source", lambda: hook_source)
     monkeypatch.setattr(setup_hook, "_resolve_forwarder_source", lambda: forwarder_source)
     monkeypatch.setattr("setup_hook.shutil.which", lambda _: "/usr/bin/python3")

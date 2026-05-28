@@ -12,6 +12,7 @@ and restored by unsetup.
 from __future__ import annotations
 
 import contextlib
+import io
 import json
 import os
 import re
@@ -21,6 +22,7 @@ import stat
 import sys
 import tempfile
 import tomllib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +90,25 @@ def _statusline_command() -> str:
     # Prefer /usr/bin/python3 or bundled app Python, not a venv; the hook is stdlib-only.
     python = _find_system_python()
     return f"{_shell_arg(python)} {_shell_arg(str(HOOK_TARGET))}"
+
+
+def _statusline_command_target_exists() -> bool:
+    settings = _load_settings()
+    sl = settings.get("statusLine")
+    if not isinstance(sl, dict):
+        return True
+    command = sl.get("command")
+    if not isinstance(command, str):
+        return True
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return True
+    for part in parts:
+        if "statusline" not in part or not part.endswith(".py"):
+            continue
+        return Path(os.path.expanduser(part)).exists()
+    return True
 
 
 def _find_system_python() -> str:
@@ -363,6 +384,86 @@ def update_hook() -> None:
     if not HOOK_TARGET.parent.exists():
         return
     _copy_hook_script()
+
+
+def _append_self_heal_log(action: str, detail: str) -> None:
+    settings = _load_settings()
+    usage_settings = settings.get(BACKUP_KEY)
+    if not isinstance(usage_settings, dict):
+        usage_settings = {}
+        settings[BACKUP_KEY] = usage_settings
+    log = usage_settings.get("selfHealLog")
+    if not isinstance(log, list):
+        log = []
+    log.append(
+        {
+            "timestamp": (
+                datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            ),
+            "action": action,
+            "detail": detail,
+        }
+    )
+    usage_settings["selfHealLog"] = log[-20:]
+    _save_settings(settings)
+
+
+def _run_quietly(func: Any, *args: Any, **kwargs: Any) -> Any:
+    if os.environ.get("USAGE_DEBUG") == "1":
+        return func(*args, **kwargs)
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+        return func(*args, **kwargs)
+
+
+def _debug_self_heal_failure(action: str, exc: BaseException) -> None:
+    if os.environ.get("USAGE_DEBUG") == "1":
+        print(f"usage self-heal {action} failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+
+def self_heal() -> None:
+    """Best-effort startup repair for usage-owned Claude statusLine hooks."""
+    try:
+        settings = _load_settings()
+        state = _detect_current_state(settings)
+        if state in {"external", "legacy-tt"}:
+            return
+        if not is_setup() and "statusLine" not in settings:
+            exit_code = _run_quietly(setup)
+            if exit_code == 0:
+                _append_self_heal_log("install_hook", "initial setup")
+            return
+    except BaseException as exc:
+        if isinstance(exc, KeyboardInterrupt):
+            raise
+        _debug_self_heal_failure("install_hook", exc)
+
+    try:
+        state = _detect_current_state()
+        if state in {"external", "legacy-tt"}:
+            return
+        old_version = _installed_hook_version()
+        if needs_update():
+            _run_quietly(update_hook)
+            detail = f"{old_version or 'not installed'} -> {HOOK_VERSION}"
+            _append_self_heal_log("update_hook", detail)
+    except BaseException as exc:
+        if isinstance(exc, KeyboardInterrupt):
+            raise
+        _debug_self_heal_failure("update_hook", exc)
+
+    try:
+        state = _detect_current_state()
+        if state in {"external", "legacy-tt"}:
+            return
+        if not _statusline_command_target_exists() and state in {"us-direct", "us-forwarder"}:
+            _copy_hook_script()
+            _copy_forwarder_script()
+            _append_self_heal_log("restore_hook_scripts", "statusLine command target missing")
+    except BaseException as exc:
+        if isinstance(exc, KeyboardInterrupt):
+            raise
+        _debug_self_heal_failure("restore_hook_scripts", exc)
 
 
 def is_setup() -> bool:

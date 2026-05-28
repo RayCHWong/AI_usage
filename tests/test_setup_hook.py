@@ -28,6 +28,8 @@ def _patch_paths(
     monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook_target)
     monkeypatch.setattr(setup_hook, "FORWARDER_TARGET", forwarder_target)
     monkeypatch.setattr(setup_hook, "STATUS_FILE", status_file)
+    monkeypatch.setattr(setup_hook, "CODEX_CONFIG", tmp_path / ".codex" / "config.toml")
+    monkeypatch.setattr(setup_hook, "CODEX_BACKUP", tmp_path / ".codex" / "usage-backup.json")
     monkeypatch.setattr(
         setup_hook,
         "LEGACY_HOOK_TARGET",
@@ -169,3 +171,51 @@ def test_statusline_command_quotes_paths_with_spaces(
     result = subprocess.run(["/bin/sh", "-c", cmd], capture_output=True)
     assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
     assert argv_file.read_text(encoding="utf-8").strip() == str(hook_file)
+
+
+def test_self_heal_installs_when_no_statusline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    settings, hook_target, _ = _patch_paths(monkeypatch, tmp_path)
+
+    setup_hook.self_heal()
+    data = json.loads(settings.read_text(encoding="utf-8"))
+
+    assert str(hook_target) in data["statusLine"]["command"]
+    assert data["usage"]["selfHealLog"][-1]["action"] == "install_hook"
+
+
+def test_self_heal_skips_external_statusline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    settings, hook_target, _ = _patch_paths(monkeypatch, tmp_path)
+    external = {"type": "command", "command": "python3 ccusage.py"}
+    settings.write_text(json.dumps({"statusLine": external}), encoding="utf-8")
+
+    setup_hook.self_heal()
+    data = json.loads(settings.read_text(encoding="utf-8"))
+
+    assert data == {"statusLine": external}
+    assert not hook_target.exists()
+
+
+def test_self_heal_updates_owned_hook(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    settings, hook_target, _ = _patch_paths(monkeypatch, tmp_path)
+    source = tmp_path / "hook_source.py"
+    source.write_text('__version__ = "1.0"\n', encoding="utf-8")
+    monkeypatch.setattr(setup_hook, "_resolve_hook_source", lambda: source)
+    settings.write_text(
+        json.dumps(
+            {"statusLine": {"type": "command", "command": f"/usr/bin/python3 {hook_target}"}}
+        ),
+        encoding="utf-8",
+    )
+    hook_target.write_text('__version__ = "0.9"\n', encoding="utf-8")
+
+    setup_hook.self_heal()
+    data = json.loads(settings.read_text(encoding="utf-8"))
+
+    assert hook_target.read_text(encoding="utf-8") == '__version__ = "1.0"\n'
+    assert data["usage"]["selfHealLog"][-1]["action"] == "update_hook"

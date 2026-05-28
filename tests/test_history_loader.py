@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -157,13 +158,44 @@ def test_parse_timestamp(value: object, expected: datetime | None) -> None:
 
 def test_project_from_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     projects_dir = tmp_path / "projects"
+    real_project = tmp_path / "Users" / "me" / "alpha"
+    real_project.mkdir(parents=True)
+    encoded_project = str(real_project).replace(os.sep, "-")
     monkeypatch.setattr(history_loader, "CLAUDE_PROJECTS_DIR", projects_dir)
 
-    assert history_loader._project_from_path(projects_dir / "Users-me-alpha" / "a.jsonl") == "alpha"
+    assert history_loader._project_from_path(projects_dir / encoded_project / "a.jsonl") == "alpha"
     assert (
-        history_loader._project_from_path(projects_dir / "plain-project" / "a.jsonl") == "project"
+        history_loader._project_from_path(projects_dir / "plain-project" / "a.jsonl")
+        == "plain-project"
     )
     assert history_loader._project_from_path(tmp_path / "outside.jsonl") == "unknown"
+
+
+def test_project_from_path_resolves_existing_dash_project_dir(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    projects_dir = tmp_path / "projects"
+    real_project = tmp_path / "Users" / "me" / "Desktop" / "claude-tutorial-video"
+    real_project.mkdir(parents=True)
+    encoded_project = str(real_project).replace(os.sep, "-")
+    monkeypatch.setattr(history_loader, "CLAUDE_PROJECTS_DIR", projects_dir)
+
+    project = history_loader._project_from_path(projects_dir / encoded_project / "a.jsonl")
+
+    assert project == "claude-tutorial-video"
+
+
+def test_project_from_path_fallback_preserves_dash(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    projects_dir = tmp_path / "projects"
+    monkeypatch.setattr(history_loader, "CLAUDE_PROJECTS_DIR", projects_dir)
+
+    project = history_loader._project_from_path(projects_dir / "-missing-plain-project" / "a.jsonl")
+
+    assert project == "missing-plain-project"
 
 
 @pytest.mark.parametrize(
@@ -184,7 +216,10 @@ def test_load_entries_deduplicates_sorts_and_filters_hours_back(
     tmp_path: Path,
 ) -> None:
     projects_dir = tmp_path / "projects"
-    project_dir = projects_dir / "Users-me-alpha"
+    real_project = tmp_path / "Users" / "me" / "alpha"
+    real_project.mkdir(parents=True)
+    encoded_project = str(real_project).replace(os.sep, "-")
+    project_dir = projects_dir / encoded_project
     project_dir.mkdir(parents=True)
     now = datetime.now(UTC)
     old = now - timedelta(hours=2)
@@ -211,3 +246,18 @@ def test_load_entries_deduplicates_sorts_and_filters_hours_back(
         ("newer", "same"),
     ]
     assert [entry.project for entry in entries] == ["alpha", "alpha"]
+
+
+def test_file_cache_evicts_oldest_entry_when_maxsize_exceeded(tmp_path: Path) -> None:
+    paths = [
+        tmp_path / f"session-{index}.jsonl"
+        for index in range(history_loader._FILE_CACHE_MAXSIZE + 1)
+    ]
+
+    for index, path in enumerate(paths):
+        path.write_text(_line(message_id=f"message-{index}"), encoding="utf-8")
+        history_loader._load_file(path, "project", None, set(), [])
+
+    assert len(history_loader._file_cache) == history_loader._FILE_CACHE_MAXSIZE
+    assert paths[0] not in history_loader._file_cache
+    assert paths[-1] in history_loader._file_cache

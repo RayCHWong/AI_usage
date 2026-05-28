@@ -176,7 +176,7 @@ def test_quota_row_uses_burn_warning_when_forecast_exceeds_risk_threshold() -> N
     )
 
     assert row.warning is True
-    assert row.reset_text == "⚠ 剩 18分鐘 用完(重置還要 51分鐘)"
+    assert row.reset_text == "⚠ 按目前速度 18分鐘 就會用完(重置還要 51分鐘)"
 
 
 def test_quota_row_keeps_reset_text_when_forecast_is_not_before_reset() -> None:
@@ -280,6 +280,7 @@ def test_empty_state() -> None:
     assert state.projects == []
     assert state.projects_7d == []
     assert state.projects_30d == []
+    assert state.projects_all == []
     assert isinstance(state.statusline["enabled"], bool)
     assert state.show_install_button is False
 
@@ -471,6 +472,110 @@ def test_toggle_statusline_preserves_forwarder_settings(
     assert settings.read_text(encoding="utf-8") == original_text
 
 
+def test_forwarder_prompt_keep_sets_ack_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import setup_hook
+
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    settings = claude_dir / "settings.json"
+    settings.write_text(
+        json.dumps({"statusLine": {"type": "command", "command": "python3 ccusage.py"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(setup_hook, "CLAUDE_SETTINGS", settings)
+    calls = {"alerts": 0, "setup": 0}
+
+    class FakeAlert:
+        @classmethod
+        def alloc(cls) -> type[FakeAlert]:
+            return cls
+
+        @classmethod
+        def init(cls) -> FakeAlert:
+            return cls()
+
+        def setMessageText_(self, value: str) -> None:
+            return None
+
+        def setInformativeText_(self, value: str) -> None:
+            return None
+
+        def addButtonWithTitle_(self, value: str) -> None:
+            return None
+
+        def runModal(self) -> int:
+            calls["alerts"] += 1
+            return 1001
+
+    def fake_setup(*, force_forwarder: bool = False) -> int:
+        calls["setup"] += 1
+        return 0
+
+    monkeypatch.setattr(menubar, "NSAlert", FakeAlert)
+    monkeypatch.setattr(setup_hook, "setup", fake_setup)
+
+    menubar.show_forwarder_mode_prompt_if_needed(language="en")
+    menubar.show_forwarder_mode_prompt_if_needed(language="en")
+    data = json.loads(settings.read_text(encoding="utf-8"))
+
+    assert calls == {"alerts": 1, "setup": 0}
+    assert data["usage"]["forwarderModePromptDismissed"] is True
+
+
+def test_forwarder_prompt_enable_calls_forwarder_setup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import setup_hook
+
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    settings = claude_dir / "settings.json"
+    settings.write_text(
+        json.dumps({"statusLine": {"type": "command", "command": "python3 lord-kali.py"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(setup_hook, "CLAUDE_SETTINGS", settings)
+    calls: list[bool] = []
+
+    class FakeAlert:
+        @classmethod
+        def alloc(cls) -> type[FakeAlert]:
+            return cls
+
+        @classmethod
+        def init(cls) -> FakeAlert:
+            return cls()
+
+        def setMessageText_(self, value: str) -> None:
+            return None
+
+        def setInformativeText_(self, value: str) -> None:
+            return None
+
+        def addButtonWithTitle_(self, value: str) -> None:
+            return None
+
+        def runModal(self) -> int:
+            return 1000
+
+    def fake_setup(*, force_forwarder: bool = False) -> int:
+        calls.append(force_forwarder)
+        return 0
+
+    monkeypatch.setattr(menubar, "NSAlert", FakeAlert)
+    monkeypatch.setattr(setup_hook, "setup", fake_setup)
+
+    menubar.show_forwarder_mode_prompt_if_needed(language="en")
+    data = json.loads(settings.read_text(encoding="utf-8"))
+
+    assert calls == [True]
+    assert data["usage"]["forwarderModePromptDismissed"] is True
+
+
 def test_statusline_action_in_background_returns_failure_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -627,14 +732,14 @@ def test_load_history_entries_reuses_cache_when_sources_do_not_change(
     )
     calls = {"claude": 0, "codex": 0}
 
-    def fake_claude_entries(*, hours_back: int = 720) -> list[history_loader.UsageEntry]:
+    def fake_claude_entries(*, hours_back: int = 0) -> list[history_loader.UsageEntry]:
         calls["claude"] += 1
-        assert hours_back == 720
+        assert hours_back == 0
         return [claude_entry]
 
-    def fake_codex_entries(*, hours_back: int = 720) -> list[history_loader.UsageEntry]:
+    def fake_codex_entries(*, hours_back: int = 0) -> list[history_loader.UsageEntry]:
         calls["codex"] += 1
-        assert hours_back == 720
+        assert hours_back == 0
         return [codex_entry]
 
     monkeypatch.setattr(delegate, "_history_sources_fingerprint", lambda: (("same", 1, 1.0),))
@@ -671,14 +776,14 @@ def test_load_history_entries_refreshes_cache_when_sources_change(
     calls = 0
     fingerprints = iter(((("old", 1, 1.0),), (("new", 2, 2.0),)))
 
-    def fake_codex_entries(*, hours_back: int = 720) -> list[history_loader.UsageEntry]:
+    def fake_codex_entries(*, hours_back: int = 0) -> list[history_loader.UsageEntry]:
         nonlocal calls
         calls += 1
-        assert hours_back == 720
+        assert hours_back == 0
         return entries
 
     monkeypatch.setattr(delegate, "_history_sources_fingerprint", lambda: next(fingerprints))
-    monkeypatch.setattr(menubar, "load_entries", lambda *, hours_back=720: [])
+    monkeypatch.setattr(menubar, "load_entries", lambda *, hours_back=0: [])
     monkeypatch.setattr(codex_loader, "load_entries", fake_codex_entries)
 
     assert delegate._load_history_entries() == entries
@@ -863,23 +968,57 @@ def test_apply_refresh_result_pushes_state_only_when_popover_is_shown() -> None:
     delegate.popover = FakePopover(shown=True)
     delegate.status_item = FakeStatusItem(button)
     delegate._refresh_in_flight = True
+    delegate._refresh_queued = False
 
     delegate._applyRefreshResult_({"state": state, "codex_5h_pct": 12})
 
     assert controller.calls == [state]
     assert delegate.latest_state == state
     assert delegate.codex_5h_pct == 12
+    assert delegate._refresh_in_flight is False
     assert button.titles
 
     controller.calls.clear()
     delegate.popover = FakePopover(shown=False)
     delegate._refresh_in_flight = True
+    delegate._refresh_queued = False
 
     delegate._applyRefreshResult_({"state": state, "codex_5h_pct": 34})
 
     assert controller.calls == []
     assert delegate.latest_state == state
     assert delegate.codex_5h_pct == 34
+    assert delegate._refresh_in_flight is False
+
+
+def test_refresh_now_queues_when_refresh_is_busy() -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+    delegate._refresh_in_flight = True
+    delegate._refresh_queued = False
+
+    delegate.refreshNow_(None)
+
+    assert delegate._refresh_queued is True
+
+
+def test_apply_refresh_result_clears_busy_flag_when_ui_update_fails() -> None:
+    class FailingPopover:
+        def isShown(self) -> bool:
+            return False
+
+        def setContentSize_(self, size: object) -> None:
+            raise RuntimeError("size failed")
+
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+    delegate.popover = FailingPopover()
+    delegate._refresh_in_flight = True
+    delegate._refresh_queued = False
+
+    with pytest.raises(RuntimeError, match="size failed"):
+        delegate._applyRefreshResult_({"state": menubar._empty_state(), "codex_5h_pct": None})
+
+    assert delegate._refresh_in_flight is False
+    assert delegate._refresh_queued is False
 
 
 def test_switching_visible_panel_reopens_popover(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -973,10 +1112,10 @@ def test_state_from_outcome_replaces_claude_reset_with_warning(
         ),
     )
 
-    state = delegate._state_from_outcome(outcome, delegate._codex_rows()[0], [], [], [])
+    state = delegate._state_from_outcome(outcome, delegate._codex_rows()[0], [], [], [], [])
 
     assert state.claude_session.warning is True
-    assert state.claude_session.reset_text == "⚠ 剩 18分鐘 用完(重置還要 51分鐘)"
+    assert state.claude_session.reset_text == "⚠ 按目前速度 18分鐘 就會用完(重置還要 51分鐘)"
 
 
 def test_state_from_outcome_keeps_reset_when_burn_rate_is_not_positive(
@@ -1003,7 +1142,7 @@ def test_state_from_outcome_keeps_reset_when_burn_rate_is_not_positive(
         ),
     )
 
-    state = delegate._state_from_outcome(outcome, delegate._codex_rows()[0], [], [], [])
+    state = delegate._state_from_outcome(outcome, delegate._codex_rows()[0], [], [], [], [])
 
     assert state.claude_session.warning is False
     assert state.claude_session.reset_text == "重置 51分鐘"
@@ -1019,6 +1158,43 @@ def test_state_from_outcome_translates_awaiting_rate_limits_message() -> None:
         [],
         [],
         [],
+        [],
     )
 
-    assert state.status_text == "狀態：請對 Claude Code 發送一句訊息以同步配額 · 模型: unknown"
+    assert state.status_text == "狀態：請對 Claude Code 發送一句訊息以同步配額"
+
+
+def test_state_from_outcome_hides_setup_button_when_no_statusline_target_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(False, 60)
+    monkeypatch.setattr(delegate, "_statusline_setup_available", lambda: False)
+
+    state = delegate._state_from_outcome(
+        PollOutcome(state=PollState.TOKEN_ERROR, message="missing"),
+        delegate._codex_rows()[0],
+        [],
+        [],
+        [],
+        [],
+    )
+
+    assert state.show_install_button is False
+
+
+def test_state_from_outcome_shows_setup_button_for_codex_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(False, 60)
+    monkeypatch.setattr(delegate, "_statusline_setup_available", lambda: True)
+
+    state = delegate._state_from_outcome(
+        PollOutcome(state=PollState.TOKEN_ERROR, message="missing"),
+        delegate._codex_rows()[0],
+        [],
+        [],
+        [],
+        [],
+    )
+
+    assert state.show_install_button is True

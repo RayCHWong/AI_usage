@@ -174,6 +174,16 @@ def health_check() -> None:
         _save_user_preference("repair_dismissed_at")
 
 
+def _self_heal() -> None:
+    try:
+        import setup_hook
+
+        setup_hook.self_heal()
+    except Exception:
+        if os.environ.get("USAGE_DEBUG") == "1":
+            logger.warning("self-heal failed", exc_info=True)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="顯示 Claude Code 用量的工具")
     parser.add_argument("--mock", action="store_true", help="使用假資料預覽介面")
@@ -204,6 +214,11 @@ def parse_args() -> argparse.Namespace:
         "--unsetup",
         action="store_true",
         help="從 Claude Code 移除 statusLine hook 並還原原設定",
+    )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help=argparse.SUPPRESS,
     )
     args = parser.parse_args()
     args.interval = max(30, args.interval)
@@ -281,6 +296,11 @@ async def run_tui(mock: bool, interval: int, force_group: int | None = None) -> 
 def main() -> None:
     _setup_logging()
     args = parse_args()
+    if args.doctor:
+        import doctor
+
+        print(doctor.render(), end="")
+        raise SystemExit(0)
     if args.setup:
         from setup_hook import setup
 
@@ -289,7 +309,7 @@ def main() -> None:
         from setup_hook import unsetup
 
         raise SystemExit(unsetup())
-    health_check()
+    _self_heal()
     if args.tui:
         with suppress(KeyboardInterrupt):
             asyncio.run(
@@ -297,6 +317,7 @@ def main() -> None:
             )
     else:
         menubar = _import_module_with_oserror_retry("menubar")
+        menubar.show_forwarder_mode_prompt_if_needed()
         menubar.run_app(mock=args.mock, interval=args.interval)
 
 

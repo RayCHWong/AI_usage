@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
+import os
 import plistlib
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 from Foundation import NSBundle
+
+logger = logging.getLogger(__name__)
 
 LABEL = "com.lollapalooza.usage"
 PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
@@ -68,14 +73,72 @@ def _write_plist(contents: str) -> None:
     PLIST_PATH.write_text(contents, encoding="utf-8")
 
 
+def _launchctl_domain_target() -> str:
+    return f"gui/{os.getuid()}"
+
+
+def _stderr_summary(stderr: str) -> str:
+    return stderr.strip().replace("\n", " ")[:300]
+
+
+def _log_launchctl_error(action: str, message: str) -> None:
+    logger.warning("launchctl %s failed: %s", action, message)
+
+
+def _launchctl_bootstrap() -> None:
+    cmd = ["launchctl", "bootstrap", _launchctl_domain_target(), str(PLIST_PATH)]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except FileNotFoundError as exc:
+        _log_launchctl_error("bootstrap", str(exc))
+        return
+    except subprocess.TimeoutExpired as exc:
+        _log_launchctl_error("bootstrap", f"timed out after {exc.timeout} seconds")
+        return
+
+    if result.returncode not in (0, 17):
+        stderr = _stderr_summary(result.stderr)
+        _log_launchctl_error("bootstrap", f"returncode={result.returncode} stderr={stderr!r}")
+
+
 def enable() -> None:
     _ensure_parent_dirs()
     _write_plist(_plist_text())
+    _launchctl_bootstrap()
 
 
 def _remove_plist() -> None:
     PLIST_PATH.unlink(missing_ok=True)
 
 
+def _launchctl_bootout() -> None:
+    cmd = ["launchctl", "bootout", f"{_launchctl_domain_target()}/{LABEL}"]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except FileNotFoundError as exc:
+        _log_launchctl_error("bootout", str(exc))
+        return
+    except subprocess.TimeoutExpired as exc:
+        _log_launchctl_error("bootout", f"timed out after {exc.timeout} seconds")
+        return
+
+    if result.returncode not in (0, 113):
+        stderr = _stderr_summary(result.stderr)
+        _log_launchctl_error("bootout", f"returncode={result.returncode} stderr={stderr!r}")
+
+
 def disable() -> None:
+    _launchctl_bootout()
     _remove_plist()

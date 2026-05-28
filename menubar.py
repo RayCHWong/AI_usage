@@ -185,6 +185,8 @@ CLAUDE_COLOR = (244 / 255, 145 / 255, 100 / 255)
 CODEX_COLOR = (88 / 255, 214 / 255, 230 / 255)
 WARN_COLOR = (255 / 255, 196 / 255, 57 / 255)
 DANGER_COLOR = (255 / 255, 69 / 255, 58 / 255)
+WEEKLY_FORECAST_WINDOW_SECONDS = 30 * 60
+WEEKLY_FORECAST_MIN_SPAN_SECONDS = 30 * 60
 UPDATE_DISMISS_SECONDS = 24 * 3600
 UPDATE_ALERT_BODY_LIMIT = 2000
 
@@ -261,6 +263,7 @@ class PopoverState:
     projects: list[tuple[str, int, float | None]]
     projects_7d: list[tuple[str, int, float | None]]
     projects_30d: list[tuple[str, int, float | None]]
+    projects_all: list[tuple[str, int, float | None]]
     rate_text: str
     status_text: str
     today_text: str
@@ -323,6 +326,7 @@ class AppDelegate(NSObject):
     codex_model = objc.ivar()
     burn_rate_trackers = objc.ivar()
     _refresh_in_flight = objc.ivar()
+    _refresh_queued = objc.ivar()
     _fs_stream = objc.ivar()
     _history_entries_cache = objc.ivar()
     _history_entries_cache_fingerprint = objc.ivar()
@@ -347,6 +351,7 @@ class AppDelegate(NSObject):
             "codex_weekly": BurnRateTracker(),
         }
         self._refresh_in_flight = False
+        self._refresh_queued = False
         self._fs_stream = None
         self._history_entries_cache = None
         self._history_entries_cache_fingerprint = None
@@ -388,7 +393,7 @@ class AppDelegate(NSObject):
         self._refresh()
 
     def refreshNow_(self, sender: Any) -> None:
-        self._refresh()
+        self._refresh(queue_if_busy=True)
 
     def installHook_(self, sender: Any) -> None:
         thread = threading.Thread(target=self._install_hook_in_background, daemon=True)
@@ -510,6 +515,26 @@ class AppDelegate(NSObject):
         prefs = _load_preferences()
         if not manual and not _auto_update_check_enabled(prefs):
             return
+
+        # Always refresh current_version in the cache so the statusline badge
+        # clears immediately after an upgrade, even during the cooldown window.
+        try:
+            current_version = _current_version()
+            cached = prefs.get("last_update_check")
+            if (
+                isinstance(cached, dict)
+                and isinstance(cached.get("latest_version"), str)
+                and update_checker.compare_versions(current_version, cached["latest_version"]) >= 0
+            ):
+                prefs["last_update_check"] = {
+                    **cached,
+                    "current_version": current_version,
+                    "latest_version": current_version,
+                }
+                _save_preferences(prefs)
+        except Exception:
+            current_version = None
+
         if not ignore_cooldown and _update_dismissed_recently(prefs):
             return
 
@@ -619,8 +644,10 @@ class AppDelegate(NSObject):
         button = self.status_item.button()
         self.popover.showRelativeToRect_ofView_preferredEdge_(button.bounds(), button, NSMinYEdge)
 
-    def _refresh(self) -> None:
+    def _refresh(self, queue_if_busy: bool = False) -> None:
         if self._refresh_in_flight:
+            if queue_if_busy:
+                self._refresh_queued = True
             return
         self._refresh_in_flight = True
         thread = threading.Thread(target=self._refresh_in_background, daemon=True)
@@ -634,12 +661,14 @@ class AppDelegate(NSObject):
             project_rows = self._project_rows(hours_back=24, entries=all_entries)
             project_rows_7d = self._project_rows(hours_back=168, entries=all_entries)
             project_rows_30d = self._project_rows(hours_back=720, entries=all_entries)
+            project_rows_all = self._project_rows(hours_back=0, entries=all_entries)
             state = self._state_from_outcome(
                 outcome,
                 codex_rows,
                 project_rows,
                 project_rows_7d,
                 project_rows_30d,
+                project_rows_all,
                 history_entries=all_entries,
                 codex_model=codex_model,
             )
@@ -658,18 +687,25 @@ class AppDelegate(NSObject):
         )
 
     def _applyRefreshResult_(self, result: dict[str, Any]) -> None:
-        state = result["state"]
-        codex_5h_pct = result["codex_5h_pct"]
-        codex_model = result.get("codex_model", "unknown")
-        self.codex_5h_pct = codex_5h_pct
-        self.codex_model = codex_model
-        self.latest_state = state
-        if self.popover.isShown():
-            self.popover_controller.setState_(self.latest_state)
-        self.popover.setContentSize_(_popover_size(state, self.active_panel))
-        self._inject_web_language(state.language)
-        self.status_item.button().setTitle_(self._compose_title(state))
-        self._refresh_in_flight = False
+        should_refresh_again = False
+        try:
+            state = result["state"]
+            codex_5h_pct = result["codex_5h_pct"]
+            codex_model = result.get("codex_model", "unknown")
+            self.codex_5h_pct = codex_5h_pct
+            self.codex_model = codex_model
+            self.latest_state = state
+            if self.popover.isShown():
+                self.popover_controller.setState_(self.latest_state)
+            self.popover.setContentSize_(_popover_size(state, self.active_panel))
+            self._inject_web_language(state.language)
+            self.status_item.button().setTitle_(self._compose_title(state))
+        finally:
+            should_refresh_again = bool(self._refresh_queued)
+            self._refresh_queued = False
+            self._refresh_in_flight = False
+        if should_refresh_again:
+            self._refresh()
 
     def _inject_web_language(self, language: str) -> None:
         content_view = self.popover_controller.content_view
@@ -794,6 +830,14 @@ class AppDelegate(NSObject):
             return _t(self.language, "awaiting_rate_limits")
         return outcome.message or _t(self.language, fallback_key)
 
+    def _statusline_setup_available(self) -> bool:
+        try:
+            import setup_hook
+
+            return setup_hook.CLAUDE_SETTINGS.parent.exists() or setup_hook.CODEX_CONFIG.exists()
+        except Exception:
+            return False
+
     def _state_from_outcome(
         self,
         outcome: PollOutcome,
@@ -801,6 +845,7 @@ class AppDelegate(NSObject):
         projects: list[tuple[str, int, float | None]],
         project_rows_7d: list[tuple[str, int, float | None]],
         project_rows_30d: list[tuple[str, int, float | None]],
+        project_rows_all: list[tuple[str, int, float | None]],
         history_entries: list[UsageEntry] | None = None,
         codex_model: str = "unknown",
     ) -> PopoverState:
@@ -841,7 +886,10 @@ class AppDelegate(NSObject):
                 now,
                 CLAUDE_COLOR,
                 self.language,
-                forecast_seconds=self.burn_rate_trackers["claude_weekly"].forecast_seconds(),
+                forecast_seconds=self.burn_rate_trackers["claude_weekly"].forecast_seconds(
+                    window_seconds=WEEKLY_FORECAST_WINDOW_SECONDS,
+                    min_span_seconds=WEEKLY_FORECAST_MIN_SPAN_SECONDS,
+                ),
                 warning_max_seconds=24 * 3600,
             )
             status_value = outcome.message or _t(self.language, "status_synced")
@@ -860,9 +908,6 @@ class AppDelegate(NSObject):
                 "status_text",
                 value=self._status_message_value(outcome, "status_no_data"),
             )
-        status_text = (
-            f"{status_text} · {_t(self.language, 'model_label', model=codex_model or 'unknown')}"
-        )
 
         return PopoverState(
             language=self.language,
@@ -873,11 +918,14 @@ class AppDelegate(NSObject):
             projects=projects,
             projects_7d=project_rows_7d,
             projects_30d=project_rows_30d,
+            projects_all=project_rows_all,
             rate_text=_t(self.language, "rate_text", value=group_name),
             status_text=status_text,
             today_text=today_text,
             statusline=_statusline_payload(self.language),
-            show_install_button=outcome.state == PollState.TOKEN_ERROR,
+            show_install_button=(
+                outcome.state == PollState.TOKEN_ERROR and self._statusline_setup_available()
+            ),
         )
 
     def _codex_rows(self) -> tuple[tuple[QuotaRowState, QuotaRowState], int | None, str]:
@@ -948,7 +996,10 @@ class AppDelegate(NSObject):
                 now,
                 CODEX_COLOR,
                 self.language,
-                forecast_seconds=self.burn_rate_trackers["codex_weekly"].forecast_seconds(),
+                forecast_seconds=self.burn_rate_trackers["codex_weekly"].forecast_seconds(
+                    window_seconds=WEEKLY_FORECAST_WINDOW_SECONDS,
+                    min_span_seconds=WEEKLY_FORECAST_MIN_SPAN_SECONDS,
+                ),
                 warning_max_seconds=24 * 3600,
             ),
         )
@@ -989,12 +1040,12 @@ class AppDelegate(NSObject):
 
         entries: list[UsageEntry] = []
         try:
-            entries.extend(load_entries(hours_back=720))
+            entries.extend(load_entries(hours_back=0))
         except Exception:
             if os.environ.get("USAGE_DEBUG") == "1":
                 logger.warning("Claude project usage load failed", exc_info=True)
         try:
-            entries.extend(codex_loader.load_entries(hours_back=720))
+            entries.extend(codex_loader.load_entries(hours_back=0))
         except Exception:
             if os.environ.get("USAGE_DEBUG") == "1":
                 logger.warning("Codex project usage load failed", exc_info=True)
@@ -1008,6 +1059,12 @@ class AppDelegate(NSObject):
         entries: list[UsageEntry] | None = None,
     ) -> list[tuple[str, int, float | None]]:
         if self.mock:
+            if hours_back <= 0:
+                return [
+                    ("usage", 624_000_000, 361.00),
+                    ("FinMind", 172_800_000, 100.24),
+                    ("AI客服", 44_000_000, 26.40),
+                ]
             if hours_back <= 24:
                 return [
                     ("usage", 11_200_000, 6.47),
@@ -1101,6 +1158,8 @@ def _analysis_period_from_project_range(project_range: str) -> str:
         return "today"
     if project_range == "7d":
         return "week"
+    if project_range == "all":
+        return "all"
     return "month"
 
 
@@ -1121,6 +1180,7 @@ def _empty_state(language: str = "en") -> PopoverState:
         projects=[],
         projects_7d=[],
         projects_30d=[],
+        projects_all=[],
         rate_text=_t(language, "rate_text", value="--"),
         status_text=_t(language, "status_text", value=_t(language, "status_loading")),
         today_text=_t(language, "today_text", cost="0.00", tokens="0"),
@@ -1259,6 +1319,57 @@ def _statusline_command_target_exists(statusline: object) -> bool:
             continue
         return Path(os.path.expanduser(part)).exists()
     return True
+
+
+def _set_forwarder_mode_prompt_dismissed() -> None:
+    import setup_hook
+
+    settings = setup_hook._load_settings()
+    usage_settings = settings.get(setup_hook.BACKUP_KEY)
+    if not isinstance(usage_settings, dict):
+        usage_settings = {}
+        settings[setup_hook.BACKUP_KEY] = usage_settings
+    usage_settings["forwarderModePromptDismissed"] = True
+    setup_hook._save_settings(settings)
+
+
+def show_forwarder_mode_prompt_if_needed(language: str | None = None) -> None:
+    import setup_hook
+
+    try:
+        settings = setup_hook._load_settings()
+        usage_settings = settings.get(setup_hook.BACKUP_KEY)
+        dismissed = (
+            isinstance(usage_settings, dict)
+            and usage_settings.get("forwarderModePromptDismissed") is True
+        )
+        if dismissed or setup_hook._detect_current_state(settings) != "external":
+            return
+    except Exception:
+        if os.environ.get("USAGE_DEBUG") == "1":
+            logger.warning("forwarder prompt check failed", exc_info=True)
+        return
+
+    lang = language or detect_lang()
+    alert = NSAlert.alloc().init()
+    alert.setMessageText_(_t(lang, "alert_forwarder_title"))
+    alert.setInformativeText_(_t(lang, "alert_forwarder_body"))
+    alert.addButtonWithTitle_(_t(lang, "alert_forwarder_enable"))
+    alert.addButtonWithTitle_(_t(lang, "alert_forwarder_keep"))
+    result = int(alert.runModal())
+
+    try:
+        if result == 1000:
+            setup_hook.setup(force_forwarder=True)
+    except Exception:
+        if os.environ.get("USAGE_DEBUG") == "1":
+            logger.warning("forwarder setup failed", exc_info=True)
+    finally:
+        try:
+            _set_forwarder_mode_prompt_dismissed()
+        except Exception:
+            if os.environ.get("USAGE_DEBUG") == "1":
+                logger.warning("forwarder prompt dismissal failed", exc_info=True)
 
 
 def _disable_statusline_settings() -> int:

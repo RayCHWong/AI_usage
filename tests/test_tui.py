@@ -50,6 +50,26 @@ def test_load_i18n_bundle_reads_monkeypatched_path(
     assert bundle["en"]["usage_title"] == "usage"
 
 
+def test_app_view_state_default_language_reads_usage_lang_ja(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("USAGE_LANG", "ja")
+
+    state = tui.AppViewState()
+
+    assert state.language == "ja"
+
+
+def test_app_view_state_default_language_reads_usage_lang_zh_cn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("USAGE_LANG", "zh-CN")
+
+    state = tui.AppViewState()
+
+    assert state.language == "zh-CN"
+
+
 def test_render_screen_smoke_with_usage_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tui, "_load_i18n_bundle", _minimal_bundle)
     snapshot = UsageSnapshot(
