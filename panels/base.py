@@ -14,6 +14,7 @@ ACTIVE_PANEL_DEFAULTS_KEY = "usage.activePanelId"
 class Panel(Protocol):
     id: str
     i18n_key: str
+    codex_card_height: float
 
     def build_view(self, delegate: Any) -> Any: ...
     def apply_state(self, view: Any, state: PopoverState) -> None: ...

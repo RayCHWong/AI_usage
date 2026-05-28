@@ -464,6 +464,7 @@
 
 
 
+    .hide-codex [data-card="codex"] { display: none; }
   </style>
 </head>
 <body>
@@ -652,6 +653,7 @@
     }
 
     window.usageApplyState = function usageApplyState(state) {
+      document.documentElement.classList.toggle('hide-codex', !!state.hideCodex);
       currentLanguage = I18N[state.language] ? state.language : currentLanguage;
       applyStaticText();
       applyCard("claude", state.claude);

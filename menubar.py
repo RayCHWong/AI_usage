@@ -218,6 +218,11 @@ def _auto_update_check_enabled(prefs: dict[str, Any] | None = None) -> bool:
     return data.get("auto_update_check") is not False
 
 
+def _hide_codex_enabled(prefs: dict[str, Any] | None = None) -> bool:
+    data = _load_preferences() if prefs is None else prefs
+    return data.get("hide_codex_section") is True
+
+
 def _update_dismissed_recently(prefs: dict[str, Any]) -> bool:
     dismissed_at = prefs.get("update_dismissed_at")
     if isinstance(dismissed_at, int | float):
@@ -269,6 +274,7 @@ class PopoverState:
     today_text: str
     statusline: dict[str, object]
     show_install_button: bool = False
+    hide_codex: bool = False
 
 
 def format_human_time(seconds: float, language: str = "en") -> str:
@@ -467,6 +473,15 @@ class AppDelegate(NSObject):
         auto_update_item.setTarget_(self)
         auto_update_item.setState_(1 if _auto_update_check_enabled() else 0)
         menu.addItem_(auto_update_item)
+        menu.addItem_(NSMenuItem.separatorItem())
+        hide_codex_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            _t(self.language, "hide_codex_section"),
+            "toggleHideCodex:",
+            "",
+        )
+        hide_codex_item.setTarget_(self)
+        hide_codex_item.setState_(1 if _hide_codex_enabled() else 0)
+        menu.addItem_(hide_codex_item)
         menu.popUpMenuPositioningItem_atLocation_inView_(None, NSMakePoint(0, 0), sender)
 
     def selectPanel_(self, sender: Any) -> None:
@@ -497,6 +512,16 @@ class AppDelegate(NSObject):
                 daemon=True,
             )
             thread.start()
+
+    def toggleHideCodex_(self, sender: Any) -> None:
+        prefs = _load_preferences()
+        enabled = not _hide_codex_enabled(prefs)
+        prefs["hide_codex_section"] = enabled
+        _save_preferences(prefs)
+        if hasattr(sender, "setState_"):
+            sender.setState_(1 if enabled else 0)
+        self.latest_state.hide_codex = enabled
+        self.popover_controller.setState_(self.latest_state)
 
     def _maybe_check_update_in_background(self) -> None:
         self._check_update_in_background(
@@ -926,6 +951,7 @@ class AppDelegate(NSObject):
             show_install_button=(
                 outcome.state == PollState.TOKEN_ERROR and self._statusline_setup_available()
             ),
+            hide_codex=_hide_codex_enabled(),
         )
 
     def _codex_rows(self) -> tuple[tuple[QuotaRowState, QuotaRowState], int | None, str]:
@@ -1166,7 +1192,9 @@ def _analysis_period_from_project_range(project_range: str) -> str:
 def _popover_size(state: PopoverState, panel: UsagePanel | None = None) -> Any:
     active_panel = panel if panel is not None else panels.get_panel("classic")
     width, base_height = active_panel.preferred_size()
-    height = base_height + (INSTALL_BUTTON_EXTRA_HEIGHT if state.show_install_button else 0.0)
+    codex_deduct = active_panel.codex_card_height if state.hide_codex else 0.0
+    install_extra = INSTALL_BUTTON_EXTRA_HEIGHT if state.show_install_button else 0.0
+    height = base_height + install_extra - codex_deduct
     return NSMakeSize(width, height)
 
 
@@ -1186,6 +1214,7 @@ def _empty_state(language: str = "en") -> PopoverState:
         today_text=_t(language, "today_text", cost="0.00", tokens="0"),
         statusline=_statusline_payload(language),
         show_install_button=False,
+        hide_codex=_hide_codex_enabled(),
     )
 
 

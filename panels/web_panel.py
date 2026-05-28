@@ -147,6 +147,7 @@ class HTMLPanel:
     html_filename: str
     width: float
     height: float
+    codex_card_height: float
 
     def __init__(
         self,
@@ -155,12 +156,14 @@ class HTMLPanel:
         html_filename: str,
         width: float = PANEL_WIDTH,
         height: float = PANEL_HEIGHT,
+        codex_card_height: float = 192.0,
     ) -> None:
         self.id = panel_id
         self.i18n_key = i18n_key
         self.html_filename = html_filename
         self.width = width
         self.height = height
+        self.codex_card_height = codex_card_height
 
     def build_view(self, delegate: Any) -> NSView:
         if WKUserContentController is None or WKWebViewConfiguration is None:
@@ -279,6 +282,7 @@ def _state_payload(state: PopoverState) -> dict[str, object]:
             }
             for name, tokens, cost in state.projects_all
         ],
+        "hideCodex": state.hide_codex,
         "statusline": state.statusline,
         "footer": {
             "rate": state.rate_text,

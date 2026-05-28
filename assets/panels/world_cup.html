@@ -558,6 +558,11 @@
     }
 
 
+    .hide-codex .team.codex,
+    .hide-codex .score-sep,
+    .hide-codex .duel-fill.right,
+    .hide-codex .duel-pct.right,
+    .hide-codex [id^="codex-"] { display: none; }
   </style>
 </head>
 <body>
@@ -906,6 +911,7 @@
     }
 
     window.usageApplyState = function usageApplyState(state) {
+      document.documentElement.classList.toggle('hide-codex', !!state.hideCodex);
       currentLanguage = I18N[state.language] ? state.language : currentLanguage;
       applyStaticText();
 
