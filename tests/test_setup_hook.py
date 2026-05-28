@@ -17,12 +17,16 @@ def _patch_paths(
     claude_dir = tmp_path / ".claude"
     settings = claude_dir / "settings.json"
     hook_target = claude_dir / "usage-statusline.py"
+    forwarder_target = claude_dir / "usage-statusline-forwarder.py"
     status_file = claude_dir / "usage-status.json"
     hook_source = tmp_path / "hook_source.py"
+    forwarder_source = tmp_path / "forwarder_source.py"
     hook_source.write_text("print('hook')\n", encoding="utf-8")
+    forwarder_source.write_text("print('forwarder')\n", encoding="utf-8")
     claude_dir.mkdir()
     monkeypatch.setattr(setup_hook, "CLAUDE_SETTINGS", settings)
     monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook_target)
+    monkeypatch.setattr(setup_hook, "FORWARDER_TARGET", forwarder_target)
     monkeypatch.setattr(setup_hook, "STATUS_FILE", status_file)
     monkeypatch.setattr(
         setup_hook,
@@ -31,6 +35,7 @@ def _patch_paths(
     )
     monkeypatch.setattr(setup_hook, "LEGACY_STATUS_FILE", claude_dir / f"{LEGACY_NAME}-status.json")
     monkeypatch.setattr(setup_hook, "_resolve_hook_source", lambda: hook_source)
+    monkeypatch.setattr(setup_hook, "_resolve_forwarder_source", lambda: forwarder_source)
     monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/python3")
     return settings, hook_target, status_file
 
@@ -60,8 +65,10 @@ def test_setup_backs_up_existing_statusline_and_is_idempotent(
     assert setup_hook.setup() == 0
 
     data = json.loads(settings.read_text(encoding="utf-8"))
-    assert data["statusLine"]["command"] == f"/usr/bin/python3 {hook_target}"
+    assert data["statusLine"]["command"] == f"/usr/bin/python3 {setup_hook.FORWARDER_TARGET}"
     assert data["usage"]["previousStatusLine"] == original
+    assert hook_target.exists()
+    assert setup_hook.FORWARDER_TARGET.exists()
 
 
 def test_unsetup_restores_backup_and_removes_hook_files(
@@ -79,6 +86,7 @@ def test_unsetup_restores_backup_and_removes_hook_files(
         encoding="utf-8",
     )
     hook_target.write_text("print('hook')\n", encoding="utf-8")
+    setup_hook.FORWARDER_TARGET.write_text("print('forwarder')\n", encoding="utf-8")
     status_file.write_text("{}", encoding="utf-8")
 
     exit_code = setup_hook.unsetup()
@@ -88,6 +96,7 @@ def test_unsetup_restores_backup_and_removes_hook_files(
     assert data["statusLine"] == previous
     assert "usage" not in data
     assert not hook_target.exists()
+    assert not setup_hook.FORWARDER_TARGET.exists()
     assert not status_file.exists()
 
 
@@ -136,29 +145,27 @@ def test_migration_removes_legacy_files_and_moves_backup(
 def test_statusline_command_quotes_paths_with_spaces(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """專案 clone 在含空格的路徑（例如中文資料夾）時，
-    產生的 statusLine command 必須能被 /bin/sh -c 正確解析。"""
-    import shlex
     import subprocess
 
-    spaced_dir = tmp_path / "claude code小工具"
-    spaced_dir.mkdir()
-    spaced_python = spaced_dir / "python3"
-    spaced_python.write_text("#!/bin/sh\necho ok\n", encoding="utf-8")
-    spaced_python.chmod(0o755)
+    bin_dir = tmp_path / "含 空格" / "bin"
+    hook_dir = tmp_path / "Claude Code 小工具"
+    bin_dir.mkdir(parents=True)
+    hook_dir.mkdir()
+    argv_file = tmp_path / "argv.txt"
+    fake_python = bin_dir / "python3"
+    hook_file = hook_dir / "usage statusline.py"
+    fake_python.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$1\" > {setup_hook._shell_arg(str(argv_file))}\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    hook_file.write_text("print('unused')\n", encoding="utf-8")
 
-    spaced_hook = spaced_dir / "usage-statusline.py"
-    spaced_hook.write_text("import sys; sys.exit(0)\n", encoding="utf-8")
-
-    monkeypatch.setattr(shutil, "which", lambda _: str(spaced_python))
-    monkeypatch.setattr(setup_hook, "HOOK_TARGET", spaced_hook)
+    monkeypatch.setattr(setup_hook, "_find_system_python", lambda: str(fake_python))
+    monkeypatch.setattr(setup_hook, "HOOK_TARGET", hook_file)
 
     cmd = setup_hook._statusline_command()
 
-    # 兩段路徑都應該被 shlex 安全處理過
-    tokens = shlex.split(cmd)
-    assert tokens == [str(spaced_python), str(spaced_hook)]
-
-    # /bin/sh -c 真的能跑（即不會被空格切碎）
     result = subprocess.run(["/bin/sh", "-c", cmd], capture_output=True)
     assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+    assert argv_file.read_text(encoding="utf-8").strip() == str(hook_file)

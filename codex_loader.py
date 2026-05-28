@@ -10,8 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from history_loader import UsageEntry
+from project_resolver import resolve_project_name
 
 logger = logging.getLogger(__name__)
+
+_jsonl_cache: dict[Path, tuple[float, int, UsageEntry | None]] = {}
 
 SESSIONS_DIR = Path(os.path.expanduser("~/.codex/sessions"))
 STATE_DB = Path(os.path.expanduser("~/.codex/state_5.sqlite"))
@@ -23,6 +26,7 @@ class CodexRateLimits:
     five_hour_resets_at: float | None
     seven_day_pct: float | None
     seven_day_resets_at: float | None
+    model: str | None = "unknown"
     updated_at: str = ""
 
 
@@ -30,8 +34,7 @@ def load_entries(hours_back: int = 0) -> list[UsageEntry]:
     if not SESSIONS_DIR.is_dir():
         return []
 
-    entries: list[UsageEntry] = []
-    seen: set[str] = set()
+    entries_by_session: dict[str, UsageEntry] = {}
     cutoff = datetime.now(UTC) - timedelta(hours=hours_back) if hours_back > 0 else None
     cutoff_ts = cutoff.timestamp() if cutoff else None
     models = _load_thread_models()
@@ -45,20 +48,29 @@ def load_entries(hours_back: int = 0) -> list[UsageEntry]:
                 logger.warning("failed to stat session log %s: %s", jsonl_path, exc)
                 continue
         entry = _parse_jsonl(jsonl_path, models, cutoff)
-        if entry is None or entry.session_id in seen:
+        if entry is None:
             continue
-        seen.add(entry.session_id)
-        entries.append(entry)
+        existing = entries_by_session.get(entry.session_id)
+        if existing is None or _is_better_session_entry(entry, existing):
+            entries_by_session[entry.session_id] = entry
 
+    entries = list(entries_by_session.values())
     entries.sort(key=lambda entry: entry.timestamp)
     return entries
+
+
+def _is_better_session_entry(candidate: UsageEntry, existing: UsageEntry) -> bool:
+    if candidate.timestamp != existing.timestamp:
+        return candidate.timestamp > existing.timestamp
+    return candidate.total_tokens > existing.total_tokens
 
 
 def load_rate_limits() -> CodexRateLimits | None:
     if not SESSIONS_DIR.is_dir():
         return None
+    models = _load_thread_models()
     for path in _recent_jsonl_files():
-        rate_limits = _extract_rate_limits(path)
+        rate_limits = _extract_rate_limits(path, models)
         if rate_limits is not None:
             return rate_limits
     return None
@@ -94,13 +106,19 @@ def _recent_jsonl_files() -> list[Path]:
     return [path for _, path in paths_with_mtime[:5]]
 
 
-def _extract_rate_limits(path: Path) -> CodexRateLimits | None:
+def _extract_rate_limits(path: Path, models: dict[str, str]) -> CodexRateLimits | None:
+    session_id = ""
     last_rate_limits: tuple[dict[str, Any], str] | None = None
     try:
         with path.open(encoding="utf-8") as file:
             for line in file:
                 data = _load_json_line(line)
-                if data is None or data.get("type") != "event_msg":
+                if data is None:
+                    continue
+                if data.get("type") == "session_meta":
+                    session_id = _as_str(_as_dict(data.get("payload")).get("id"))
+                    continue
+                if data.get("type") != "event_msg":
                     continue
                 payload = _as_dict(data.get("payload"))
                 if payload.get("type") != "token_count":
@@ -132,11 +150,27 @@ def _extract_rate_limits(path: Path) -> CodexRateLimits | None:
         five_hour_resets_at=five_reset,
         seven_day_pct=seven_pct,
         seven_day_resets_at=seven_reset,
+        model=models.get(session_id, "unknown"),
         updated_at=updated_at,
     )
 
 
 def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) -> UsageEntry | None:
+    try:
+        st = path.stat()
+    except OSError as exc:
+        logger.warning("failed to parse codex session %s: %s", path, exc)
+        return None
+
+    cache_entry = _jsonl_cache.get(path)
+    if cache_entry is not None and cache_entry[0] == st.st_mtime and cache_entry[1] == st.st_size:
+        entry = cache_entry[2]
+        if entry is not None:
+            entry.model = models.get(entry.session_id, "unknown")
+            if cutoff is not None and entry.timestamp < cutoff:
+                return None
+        return entry
+
     session_id = ""
     session_timestamp = ""
     project = "unknown"
@@ -165,11 +199,11 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
                     last_usage_timestamp = _as_str(data.get("timestamp"))
     except OSError as exc:
         logger.warning("failed to parse codex session %s: %s", path, exc)
+        _jsonl_cache[path] = (st.st_mtime, st.st_size, None)
         return None
     timestamp = _parse_timestamp(last_usage_timestamp) or _parse_timestamp(session_timestamp)
     if not session_id or last_usage is None or timestamp is None:
-        return None
-    if cutoff is not None and timestamp < cutoff:
+        _jsonl_cache[path] = (st.st_mtime, st.st_size, None)
         return None
     cached = _as_int(last_usage.get("cached_input_tokens"))
     input_tokens = max(0, _as_int(last_usage.get("input_tokens")) - cached)
@@ -177,8 +211,9 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
         last_usage.get("reasoning_output_tokens"),
     )
     if input_tokens == 0 and output_tokens == 0:
+        _jsonl_cache[path] = (st.st_mtime, st.st_size, None)
         return None
-    return UsageEntry(
+    entry = UsageEntry(
         timestamp=timestamp,
         session_id=session_id,
         message_id=session_id,
@@ -191,6 +226,10 @@ def _parse_jsonl(path: Path, models: dict[str, str], cutoff: datetime | None) ->
         cost_usd=None,
         project=project,
     )
+    _jsonl_cache[path] = (st.st_mtime, st.st_size, entry)
+    if cutoff is not None and entry.timestamp < cutoff:
+        return None
+    return entry
 
 
 def _load_json_line(line: str) -> dict[str, Any] | None:
@@ -214,7 +253,7 @@ def _parse_timestamp(value: Any) -> datetime | None:
 
 
 def _project_from_cwd(cwd: str) -> str:
-    return Path(os.path.expanduser(cwd)).name if cwd else "unknown"
+    return resolve_project_name(cwd)
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -224,7 +263,7 @@ def _as_dict(value: Any) -> dict[str, Any]:
 def _as_int(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         return 0
-    return max(0, value)
+    return max(0, int(value))
 
 
 def _as_str(value: Any) -> str:

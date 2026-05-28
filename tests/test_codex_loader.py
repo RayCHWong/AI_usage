@@ -9,6 +9,11 @@ import pytest
 import codex_loader
 
 
+@pytest.fixture(autouse=True)
+def _clear_jsonl_cache() -> None:
+    codex_loader._jsonl_cache.clear()
+
+
 def _write_session(
     path: Path,
     *,
@@ -76,6 +81,60 @@ def test_load_entries_parses_valid_jsonl_and_filters_by_hours_back(
     assert recent_entries[0].output_tokens == 7
 
 
+def test_load_entries_keeps_latest_duplicate_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sessions_dir = tmp_path / "sessions"
+    monkeypatch.setattr(codex_loader, "SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr(codex_loader, "_load_thread_models", lambda: {})
+    older_ts = (datetime.now(UTC) - timedelta(minutes=10)).isoformat()
+    newer_ts = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
+    _write_session(
+        sessions_dir / "older.jsonl",
+        session_id="session-1",
+        timestamp=older_ts,
+        usage={"input_tokens": 10, "cached_input_tokens": 0, "output_tokens": 5},
+    )
+    _write_session(
+        sessions_dir / "newer.jsonl",
+        session_id="session-1",
+        timestamp=newer_ts,
+        usage={"input_tokens": 100, "cached_input_tokens": 20, "output_tokens": 50},
+    )
+
+    entries = codex_loader.load_entries()
+
+    assert len(entries) == 1
+    assert entries[0].timestamp == datetime.fromisoformat(newer_ts)
+    assert entries[0].total_tokens == 150
+
+
+def test_load_entries_uses_larger_duplicate_when_timestamps_match(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    sessions_dir = tmp_path / "sessions"
+    monkeypatch.setattr(codex_loader, "SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr(codex_loader, "_load_thread_models", lambda: {})
+    timestamp = datetime.now(UTC).isoformat()
+    _write_session(
+        sessions_dir / "small.jsonl",
+        session_id="session-1",
+        timestamp=timestamp,
+        usage={"input_tokens": 10, "cached_input_tokens": 0, "output_tokens": 5},
+    )
+    _write_session(
+        sessions_dir / "large.jsonl",
+        session_id="session-1",
+        timestamp=timestamp,
+        usage={"input_tokens": 100, "cached_input_tokens": 20, "output_tokens": 50},
+    )
+
+    entries = codex_loader.load_entries()
+
+    assert len(entries) == 1
+    assert entries[0].total_tokens == 150
+
+
 def test_parse_jsonl_skips_bad_lines_and_missing_fields(tmp_path: Path) -> None:
     path = tmp_path / "bad.jsonl"
     path.write_text(
@@ -113,7 +172,12 @@ def test_load_rate_limits_reads_primary_and_secondary_windows(
 ) -> None:
     sessions_dir = tmp_path / "sessions"
     monkeypatch.setattr(codex_loader, "SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr(codex_loader, "_load_thread_models", lambda: {"session-1": "gpt-test"})
     now = datetime.now(UTC)
+    meta = {
+        "type": "session_meta",
+        "payload": {"id": "session-1", "timestamp": now.isoformat(), "cwd": "/tmp/demo"},
+    }
     payload = {
         "type": "event_msg",
         "timestamp": now.isoformat(),
@@ -127,7 +191,7 @@ def test_load_rate_limits_reads_primary_and_secondary_windows(
     }
     path = sessions_dir / "rate.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    path.write_text(f"{json.dumps(meta)}\n{json.dumps(payload)}", encoding="utf-8")
 
     result = codex_loader.load_rate_limits()
 
@@ -136,5 +200,6 @@ def test_load_rate_limits_reads_primary_and_secondary_windows(
         five_hour_resets_at=now.timestamp() + 60,
         seven_day_pct=70.0,
         seven_day_resets_at=now.timestamp() + 120,
+        model="gpt-test",
         updated_at=now.isoformat(),
     )
