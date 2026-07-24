@@ -26,6 +26,7 @@ from discussion_cli import (
     StreamFailureReason,
 )
 from discussion_session import build_round1_prompt
+from discussion_usage import TurnUsage
 
 TERMINAL_STATUSES = {"COMPLETED", "CANCELLED", "FAILED"}
 
@@ -69,6 +70,9 @@ class FakeAdapter:
     def take_final_text(self) -> str | None:
         return None
 
+    def take_usage(self) -> TurnUsage | None:
+        return None
+
 
 class FakeRunner:
     def __init__(
@@ -88,6 +92,7 @@ class FakeRunner:
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         round_index = _prompt_round(invocation.argv[-1])
@@ -291,6 +296,7 @@ def test_nonzero_exit_retries_once_then_completes(
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         nonlocal calls
@@ -324,6 +330,7 @@ def test_cancelled_turn_does_not_retry(monkeypatch: pytest.MonkeyPatch) -> None:
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         nonlocal calls
@@ -549,6 +556,7 @@ def test_start_reentry_raises_busy_error(monkeypatch: pytest.MonkeyPatch) -> Non
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
@@ -606,6 +614,7 @@ def test_stop_cancels_immediately_and_blocks_late_events(
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
@@ -641,6 +650,7 @@ def test_stop_marks_incomplete_turns_cancelled(monkeypatch: pytest.MonkeyPatch) 
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
@@ -675,6 +685,7 @@ def test_clear_refuses_while_running(monkeypatch: pytest.MonkeyPatch) -> None:
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
@@ -787,6 +798,7 @@ def test_shutdown_is_bounded_when_runner_is_stuck(
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
@@ -821,6 +833,7 @@ def test_listener_notified_only_when_queue_becomes_nonempty(
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
@@ -890,6 +903,7 @@ def test_delta_coalescing_preserves_all_text_and_flushes_tail(
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         for part in ("甲", "乙", "丙"):
@@ -923,6 +937,7 @@ def test_concurrent_process_limit_never_exceeds_four(
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         nonlocal active, peak
@@ -976,6 +991,7 @@ def test_custom_argv_and_login_shell_sources_build_safe_invocations(
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
         on_final_text: Callable[[str], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
         captured.append(invocation.argv)

@@ -14,6 +14,8 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
+from discussion_usage import TurnUsage
+
 MAX_TURN_TEXT_CHARS = 40_000
 MAX_SESSION_TEXT_CHARS = 200_000
 MAX_PROMPT_QUOTE_CHARS = 4_000
@@ -73,6 +75,7 @@ class Turn:
     status: TurnStatus = TurnStatus.PENDING
     error: str | None = None
     supports_token_stream: bool = False
+    usage: TurnUsage | None = None
 
 
 @dataclass(frozen=True)
@@ -337,6 +340,21 @@ class DiscussionSession:
                 payload={"text": turn.text},
             )
 
+    def set_turn_usage(self, turn_id: str, usage: TurnUsage) -> DiscussionEvent:
+        with self._lock:
+            turn = self._get_turn_locked(turn_id)
+            turn.usage = usage
+            return self._emit_locked(
+                "turn_usage",
+                participant_id=turn.participant_id,
+                turn_id=turn.id,
+                payload={
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                    "total_tokens": usage.total_tokens,
+                },
+            )
+
     def complete_turn(self, turn_id: str) -> DiscussionEvent:
         with self._lock:
             turn = self._get_turn_locked(turn_id)
@@ -398,6 +416,17 @@ class DiscussionSession:
                 serialized = asdict(turn)
                 serialized["status"] = turn.status.value
                 turns.append(serialized)
+            usage_totals = {
+                "input_tokens": sum(
+                    turn.usage.input_tokens for turn in self._turns.values() if turn.usage
+                ),
+                "output_tokens": sum(
+                    turn.usage.output_tokens for turn in self._turns.values() if turn.usage
+                ),
+                "total_tokens": sum(
+                    turn.usage.total_tokens for turn in self._turns.values() if turn.usage
+                ),
+            }
             return {
                 "session_id": self.session_id,
                 "status": self.status.value,
@@ -406,6 +435,7 @@ class DiscussionSession:
                 "topic": self.topic,
                 "participants": participants,
                 "turns": turns,
+                "usage_totals": usage_totals,
                 "event_seq": self._next_event_seq - 1,
             }
 

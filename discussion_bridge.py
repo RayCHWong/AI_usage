@@ -46,6 +46,7 @@ from discussion_session import (
     build_round1_prompt,
     build_round2_prompt,
 )
+from discussion_usage import TurnUsage
 from i18n import _t
 from usage_lang import detect_lang
 
@@ -211,6 +212,9 @@ class _CustomLineAdapter:
         return (line, False) if line else (None, False)
 
     def take_final_text(self) -> str | None:
+        return None
+
+    def take_usage(self) -> TurnUsage | None:
         return None
 
 
@@ -648,6 +652,9 @@ class DiscussionBridge:
                 final_text = text
                 self._replace_text(session, turn_id, text, cancel_event)
 
+            def on_usage(usage: TurnUsage) -> None:
+                self._set_turn_usage(session, turn_id, usage, cancel_event)
+
             def on_error(
                 message: str,
                 terminal: threading.Event = terminal,
@@ -674,6 +681,7 @@ class DiscussionBridge:
                     on_error,
                     on_cancelled,
                     on_final_text=on_final_text,
+                    on_usage=on_usage,
                     cancel_event=cancel_event,
                 )
             except OSError as exc:
@@ -760,6 +768,19 @@ class DiscussionBridge:
                 return False
             event = session.replace_text(turn_id, text)
             self._enqueue_event_locked(event)
+            return True
+
+    def _set_turn_usage(
+        self,
+        session: DiscussionSession,
+        turn_id: str,
+        usage: TurnUsage,
+        cancel_event: threading.Event,
+    ) -> bool:
+        with self._event_order_lock:
+            if cancel_event.is_set():
+                return False
+            self._enqueue_event_locked(session.set_turn_usage(turn_id, usage))
             return True
 
     def _complete_turn(

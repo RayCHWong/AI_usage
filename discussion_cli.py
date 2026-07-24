@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol, cast
 
+from discussion_usage import TurnUsage
+
 DetectionSource = Literal["which", "candidate_dir", "user_configured", "not_found"]
 
 # Every built-in CLI defaults to a dedicated neutral cwd to block project-level
@@ -97,6 +99,8 @@ class CLIAdapter(Protocol):
 
     def take_final_text(self) -> str | None: ...
 
+    def take_usage(self) -> TurnUsage | None: ...
+
 
 class CLIUnavailableError(RuntimeError):
     """Raised when an invocation is requested for an unavailable adapter."""
@@ -154,6 +158,7 @@ class _JSONAdapter:
         self._extra_read_dirs = tuple(extra_read_dirs or ())
         self._parse_error_count = 0
         self._parse_error_lock = threading.Lock()
+        self._usage: TurnUsage | None = None
 
     @property
     def parse_error_count(self) -> int:
@@ -249,6 +254,11 @@ class _JSONAdapter:
     def take_final_text(self) -> str | None:
         return None
 
+    def take_usage(self) -> TurnUsage | None:
+        usage = self._usage
+        self._usage = None
+        return usage
+
 
 class ClaudeAdapter(_JSONAdapter):
     adapter_id = "claude"
@@ -256,6 +266,7 @@ class ClaudeAdapter(_JSONAdapter):
     supports_token_stream = True
 
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
+        self._usage = None
         argv = [self._require_path(), "-p"]
         if self._read_only:
             # `--tools` is variadic (`<tools...>`): it keeps consuming argv
@@ -292,6 +303,7 @@ class ClaudeAdapter(_JSONAdapter):
             return None, False
         event_type = event.get("type")
         if event_type == "result":
+            self._usage = _claude_usage(event.get("usage"))
             return None, True
         if event_type != "stream_event":
             return None, False
@@ -319,6 +331,7 @@ class CodexAdapter(_JSONAdapter):
     supports_token_stream = False
 
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
+        self._usage = None
         argv = [
             self._require_path(),
             "exec",
@@ -343,6 +356,7 @@ class CodexAdapter(_JSONAdapter):
             return None, False
         event_type = event.get("type")
         if event_type == "turn.completed":
+            self._usage = _codex_usage(event.get("usage"))
             return None, True
         if event_type != "item.completed":
             return None, False
@@ -364,6 +378,7 @@ class AgyAdapter(_JSONAdapter):
 
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
         self._final_text = None
+        self._usage = None
         # agy has no equivalent of Claude's or Codex's user-config isolation flag.
         # The neutral cwd blocks project-level AGENTS.md only; user settings may apply.
         # Project mode can only change cwd; agy exposes no read-only sandbox flag.
@@ -388,6 +403,7 @@ class AgyAdapter(_JSONAdapter):
                 response = result.get("response")
                 if isinstance(response, str) and response:
                     self._final_text = response
+                self._usage = _agy_usage(result.get("usage"))
             return None, True
         if event_type != "step_update":
             return None, False
@@ -492,6 +508,7 @@ def run_streaming(
     on_error: Callable[[str], None],
     on_cancelled: Callable[[], None],
     on_final_text: Callable[[str], None] | None = None,
+    on_usage: Callable[[TurnUsage], None] | None = None,
     cancel_event: threading.Event | None = None,
 ) -> None:
     cancel_event = cancel_event or threading.Event()
@@ -630,7 +647,51 @@ def run_streaming(
     final_text = adapter.take_final_text()
     if final_text and on_final_text is not None:
         on_final_text(output_state.replace(_clean_text(final_text)))
+    usage = adapter.take_usage()
+    if usage is not None and on_usage is not None:
+        on_usage(usage)
     completion.done()
+
+
+def _usage_value(usage: object, key: str) -> int:
+    if not isinstance(usage, dict):
+        return 0
+    value = usage.get(key)
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _claude_usage(usage: object) -> TurnUsage:
+    input_tokens = _usage_value(usage, "input_tokens")
+    output_tokens = _usage_value(usage, "output_tokens")
+    total_tokens = (
+        input_tokens
+        + _usage_value(usage, "cache_creation_input_tokens")
+        + _usage_value(usage, "cache_read_input_tokens")
+        + output_tokens
+    )
+    return TurnUsage(input_tokens, output_tokens, total_tokens)
+
+
+def _codex_usage(usage: object) -> TurnUsage:
+    input_tokens = _usage_value(usage, "input_tokens")
+    output_tokens = _usage_value(usage, "output_tokens") + _usage_value(
+        usage, "reasoning_output_tokens"
+    )
+    total_tokens = (
+        input_tokens
+        + _usage_value(usage, "cached_input_tokens")
+        + _usage_value(usage, "cache_write_input_tokens")
+        + output_tokens
+    )
+    return TurnUsage(input_tokens, output_tokens, total_tokens)
+
+
+def _agy_usage(usage: object) -> TurnUsage:
+    return TurnUsage(
+        _usage_value(usage, "input_tokens"),
+        _usage_value(usage, "output_tokens"),
+        _usage_value(usage, "total_tokens"),
+    )
 
 
 class _OutputState:

@@ -618,6 +618,12 @@
       font-size: 12px;
     }
 
+    .turn-usage,
+    .summary-usage {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     .turn-text,
     .turn-error,
     .summary-text {
@@ -1186,6 +1192,23 @@
       return t(`discussion_turn_${`${turn.status || "PENDING"}`.toLowerCase()}`);
     }
 
+    function formatTokenCount(value) {
+      const tokens = Number(value);
+      if (!Number.isFinite(tokens)) return "0";
+      if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`;
+      if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}k`;
+      return `${Math.round(tokens)}`;
+    }
+
+    function usageText(totalTokens) {
+      return `${formatTokenCount(totalTokens)} ${t("discussion_tokens")}`;
+    }
+
+    function usageTotals() {
+      const totals = state.usage_totals;
+      return totals && typeof totals === "object" ? totals : { total_tokens: 0 };
+    }
+
     function renderProgress() {
       const turns = Array.isArray(state.turns) ? state.turns : [];
       const totalRounds = Number(state.total_rounds) || Number(totalRoundsEl.value);
@@ -1268,6 +1291,12 @@
           status.className = "turn-status";
           status.textContent = statusText(turn);
           head.append(name, status);
+          if (turn.usage && typeof turn.usage === "object") {
+            const usage = document.createElement("span");
+            usage.className = "turn-usage";
+            usage.textContent = usageText(turn.usage.total_tokens);
+            head.append(usage);
+          }
           card.append(head);
 
           const text = document.createElement("div");
@@ -1344,6 +1373,15 @@
       summaryText = summaryTurn ? `${summaryTurn.text || ""}` : "";
       copyEl.disabled = !summaryText;
 
+      const appendUsageTotal = () => {
+        const usage = document.createElement("div");
+        usage.className = "summary-usage";
+        usage.textContent = t("discussion_usage_total", {
+          tokens: usageText(usageTotals().total_tokens),
+        });
+        summaryEl.append(usage);
+      };
+
       if (!summaryTurn || (!summaryText && summaryTurn.status !== "FAILED")) {
         const placeholder = document.createElement("div");
         placeholder.className = "placeholder";
@@ -1351,6 +1389,7 @@
           isRunning() ? "discussion_summary_waiting" : "discussion_summary_empty",
         );
         summaryEl.append(placeholder);
+        appendUsageTotal();
         return;
       }
       if (summaryTurn.status === "FAILED") {
@@ -1358,6 +1397,7 @@
         failure.className = "error-banner";
         failure.textContent = `${summaryTurn.error || t("discussion_turn_failed")}`;
         summaryEl.append(failure);
+        appendUsageTotal();
         return;
       }
 
@@ -1379,6 +1419,7 @@
         section.append(title, text);
         summaryEl.append(section);
       });
+      appendUsageTotal();
     }
 
     function summaryForClipboard() {
@@ -1420,6 +1461,7 @@
           status: "PENDING",
           error: null,
           supports_token_stream: Boolean(event.payload.supports_token_stream),
+          usage: null,
         };
         state.turns.push(turn);
       }
@@ -1427,6 +1469,17 @@
         turn.supports_token_stream = event.payload.supports_token_stream;
       }
       return turn;
+    }
+
+    function refreshUsageTotals() {
+      const turns = Array.isArray(state.turns) ? state.turns : [];
+      state.usage_totals = turns.reduce((totals, turn) => {
+        const usage = turn.usage && typeof turn.usage === "object" ? turn.usage : {};
+        totals.input_tokens += Number(usage.input_tokens) || 0;
+        totals.output_tokens += Number(usage.output_tokens) || 0;
+        totals.total_tokens += Number(usage.total_tokens) || 0;
+        return totals;
+      }, { input_tokens: 0, output_tokens: 0, total_tokens: 0 });
     }
 
     function applyEvent(event) {
@@ -1445,6 +1498,13 @@
       } else if (event.kind === "text_replace") {
         const turn = ensureTurn(event);
         turn.text = `${payload.text || ""}`;
+      } else if (event.kind === "turn_usage") {
+        ensureTurn(event).usage = {
+          input_tokens: Number(payload.input_tokens) || 0,
+          output_tokens: Number(payload.output_tokens) || 0,
+          total_tokens: Number(payload.total_tokens) || 0,
+        };
+        refreshUsageTotals();
       } else if (event.kind === "turn_done") {
         ensureTurn(event).status = "DONE";
       } else if (event.kind === "turn_failed") {

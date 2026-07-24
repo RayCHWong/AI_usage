@@ -28,6 +28,7 @@ from discussion_cli import (
     Invocation,
     NeutralWorkingDirectoryError,
 )
+from discussion_usage import TurnUsage
 
 
 class FakeProcess:
@@ -506,6 +507,46 @@ def test_agy_result_response_is_taken_once() -> None:
     assert adapter.take_final_text() is None
 
 
+def test_adapters_normalize_usage_and_take_it_once() -> None:
+    claude = ClaudeAdapter()
+    claude.parse_stdout_line(
+        '{"type":"result","usage":{"input_tokens":10,'
+        '"cache_creation_input_tokens":20,"cache_read_input_tokens":30,'
+        '"output_tokens":40}}'
+    )
+    assert claude.take_usage() == TurnUsage(10, 40, 100)
+    assert claude.take_usage() is None
+
+    codex = CodexAdapter()
+    codex.parse_stdout_line(
+        '{"type":"turn.completed","usage":{"input_tokens":10,'
+        '"cached_input_tokens":20,"cache_write_input_tokens":30,'
+        '"output_tokens":40,"reasoning_output_tokens":50}}'
+    )
+    assert codex.take_usage() == TurnUsage(10, 90, 150)
+
+    agy = AgyAdapter()
+    agy.parse_stdout_line(
+        '{"event":"result","result":{"usage":{"input_tokens":10,'
+        '"output_tokens":20,"thinking_tokens":30,"total_tokens":99}}}'
+    )
+    assert agy.take_usage() == TurnUsage(10, 20, 99)
+
+
+def test_usage_with_missing_or_invalid_fields_defaults_to_zero() -> None:
+    claude = ClaudeAdapter()
+    claude.parse_stdout_line('{"type":"result","usage":{"input_tokens":"bad"}}')
+    assert claude.take_usage() == TurnUsage(0, 0, 0)
+
+    codex = CodexAdapter()
+    codex.parse_stdout_line('{"type":"turn.completed","usage":{}}')
+    assert codex.take_usage() == TurnUsage(0, 0, 0)
+
+    agy = AgyAdapter()
+    agy.parse_stdout_line('{"event":"result","result":{"usage":null}}')
+    assert agy.take_usage() == TurnUsage(0, 0, 0)
+
+
 @pytest.mark.parametrize(
     "line",
     [
@@ -659,6 +700,33 @@ def test_cancellation_terminates_process_group_and_commits_cancelled_once(
     assert errors == []
     assert done_count == 0
     assert cancelled_count == 1
+
+
+def test_cancellation_does_not_call_on_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+    process = FakeProcess(io.StringIO(), io.StringIO(), returncode=None)
+    _install_fake_popen(monkeypatch, process)
+    monkeypatch.setattr(os, "getpgid", lambda pid: 9004)
+
+    def fake_killpg(process_group: int, sent_signal: signal.Signals) -> None:
+        process.returncode = -15
+
+    monkeypatch.setattr(os, "killpg", fake_killpg)
+    cancel_event = threading.Event()
+    cancel_event.set()
+    usages: list[TurnUsage] = []
+
+    discussion_cli.run_streaming(
+        ClaudeAdapter(),
+        _invocation(),
+        lambda text: None,
+        lambda: None,
+        lambda message: None,
+        lambda: None,
+        on_usage=usages.append,
+        cancel_event=cancel_event,
+    )
+
+    assert usages == []
 
 
 def test_cancel_and_normal_completion_race_commits_once(

@@ -20,6 +20,7 @@ from discussion_session import (
     SessionStatus,
     TurnStatus,
 )
+from discussion_usage import TurnUsage
 
 
 def _participants() -> list[Participant]:
@@ -172,6 +173,24 @@ def test_turn_lifecycle_delta_and_commit_once() -> None:
         session.append_delta(turn.id, "不應寫入")
 
 
+def test_snapshot_usage_totals_sum_turn_usage() -> None:
+    session = _running_session()
+    first = session.add_turn("claude", 1, supports_token_stream=True, turn_id="first")
+    second = session.add_turn("codex", 1, supports_token_stream=False, turn_id="second")
+    session.start_turn(first.id)
+    session.start_turn(second.id)
+
+    event = session.set_turn_usage(first.id, TurnUsage(10, 20, 50))
+    session.set_turn_usage(second.id, TurnUsage(30, 40, 90))
+    snapshot = session.snapshot()
+
+    assert event.kind == "turn_usage"
+    assert event.payload == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 50}
+    assert snapshot["usage_totals"] == {
+        "input_tokens": 40,
+        "output_tokens": 60,
+        "total_tokens": 140,
+    }
 def test_replace_text_replaces_turn_and_emits_full_text() -> None:
     session = _running_session()
     turn = session.add_turn("claude", 1, supports_token_stream=True, turn_id="turn-1")
