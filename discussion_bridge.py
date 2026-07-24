@@ -70,6 +70,7 @@ class ParticipantSpec:
     login_shell_opt_in: bool = False
     cwd: str | None = None
     read_only: bool = False
+    extra_read_dirs: tuple[str, ...] = ()
     env_overrides: Mapping[str, str] = field(default_factory=dict)
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     supports_token_stream: bool = False
@@ -245,6 +246,15 @@ class DiscussionBridge:
         if project_cwd is not None:
             specs = tuple(
                 replace(spec, cwd=project_cwd, read_only=True) for spec in specs
+            )
+        # Grant each CLI read access to the folders holding the attached
+        # images, so non-interactive mode can open files outside the working
+        # directory without an approval prompt. Only the attachment folders
+        # themselves — never the home directory or wider paths.
+        attachment_dirs = _attachment_dirs(attachments or ())
+        if attachment_dirs:
+            specs = tuple(
+                replace(spec, extra_read_dirs=attachment_dirs) for spec in specs
             )
         participant_models = [
             Participant(
@@ -691,6 +701,7 @@ def _default_adapter_factory(spec: ParticipantSpec) -> CLIAdapter:
         return ClaudeAdapter(
             cwd=spec.cwd,
             read_only=spec.read_only,
+            extra_read_dirs=spec.extra_read_dirs,
             env_overrides=spec.env_overrides,
             timeout_seconds=spec.timeout_seconds,
         )
@@ -698,6 +709,7 @@ def _default_adapter_factory(spec: ParticipantSpec) -> CLIAdapter:
         return CodexAdapter(
             cwd=spec.cwd,
             read_only=spec.read_only,
+            extra_read_dirs=spec.extra_read_dirs,
             env_overrides=spec.env_overrides,
             timeout_seconds=spec.timeout_seconds,
         )
@@ -705,6 +717,7 @@ def _default_adapter_factory(spec: ParticipantSpec) -> CLIAdapter:
         return AgyAdapter(
             cwd=spec.cwd,
             read_only=spec.read_only,
+            extra_read_dirs=spec.extra_read_dirs,
             env_overrides=spec.env_overrides,
             timeout_seconds=spec.timeout_seconds,
         )
@@ -749,6 +762,26 @@ def _build_transcript(session: DiscussionSession) -> str:
             f"{body}\n<<<TURN_END>>>"
         )
     return "\n\n".join(sections)
+
+
+def _attachment_dirs(attachments: Sequence[str]) -> tuple[str, ...]:
+    """Distinct absolute directories holding the existing attachment files.
+
+    Missing paths are ignored (mirrors ``build_attachment_block``); only the
+    folder each surviving file lives in is returned, deduplicated and in
+    stable first-seen order.
+    """
+    seen: set[str] = set()
+    dirs: list[str] = []
+    for raw in attachments:
+        path = Path(str(raw))
+        if not path.is_file():
+            continue
+        directory = str(path.resolve().parent)
+        if directory not in seen:
+            seen.add(directory)
+            dirs.append(directory)
+    return tuple(dirs)
 
 
 def build_attachment_block(attachments: Sequence[str], language: str) -> str:

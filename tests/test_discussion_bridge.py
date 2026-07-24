@@ -816,3 +816,44 @@ def test_start_skips_missing_attachments_and_still_runs(
 
     assert snapshot["status"] == "COMPLETED"
     assert missing not in adapters["solo"].prompts[0]
+
+
+def test_start_propagates_attachment_dir_to_specs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    image = tmp_path / "shot.png"
+    image.write_bytes(b"x")
+    captured: list[ParticipantSpec] = []
+
+    def factory(spec: ParticipantSpec) -> CLIAdapter:
+        captured.append(spec)
+        return FakeAdapter(spec.adapter_id)
+
+    bridge = DiscussionBridge(adapter_factory=factory)
+    _install_runner(monkeypatch, FakeRunner())
+
+    bridge.start("看圖", _specs("solo"), attachments=[str(image)])
+    _wait_terminal(bridge)
+
+    assert len(captured) == 1
+    assert captured[0].extra_read_dirs == (str(image.resolve().parent),)
+
+
+def test_start_leaves_extra_read_dirs_empty_without_attachments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[ParticipantSpec] = []
+
+    def factory(spec: ParticipantSpec) -> CLIAdapter:
+        captured.append(spec)
+        return FakeAdapter(spec.adapter_id)
+
+    bridge = DiscussionBridge(adapter_factory=factory)
+    _install_runner(monkeypatch, FakeRunner())
+
+    bridge.start("問題", _specs("solo"))
+    _wait_terminal(bridge)
+
+    assert len(captured) == 1
+    assert captured[0].extra_read_dirs == ()

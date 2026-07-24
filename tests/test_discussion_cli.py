@@ -366,6 +366,66 @@ def test_agy_project_invocation_only_changes_cwd(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    "adapter",
+    [ClaudeAdapter, CodexAdapter, AgyAdapter],
+)
+def test_extra_read_dirs_emits_add_dir_per_existing_folder(
+    tmp_path: Path,
+    adapter: type[ClaudeAdapter] | type[CodexAdapter] | type[AgyAdapter],
+) -> None:
+    target = tmp_path / "shots"
+    target.mkdir()
+    invocation = adapter(
+        "/bin/echo",
+        extra_read_dirs=[str(target), str(tmp_path / "missing")],
+    ).build_invocation("問題", None)
+
+    assert "--add-dir" in invocation.argv
+    add_idx = invocation.argv.index("--add-dir")
+    assert invocation.argv[add_idx + 1] == str(target.resolve())
+    # the missing folder is dropped, never reaches argv
+    assert str(tmp_path / "missing") not in invocation.argv
+
+
+@pytest.mark.parametrize(
+    "adapter",
+    [ClaudeAdapter, CodexAdapter, AgyAdapter],
+)
+def test_extra_read_dirs_omitted_when_empty(
+    adapter: type[ClaudeAdapter] | type[CodexAdapter] | type[AgyAdapter],
+) -> None:
+    invocation = adapter("/bin/echo").build_invocation("問題", None)
+
+    assert "--add-dir" not in invocation.argv
+
+
+def test_claude_read_only_with_extra_read_dirs_keeps_prompt_last(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    shots = tmp_path / "shots"
+    shots.mkdir()
+    invocation = ClaudeAdapter(
+        "/bin/echo",
+        cwd=str(project),
+        read_only=True,
+        extra_read_dirs=[str(shots)],
+    ).build_invocation("問題", None)
+
+    # Both `--tools` and `--add-dir` are variadic: the prompt must stay last,
+    # and the token after each value list must be a flag (starts with "--"),
+    # not the prompt.
+    assert invocation.argv[-1] == "問題"
+    tools_idx = invocation.argv.index("--tools")
+    assert invocation.argv[tools_idx + 1] == "Read,Grep,Glob"
+    assert invocation.argv[tools_idx + 2].startswith("--")
+    add_idx = invocation.argv.index("--add-dir")
+    assert invocation.argv[add_idx + 1] == str(shots.resolve())
+    assert invocation.argv[add_idx + 2].startswith("--")
+
+
+@pytest.mark.parametrize(
     "forbidden",
     [
         "--dangerously-bypass-approvals-and-sandbox",

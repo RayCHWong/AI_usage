@@ -117,12 +117,18 @@ class _JSONAdapter:
         read_only: bool = False,
         env_overrides: Mapping[str, str] | None = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        extra_read_dirs: Sequence[str] | None = None,
     ) -> None:
         self._user_configured_path = user_configured_path
         self._cwd = cwd
         self._read_only = read_only
         self._env_overrides = dict(env_overrides or {})
         self._timeout_seconds = timeout_seconds
+        # Directories the CLI is allowed to read in addition to its working
+        # directory (used to grant access to attachment folders). Stored as an
+        # immutable tuple; non-existent entries are filtered out at invocation
+        # time so a missing folder never makes the CLI error out.
+        self._extra_read_dirs = tuple(extra_read_dirs or ())
         self._parse_error_count = 0
         self._parse_error_lock = threading.Lock()
 
@@ -209,6 +215,14 @@ class _JSONAdapter:
         with self._parse_error_lock:
             self._parse_error_count += 1
 
+    def _resolved_read_dirs(self) -> tuple[str, ...]:
+        resolved: list[str] = []
+        for raw in self._extra_read_dirs:
+            path = Path(raw).expanduser()
+            if path.is_dir():
+                resolved.append(str(path.resolve()))
+        return tuple(resolved)
+
 
 class ClaudeAdapter(_JSONAdapter):
     adapter_id = "claude"
@@ -224,6 +238,12 @@ class ClaudeAdapter(_JSONAdapter):
             # dies with "Input must be provided ... when using --print". Keep a
             # non-variadic flag (`--safe-mode`) right after it.
             argv.extend(("--tools", "Read,Grep,Glob"))
+        # `--add-dir` is variadic (`<directories...>`), the same trap as
+        # `--tools` above: it must not sit right before the trailing prompt.
+        # Emit one `--add-dir <dir>` per folder, then let the non-variadic
+        # `--safe-mode` that follows act as the stopper so the prompt survives.
+        for directory in self._resolved_read_dirs():
+            argv.extend(("--add-dir", directory))
         argv.extend(
             (
                 "--safe-mode",
@@ -282,6 +302,10 @@ class CodexAdapter(_JSONAdapter):
         ]
         if self._read_only:
             argv.extend(("-s", "read-only"))
+        # `--add-dir` takes a single `<DIR>`; repeat once per folder. Placed
+        # alongside the other flags so the prompt stays the trailing argument.
+        for directory in self._resolved_read_dirs():
+            argv.extend(("--add-dir", directory))
         if model is not None:
             argv.extend(("--model", model))
         argv.append(prompt)
@@ -318,6 +342,10 @@ class AgyAdapter(_JSONAdapter):
         argv = [self._require_path(), "--output-format", "stream-json"]
         if model is not None:
             argv.extend(("--model", model))
+        # `--add-dir` is repeatable; emit one per folder before `-p <prompt>`
+        # so the prompt remains the final argument.
+        for directory in self._resolved_read_dirs():
+            argv.extend(("--add-dir", directory))
         argv.extend(("-p", prompt))
         return self._invocation(argv)
 
