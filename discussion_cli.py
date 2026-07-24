@@ -216,19 +216,25 @@ class ClaudeAdapter(_JSONAdapter):
     supports_token_stream = True
 
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
-        argv = [
-            self._require_path(),
-            "-p",
-            "--safe-mode",
-            "--setting-sources",
-            "project",
-            "--output-format",
-            "stream-json",
-            "--include-partial-messages",
-            "--verbose",
-        ]
+        argv = [self._require_path(), "-p"]
         if self._read_only:
+            # `--tools` is variadic (`<tools...>`): it keeps consuming argv
+            # tokens until the next flag. It must not directly precede the
+            # trailing prompt, or claude swallows the prompt as a tool name and
+            # dies with "Input must be provided ... when using --print". Keep a
+            # non-variadic flag (`--safe-mode`) right after it.
             argv.extend(("--tools", "Read,Grep,Glob"))
+        argv.extend(
+            (
+                "--safe-mode",
+                "--setting-sources",
+                "project",
+                "--output-format",
+                "stream-json",
+                "--include-partial-messages",
+                "--verbose",
+            )
+        )
         if model is not None:
             argv.extend(("--model", model))
         argv.append(prompt)

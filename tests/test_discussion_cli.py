@@ -329,6 +329,23 @@ def test_builtin_project_invocation_is_read_only(
     assert all(item in invocation.argv for item in required)
 
 
+def test_claude_read_only_tools_flag_does_not_swallow_prompt(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    invocation = ClaudeAdapter(
+        "/bin/echo",
+        cwd=str(project),
+        read_only=True,
+    ).build_invocation("問題", None)
+
+    # `--tools` is variadic; the prompt must stay last and must not directly
+    # follow the tool list, or claude consumes it as a tool name.
+    assert invocation.argv[-1] == "問題"
+    tools_idx = invocation.argv.index("--tools")
+    assert invocation.argv[tools_idx + 1] == "Read,Grep,Glob"
+    assert invocation.argv[tools_idx + 2].startswith("--")
+
+
 def test_agy_project_invocation_only_changes_cwd(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
