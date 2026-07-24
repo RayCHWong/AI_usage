@@ -237,3 +237,20 @@ def test_moderator_prompt_has_exact_required_sections() -> None:
         assert heading in prompt
     assert "<<<TRANSCRIPT_BEGIN>>>" in prompt
     assert "完整逐字稿" in prompt
+
+
+def test_all_prompts_include_neutral_council_context() -> None:
+    prompts = (
+        discussion_session.build_round1_prompt("問題"),
+        discussion_session.build_round2_prompt("問題", [("AI", "答案")]),
+        discussion_session.build_moderator_prompt("逐字稿"),
+    )
+
+    for prompt in prompts:
+        assert prompt.startswith(discussion_session.NEUTRAL_COUNCIL_CONTEXT)
+        assert "多 AI 圓桌討論" in prompt
+        assert "中立、獨立" in prompt
+        assert "AGENTS.md" in prompt
+        assert "CLAUDE.md" in prompt
+        assert "個人化指示" in prompt
+        assert "不要自行派工或呼叫其他工具" in prompt

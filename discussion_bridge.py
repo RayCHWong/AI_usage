@@ -193,7 +193,7 @@ class _CustomLineAdapter:
         )
 
     def parse_stdout_line(self, line: str) -> tuple[str | None, bool]:
-        return (line, True) if line else (None, False)
+        return (line, False) if line else (None, False)
 
 
 class DiscussionBridge:
@@ -340,7 +340,7 @@ class DiscussionBridge:
                     error="all participants failed in round 1",
                 )
                 return
-            if len(specs) == 1:
+            if len(round1_survivors) < 2:
                 self._transition(session, cancel_event, SessionStatus.COMPLETED)
                 return
 
@@ -384,7 +384,7 @@ class DiscussionBridge:
                 return
             self._transition(session, cancel_event, SessionStatus.SUMMARIZING)
             transcript = _build_transcript(session)
-            moderator_result = self._run_turn(
+            self._run_turn(
                 session,
                 moderator.participant,
                 3,
@@ -394,7 +394,6 @@ class DiscussionBridge:
             if cancel_event.is_set():
                 return
             self._transition(session, cancel_event, SessionStatus.COMPLETED)
-            _ = moderator_result
         except Exception as exc:
             if cancel_event.is_set():
                 return

@@ -24,12 +24,13 @@ from typing import Literal, Protocol, cast
 
 DetectionSource = Literal["which", "candidate_dir", "user_configured", "not_found"]
 
-# Every built-in CLI defaults to a dedicated neutral cwd so project instructions,
-# personal hooks, and repository agent rules cannot contaminate council answers.
+# Every built-in CLI defaults to a dedicated neutral cwd to block project-level
+# instructions and repository agent rules from contaminating council answers.
 # Claude's --bare mode is intentionally not used: it also disables OAuth/keychain
 # authentication, which would break subscription-based users.
-# Isolation differs by CLI: Claude uses --setting-sources project, Codex uses
-# --ignore-user-config, and Gemini cannot isolate user-level settings.
+# Isolation differs by CLI: Claude combines --safe-mode with --setting-sources
+# project for full customization isolation. Codex and Gemini cannot isolate
+# user-level instructions with flags, so prompts can only mitigate their influence.
 CANDIDATE_DIRECTORIES = (
     Path("/opt/homebrew/bin"),
     Path("/usr/local/bin"),
@@ -210,6 +211,7 @@ class ClaudeAdapter(_JSONAdapter):
         argv = [
             self._require_path(),
             "-p",
+            "--safe-mode",
             "--setting-sources",
             "project",
             "--output-format",

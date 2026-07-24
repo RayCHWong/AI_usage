@@ -218,18 +218,46 @@ def test_round1_partial_failure_preserves_error_and_survivors_continue(
             return RuntimeError("原始錯誤：登入失敗")
         return f"{adapter_id}-r{round_index}"
 
-    bridge, _ = _bridge_with_adapters(("a", "b"))
+    bridge, _ = _bridge_with_adapters(("a", "b", "c"))
     runner = FakeRunner(outcome)
     _install_runner(monkeypatch, runner)
 
-    bridge.start("問題", _specs("a", "b"))
+    bridge.start("問題", _specs("a", "b", "c"))
     snapshot = _wait_terminal(bridge)
     turns = snapshot["turns"]
 
     assert snapshot["status"] == "COMPLETED"
-    assert Counter(runner.calls) == {("a", 1): 1, ("b", 1): 1, ("b", 2): 1, ("b", 3): 1}
+    assert Counter(runner.calls) == {
+        ("a", 1): 1,
+        ("b", 1): 1,
+        ("c", 1): 1,
+        ("b", 2): 1,
+        ("c", 2): 1,
+        ("b", 3): 1,
+    }
     failed = next(turn for turn in turns if turn["participant_id"] == "a")
     assert failed["error"] == "原始錯誤：登入失敗"
+
+
+def test_three_participants_with_one_round1_survivor_skip_later_rounds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def outcome(adapter_id: str, round_index: int) -> str | Exception:
+        if adapter_id != "a":
+            return RuntimeError(f"{adapter_id} round 1 failed")
+        return "a-r1"
+
+    bridge, _ = _bridge_with_adapters(("a", "b", "c"))
+    runner = FakeRunner(outcome)
+    _install_runner(monkeypatch, runner)
+
+    bridge.start("問題", _specs("a", "b", "c"))
+    snapshot = _wait_terminal(bridge)
+
+    assert snapshot["status"] == "COMPLETED"
+    assert len(runner.calls) == 3
+    assert Counter(round_index for _, round_index in runner.calls) == {1: 3}
+    assert all(turn["round_index"] == 1 for turn in snapshot["turns"])
 
 
 def test_failed_designated_moderator_falls_back_to_survivor(
@@ -249,6 +277,28 @@ def test_failed_designated_moderator_falls_back_to_survivor(
 
     assert snapshot["status"] == "COMPLETED"
     assert runner.calls[-1] == ("b", 3)
+
+
+def test_moderator_failure_is_preserved_on_summary_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def outcome(adapter_id: str, round_index: int) -> str | Exception:
+        if round_index == 3:
+            return RuntimeError("主持人額度耗盡")
+        return f"{adapter_id}-r{round_index}"
+
+    bridge, _ = _bridge_with_adapters(("a", "b"))
+    _install_runner(monkeypatch, FakeRunner(outcome))
+
+    bridge.start("問題", _specs("a", "b"), moderator_id="a")
+    snapshot = _wait_terminal(bridge)
+    summary_turn = next(
+        turn for turn in snapshot["turns"] if turn["round_index"] == 3
+    )
+
+    assert snapshot["status"] == "COMPLETED"
+    assert summary_turn["status"] == "FAILED"
+    assert summary_turn["error"] == "主持人額度耗盡"
 
 
 def test_unspecified_moderator_uses_first_survivor(
@@ -594,6 +644,7 @@ def test_custom_argv_and_login_shell_sources_build_safe_invocations(
     executable.write_text("#!/bin/sh\n")
     executable.chmod(0o755)
     captured: list[tuple[str, ...]] = []
+    parsed_lines: list[tuple[str | None, bool]] = []
 
     def capture_runner(
         adapter: CLIAdapter,
@@ -605,6 +656,7 @@ def test_custom_argv_and_login_shell_sources_build_safe_invocations(
         cancel_event: threading.Event,
     ) -> None:
         captured.append(invocation.argv)
+        parsed_lines.append(adapter.parse_stdout_line("first line\n"))
         on_delta("answer")
         on_done()
 
@@ -642,6 +694,8 @@ def test_custom_argv_and_login_shell_sources_build_safe_invocations(
         "usage-discussion",
         build_round1_prompt_text(),
     )
+    assert parsed_lines
+    assert all(parsed == ("first line\n", False) for parsed in parsed_lines)
 
 
 def build_round1_prompt_text() -> str:

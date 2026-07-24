@@ -195,6 +195,7 @@ def test_invalid_configured_path_does_not_silently_fall_back(
             (
                 "/bin/echo",
                 "-p",
+                "--safe-mode",
                 "--setting-sources",
                 "project",
                 "--output-format",
@@ -237,6 +238,15 @@ def test_codex_invocation_never_bypasses_approvals_or_sandbox() -> None:
     assert "--skip-git-repo-check" in invocation.argv
     assert "--ignore-user-config" in invocation.argv
     assert "--dangerously-bypass-approvals-and-sandbox" not in invocation.argv
+
+
+def test_claude_invocation_uses_safe_mode_without_bare() -> None:
+    invocation = ClaudeAdapter("/bin/echo").build_invocation("問題", None)
+
+    assert "--safe-mode" in invocation.argv
+    assert "--setting-sources" in invocation.argv
+    assert invocation.argv[invocation.argv.index("--setting-sources") + 1] == "project"
+    assert "--bare" not in invocation.argv
 
 
 def test_neutral_working_directory_is_created_without_configuration() -> None:
