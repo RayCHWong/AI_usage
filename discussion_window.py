@@ -9,6 +9,7 @@
 # mypy: disable-error-code="import-untyped,import-not-found,misc"
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import os
@@ -31,6 +32,7 @@ from usage_lang import detect_lang
 ATTACHMENTS_DIR = Path(os.path.expanduser("~/.usage/discussion_attachments"))
 ATTACHMENT_MAX_FILES = 50
 ATTACHMENT_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+DROP_MAX_BYTES = 20 * 1024 * 1024
 
 
 def _attachment_timestamp() -> str:
@@ -204,6 +206,7 @@ ActionName = Literal[
     "discussion_stop",
     "discussion_paste_image",
     "discussion_pick_image",
+    "discussion_drop_image",
     "discussion_remove_attachment",
 ]
 
@@ -217,6 +220,8 @@ class DiscussionAction:
     working_directory: str | None = None
     attachments: tuple[str, ...] = ()
     attachment_path: str | None = None
+    attachment_data: str | None = None
+    attachment_name: str | None = None
 
 
 def parse_discussion_action(raw: object) -> DiscussionAction:
@@ -240,6 +245,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         "discussion_stop",
         "discussion_paste_image",
         "discussion_pick_image",
+        "discussion_drop_image",
         "discussion_remove_attachment",
     }:
         raise ValueError("unknown discussion action")
@@ -250,6 +256,18 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         return DiscussionAction(
             cast(ActionName, action),
             attachment_path=path_value,
+        )
+    if action == "discussion_drop_image":
+        data_value = payload.get("data")
+        name_value = payload.get("name")
+        if not isinstance(data_value, str) or not data_value.strip():
+            raise ValueError("discussion_drop_image requires base64 data")
+        if not isinstance(name_value, str) or not name_value.strip():
+            raise ValueError("discussion_drop_image requires a filename")
+        return DiscussionAction(
+            cast(ActionName, action),
+            attachment_data=data_value,
+            attachment_name=name_value,
         )
     if action != "discussion_start":
         return DiscussionAction(cast(ActionName, action))
@@ -613,6 +631,10 @@ class DiscussionWindowController:
                 self._apply_working_directory()
             elif action.action == "discussion_paste_image":
                 self._handle_paste_image()
+            elif action.action == "discussion_drop_image":
+                assert action.attachment_data is not None
+                assert action.attachment_name is not None
+                self._handle_drop_image(action.attachment_data, action.attachment_name)
             elif action.action == "discussion_pick_image":
                 self._handle_pick_image()
             elif action.action == "discussion_remove_attachment":
@@ -695,6 +717,31 @@ class DiscussionWindowController:
         data, suffix = result
         try:
             target = save_attachment_bytes(data, suffix)
+        except OSError as exc:
+            self._apply_attachments(hint=str(exc))
+            return
+        self._attachments.append({"name": target.name, "path": str(target)})
+        self._apply_attachments()
+
+    def _handle_drop_image(self, data: str, name: str) -> None:
+        suffix = Path(name).suffix.lower()
+        if suffix not in ATTACHMENT_SUFFIXES:
+            self._apply_attachments(
+                hint=_t(self._language, "discussion_drop_not_image")
+            )
+            return
+        try:
+            raw = base64.b64decode(data, validate=True)
+        except ValueError as exc:
+            self._apply_attachments(hint=str(exc))
+            return
+        if len(raw) > DROP_MAX_BYTES:
+            self._apply_attachments(
+                hint=_t(self._language, "discussion_drop_too_large")
+            )
+            return
+        try:
+            target = save_attachment_bytes(raw, suffix)
         except OSError as exc:
             self._apply_attachments(hint=str(exc))
             return

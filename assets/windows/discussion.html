@@ -1261,11 +1261,7 @@
       renderWorkingDirectory();
     };
 
-    window.discussionApplyAttachments = (payload) => {
-      const data = payload && typeof payload === "object" ? payload : {};
-      attachments = Array.isArray(data.attachments) ? data.attachments : [];
-      renderAttachments();
-      const hint = typeof data.hint === "string" && data.hint ? data.hint : null;
+    function flashAttachmentHint(hint) {
       if (attachmentHintTimer !== null) {
         window.clearTimeout(attachmentHintTimer);
         attachmentHintTimer = null;
@@ -1277,21 +1273,77 @@
           attachmentHintTimer = null;
         }, 1800);
       }
+    }
+
+    window.discussionApplyAttachments = (payload) => {
+      const data = payload && typeof payload === "object" ? payload : {};
+      attachments = Array.isArray(data.attachments) ? data.attachments : [];
+      renderAttachments();
+      const hint = typeof data.hint === "string" && data.hint ? data.hint : null;
+      flashAttachmentHint(hint);
     };
 
     window.discussionApplyError = (message) => {
       errorEl.textContent = `${message || ""}`;
     };
 
+    const DROP_MAX_BYTES = 20 * 1024 * 1024;
+    const DROP_IMAGE_EXT = /\.(png|jpe?g|gif|webp)$/i;
+
+    function readDroppedImage(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = typeof reader.result === "string" ? reader.result : "";
+          const comma = result.indexOf(",");
+          resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = () => resolve("");
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function handleDrop(event) {
+      const transfer = event.dataTransfer;
+      const files = transfer ? Array.from(transfer.files || []) : [];
+      if (!files.length) return;
+      for (const file of files) {
+        const isImage = /^image\//i.test(file.type) || DROP_IMAGE_EXT.test(file.name);
+        if (!isImage) {
+          flashAttachmentHint(t("discussion_drop_not_image", { name: file.name }));
+          continue;
+        }
+        if (file.size > DROP_MAX_BYTES) {
+          flashAttachmentHint(t("discussion_drop_too_large", { name: file.name }));
+          continue;
+        }
+        const base64 = await readDroppedImage(file);
+        if (!base64) {
+          flashAttachmentHint(t("discussion_drop_failed"));
+          continue;
+        }
+        send("discussion_drop_image", { data: base64, name: file.name });
+      }
+    }
+
     topicEl.addEventListener("input", renderControls);
     topicEl.addEventListener("paste", (event) => {
       const clipboard = event.clipboardData;
-      if (!clipboard) return;
-      const types = Array.from(clipboard.types || []);
-      const hasImage = types.some((type) => /^image\//i.test(`${type}`));
-      if (!hasImage) return;
+      const types = clipboard ? Array.from(clipboard.types || []) : [];
+      const looksTextOnly = types.includes("text/plain")
+        && !types.includes("Files")
+        && !types.some((type) => /^image\//i.test(`${type}`));
+      if (looksTextOnly) return;
       event.preventDefault();
       send("discussion_paste_image");
+    });
+    const topicFieldEl = topicEl.closest(".field") || topicEl;
+    topicFieldEl.addEventListener("dragover", (event) => {
+      event.preventDefault();
+    });
+    topicFieldEl.addEventListener("drop", (event) => {
+      event.preventDefault();
+      handleDrop(event);
     });
     detectEl.addEventListener("click", () => {
       errorEl.textContent = "";

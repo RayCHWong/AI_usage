@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -734,6 +735,89 @@ def test_controller_paste_without_image_reports_hint(
     controller = _attachments_controller(FakeBridge())
 
     controller._receive_action('{"action":"discussion_paste_image"}')
+
+    assert controller._attachments == []
+    payload = _last_attachment_payload(controller.webview.scripts)
+    assert payload["hint"]
+
+
+def test_parse_drop_image_carries_data_and_name() -> None:
+    parsed = discussion_window.parse_discussion_action(
+        json.dumps(
+            {"action": "discussion_drop_image", "data": "cG5n", "name": "x.png"}
+        )
+    )
+    assert parsed.action == "discussion_drop_image"
+    assert parsed.attachment_data == "cG5n"
+    assert parsed.attachment_name == "x.png"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"action": "discussion_drop_image", "name": "x.png"},
+        {"action": "discussion_drop_image", "data": "cG5n"},
+        {"action": "discussion_drop_image", "data": "", "name": "x.png"},
+        {"action": "discussion_drop_image", "data": "cG5n", "name": " "},
+        {"action": "discussion_drop_image", "data": 3, "name": "x.png"},
+        {"action": "discussion_drop_image", "data": "cG5n", "name": None},
+    ],
+)
+def test_parse_drop_image_rejects_bad_fields(payload: object) -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(json.dumps(payload))
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_drop_image_decodes_and_saves_attachment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    saved = tmp_path / "20260724-185530-1.png"
+    captured: dict[str, object] = {}
+
+    def fake_save(
+        data: bytes,
+        suffix: str,
+        directory: Path = discussion_window.ATTACHMENTS_DIR,
+    ) -> Path:
+        captured["data"] = data
+        captured["suffix"] = suffix
+        return saved
+
+    monkeypatch.setattr(discussion_window, "save_attachment_bytes", fake_save)
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action(
+        json.dumps(
+            {
+                "action": "discussion_drop_image",
+                "data": base64.b64encode(b"png").decode(),
+                "name": "screen.png",
+            }
+        )
+    )
+
+    assert captured == {"data": b"png", "suffix": ".png"}
+    assert controller._attachments == [{"name": saved.name, "path": str(saved)}]
+    payload = _last_attachment_payload(controller.webview.scripts)
+    assert payload["attachments"] == [{"name": saved.name, "path": str(saved)}]
+    assert payload["hint"] is None
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_drop_non_image_suffix_reports_hint() -> None:
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action(
+        json.dumps(
+            {
+                "action": "discussion_drop_image",
+                "data": base64.b64encode(b"text").decode(),
+                "name": "notes.txt",
+            }
+        )
+    )
 
     assert controller._attachments == []
     payload = _last_attachment_payload(controller.webview.scripts)
