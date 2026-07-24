@@ -336,7 +336,7 @@ def test_failed_turn_error_is_collapsed_with_first_line_summary() -> None:
     assert "text-overflow: ellipsis" in html
 
 
-def test_participant_chips_use_project_icons_and_inline_gemini_badge() -> None:
+def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
     html = HTML_PATH.read_text(encoding="utf-8")
 
     assert "max-width: min(250px, 100%)" in html
@@ -345,7 +345,7 @@ def test_participant_chips_use_project_icons_and_inline_gemini_badge() -> None:
     assert "const PARTICIPANT_ICON_URIS" in html
     assert '"{{CLAUDE_ICON}}"' in html
     assert '"{{CODEX_ICON}}"' in html
-    assert "const GEMINI_BADGE" in html
+    assert "const AGY_BADGE" in html
     assert "const DEFAULT_PARTICIPANT_BADGE" in html
     assert 'document.createElement("img")' in html
     assert 'badge.className = "participant-badge"' in html

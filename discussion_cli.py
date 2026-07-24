@@ -29,7 +29,7 @@ DetectionSource = Literal["which", "candidate_dir", "user_configured", "not_foun
 # Claude's --bare mode is intentionally not used: it also disables OAuth/keychain
 # authentication, which would break subscription-based users.
 # Isolation differs by CLI: Claude combines --safe-mode with --setting-sources
-# project for full customization isolation. Codex and Gemini cannot isolate
+# project for full customization isolation. Codex and Antigravity cannot isolate
 # user-level instructions with flags, so prompts can only mitigate their influence.
 CANDIDATE_DIRECTORIES = (
     Path("/opt/homebrew/bin"),
@@ -300,18 +300,18 @@ class CodexAdapter(_JSONAdapter):
         return text, False
 
 
-class GeminiAdapter(_JSONAdapter):
-    adapter_id = "gemini"
-    executable_name = "gemini"
+class AgyAdapter(_JSONAdapter):
+    adapter_id = "agy"
+    executable_name = "agy"
     supports_token_stream = True
 
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
-        # Gemini has no equivalent of Claude's or Codex's user-config isolation flag.
-        # The neutral cwd blocks project-level GEMINI.md only; user settings may apply.
-        # Project mode can only change cwd; Gemini exposes no read-only sandbox flag.
-        argv = [self._require_path(), "-o", "stream-json"]
+        # agy has no equivalent of Claude's or Codex's user-config isolation flag.
+        # The neutral cwd blocks project-level AGENTS.md only; user settings may apply.
+        # Project mode can only change cwd; agy exposes no read-only sandbox flag.
+        argv = [self._require_path(), "--output-format", "stream-json"]
         if model is not None:
-            argv.extend(("-m", model))
+            argv.extend(("--model", model))
         argv.extend(("-p", prompt))
         return self._invocation(argv)
 
@@ -319,16 +319,22 @@ class GeminiAdapter(_JSONAdapter):
         event = self._load_event(line)
         if event is None:
             return None, False
-        event_type = event.get("type")
+        event_type = event.get("event")
         if event_type == "result":
             return None, True
-        if event_type != "message" or event.get("role") != "assistant":
+        if event_type != "step_update":
             return None, False
-        content = event.get("content")
-        if not isinstance(content, str):
+        step_update = event.get("step_update")
+        if not isinstance(step_update, dict):
             self._record_parse_error()
             return None, False
-        return content, False
+        if step_update.get("step_type") != "agent_response":
+            return None, False
+        text = step_update.get("text_delta")
+        if not isinstance(text, str):
+            self._record_parse_error()
+            return None, False
+        return text, False
 
 
 def build_argv_invocation(

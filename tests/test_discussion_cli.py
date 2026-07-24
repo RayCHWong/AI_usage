@@ -21,10 +21,10 @@ import pytest
 
 import discussion_cli
 from discussion_cli import (
+    AgyAdapter,
     ClaudeAdapter,
     CLIAdapter,
     CodexAdapter,
-    GeminiAdapter,
     Invocation,
     NeutralWorkingDirectoryError,
 )
@@ -217,8 +217,8 @@ def test_invalid_configured_path_does_not_silently_fall_back(
             ),
         ),
         (
-            GeminiAdapter("/bin/echo"),
-            ("/bin/echo", "-o", "stream-json", "-p", "問題"),
+            AgyAdapter("/bin/echo"),
+            ("/bin/echo", "--output-format", "stream-json", "-p", "問題"),
         ),
     ],
 )
@@ -329,17 +329,23 @@ def test_builtin_project_invocation_is_read_only(
     assert all(item in invocation.argv for item in required)
 
 
-def test_gemini_project_invocation_only_changes_cwd(tmp_path: Path) -> None:
+def test_agy_project_invocation_only_changes_cwd(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
-    invocation = GeminiAdapter(
+    invocation = AgyAdapter(
         "/bin/echo",
         cwd=str(project),
         read_only=True,
     ).build_invocation("問題", None)
 
     assert invocation.cwd == str(project.resolve())
-    assert invocation.argv == ("/bin/echo", "-o", "stream-json", "-p", "問題")
+    assert invocation.argv == (
+        "/bin/echo",
+        "--output-format",
+        "stream-json",
+        "-p",
+        "問題",
+    )
 
 
 @pytest.mark.parametrize(
@@ -363,7 +369,7 @@ def test_project_invocations_never_enable_writes(
         adapter("/bin/echo", cwd=str(project), read_only=True).build_invocation(
             "問題", None
         )
-        for adapter in (ClaudeAdapter, CodexAdapter, GeminiAdapter)
+        for adapter in (ClaudeAdapter, CodexAdapter, AgyAdapter)
     ]
 
     assert all(forbidden not in invocation.argv for invocation in invocations)
@@ -397,7 +403,7 @@ def test_protocol_exposes_coordinator_metadata() -> None:
 def test_adapters_parse_documented_events_and_finish_markers() -> None:
     claude = ClaudeAdapter()
     codex = CodexAdapter()
-    gemini = GeminiAdapter()
+    agy = AgyAdapter()
 
     assert claude.parse_stdout_line(_claude_delta("逐字")) == ("逐字", False)
     assert claude.parse_stdout_line('{"type":"result","subtype":"success"}') == (None, True)
@@ -405,13 +411,15 @@ def test_adapters_parse_documented_events_and_finish_markers() -> None:
         '{"type":"item.completed","item":{"type":"agent_message","text":"整段"}}'
     ) == ("整段", False)
     assert codex.parse_stdout_line('{"type":"turn.completed","usage":{}}') == (None, True)
-    assert gemini.parse_stdout_line(
-        '{"type":"message","role":"assistant","content":"片段","delta":true}'
+    assert agy.parse_stdout_line(
+        '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"agent_response","text_delta":"片段"}}'
     ) == ("片段", False)
-    assert gemini.parse_stdout_line('{"type":"result","status":"success"}') == (None, True)
+    assert agy.parse_stdout_line(
+        '{"event":"result","result":{"status":"SUCCESS"}}'
+    ) == (None, True)
 
 
-@pytest.mark.parametrize("adapter", [ClaudeAdapter(), CodexAdapter(), GeminiAdapter()])
+@pytest.mark.parametrize("adapter", [ClaudeAdapter(), CodexAdapter(), AgyAdapter()])
 def test_invalid_json_is_skipped_and_counted(adapter: Any) -> None:
     before = adapter.parse_error_count
 
@@ -574,7 +582,7 @@ def test_nonzero_exit_reports_stderr_tail_verbatim(
     )
     _install_fake_popen(monkeypatch, process)
 
-    _, errors, done_count, cancelled_count = _run(GeminiAdapter(), _invocation())
+    _, errors, done_count, cancelled_count = _run(AgyAdapter(), _invocation())
 
     assert errors == ["Authentication failed\nIneligibleTierError"]
     assert done_count == 0

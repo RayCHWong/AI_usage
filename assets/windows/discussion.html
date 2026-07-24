@@ -20,8 +20,8 @@
       --danger-soft: rgba(255, 133, 133, 0.1);
       --danger-hover: rgba(255, 133, 133, 0.18);
       --success: #68c996;
-      --badge-gemini-start: #326fd1;
-      --badge-gemini-end: #7950aa;
+      --badge-agy-start: #326fd1;
+      --badge-agy-end: #7950aa;
       --badge-symbol: #fff;
       --shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
       --transparent: transparent;
@@ -43,8 +43,8 @@
         --danger-soft: rgba(169, 46, 46, 0.1);
         --danger-hover: rgba(169, 46, 46, 0.16);
         --success: #24754c;
-        --badge-gemini-start: #326fd1;
-        --badge-gemini-end: #7950aa;
+        --badge-agy-start: #326fd1;
+        --badge-agy-end: #7950aa;
         --badge-symbol: #fff;
         --shadow: 0 10px 30px rgba(28, 37, 52, 0.08);
         --transparent: transparent;
@@ -196,13 +196,13 @@
       box-shadow: 0 0 0 1px var(--border);
     }
 
-    .participant-badge.gemini {
+    .participant-badge.agy {
       display: grid;
       place-items: center;
       background: linear-gradient(
         135deg,
-        var(--badge-gemini-start),
-        var(--badge-gemini-end)
+        var(--badge-agy-start),
+        var(--badge-agy-end)
       );
     }
 
@@ -621,7 +621,7 @@
     const I18N = {{I18N_BUNDLE}};
     const INITIAL_LANGUAGE = {{INITIAL_LANGUAGE}};
     const HANDLER = "usageDiscussion";
-    const PARTICIPANT_IDS = ["claude", "codex", "gemini"];
+    const PARTICIPANT_IDS = ["claude", "codex", "agy"];
     const RUNNING_STATUSES = new Set([
       "PREPARING",
       "ROUND1_RUNNING",
@@ -634,9 +634,10 @@
       claude: "{{CLAUDE_ICON}}",
       codex: "{{CODEX_ICON}}",
     };
-    const GEMINI_BADGE = {
-      className: "gemini",
-      path: "M8 1.5C8.7 5.8 10.2 7.3 14.5 8 10.2 8.7 8.7 10.2 8 14.5 7.3 10.2 5.8 8.7 1.5 8 5.8 7.3 7.3 5.8 8 1.5Z",
+    const AGY_BADGE = {
+      className: "agy",
+      viewBox: "0 0 24 24",
+      path: "M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z",
       filled: true,
     };
     const DEFAULT_PARTICIPANT_BADGE = {
@@ -735,12 +736,12 @@
         badge.src = iconUri;
         return badge;
       }
-      const config = id === "gemini" ? GEMINI_BADGE : DEFAULT_PARTICIPANT_BADGE;
+      const config = id === "agy" ? AGY_BADGE : DEFAULT_PARTICIPANT_BADGE;
       const badge = document.createElement("span");
       badge.className = `participant-badge ${config.className}`;
       badge.setAttribute("aria-hidden", "true");
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("viewBox", config.viewBox || "0 0 16 16");
       const symbol = document.createElementNS("http://www.w3.org/2000/svg", "path");
       symbol.setAttribute("d", config.path);
       symbol.setAttribute(

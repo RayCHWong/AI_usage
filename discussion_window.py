@@ -26,11 +26,11 @@ from usage_lang import detect_lang
 
 SCRIPT_HANDLER_NAME = "usageDiscussion"
 WINDOW_AUTOSAVE_NAME = "usage.discussion.window"
-BUILTIN_PARTICIPANTS = ("claude", "codex", "gemini")
+BUILTIN_PARTICIPANTS = ("claude", "codex", "agy")
 PARTICIPANT_LABELS = {
     "claude": "Claude",
     "codex": "Codex",
-    "gemini": "Gemini",
+    "agy": "Antigravity",
 }
 RUNNING_STATUSES = frozenset(
     {"PREPARING", "ROUND1_RUNNING", "ROUND2_RUNNING", "SUMMARIZING", "CANCELLING"}

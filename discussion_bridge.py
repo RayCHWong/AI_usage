@@ -20,11 +20,11 @@ from typing import Literal
 
 from discussion_cli import (
     DEFAULT_TIMEOUT_SECONDS,
+    AgyAdapter,
     ClaudeAdapter,
     CLIAdapter,
     CodexAdapter,
     DetectionResult,
-    GeminiAdapter,
     Invocation,
     build_argv_invocation,
     build_login_shell_invocation,
@@ -218,7 +218,7 @@ class DiscussionBridge:
         return [
             ClaudeAdapter().detect(),
             CodexAdapter().detect(),
-            GeminiAdapter().detect(),
+            AgyAdapter().detect(),
         ]
 
     def start(
@@ -692,8 +692,8 @@ def _default_adapter_factory(spec: ParticipantSpec) -> CLIAdapter:
             env_overrides=spec.env_overrides,
             timeout_seconds=spec.timeout_seconds,
         )
-    if spec.adapter_id == "gemini":
-        return GeminiAdapter(
+    if spec.adapter_id == "agy":
+        return AgyAdapter(
             cwd=spec.cwd,
             read_only=spec.read_only,
             env_overrides=spec.env_overrides,
