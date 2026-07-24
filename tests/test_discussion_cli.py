@@ -206,7 +206,14 @@ def test_invalid_configured_path_does_not_silently_fall_back(
         ),
         (
             CodexAdapter("/bin/echo"),
-            ("/bin/echo", "exec", "--json", "問題"),
+            (
+                "/bin/echo",
+                "exec",
+                "--skip-git-repo-check",
+                "--ignore-user-config",
+                "--json",
+                "問題",
+            ),
         ),
         (
             GeminiAdapter("/bin/echo"),
@@ -222,6 +229,14 @@ def test_builtin_invocation_argv_is_exact(
 
     assert invocation.argv == expected
     assert invocation.cwd == str(discussion_cli.NEUTRAL_DISCUSSION_CWD)
+
+
+def test_codex_invocation_never_bypasses_approvals_or_sandbox() -> None:
+    invocation = CodexAdapter("/bin/echo").build_invocation("問題", None)
+
+    assert "--skip-git-repo-check" in invocation.argv
+    assert "--ignore-user-config" in invocation.argv
+    assert "--dangerously-bypass-approvals-and-sandbox" not in invocation.argv
 
 
 def test_neutral_working_directory_is_created_without_configuration() -> None:

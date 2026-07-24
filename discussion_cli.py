@@ -28,6 +28,8 @@ DetectionSource = Literal["which", "candidate_dir", "user_configured", "not_foun
 # personal hooks, and repository agent rules cannot contaminate council answers.
 # Claude's --bare mode is intentionally not used: it also disables OAuth/keychain
 # authentication, which would break subscription-based users.
+# Isolation differs by CLI: Claude uses --setting-sources project, Codex uses
+# --ignore-user-config, and Gemini cannot isolate user-level settings.
 CANDIDATE_DIRECTORIES = (
     Path("/opt/homebrew/bin"),
     Path("/usr/local/bin"),
@@ -253,7 +255,13 @@ class CodexAdapter(_JSONAdapter):
     supports_token_stream = False
 
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
-        argv = [self._require_path(), "exec", "--json"]
+        argv = [
+            self._require_path(),
+            "exec",
+            "--skip-git-repo-check",
+            "--ignore-user-config",
+            "--json",
+        ]
         if model is not None:
             argv.extend(("--model", model))
         argv.append(prompt)
@@ -284,6 +292,8 @@ class GeminiAdapter(_JSONAdapter):
     supports_token_stream = True
 
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
+        # Gemini has no equivalent of Claude's or Codex's user-config isolation flag.
+        # The neutral cwd blocks project-level GEMINI.md only; user settings may apply.
         argv = [self._require_path(), "-o", "stream-json"]
         if model is not None:
             argv.extend(("-m", model))
