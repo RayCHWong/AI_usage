@@ -406,7 +406,7 @@ def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
     html = HTML_PATH.read_text(encoding="utf-8")
 
     assert "max-width: min(250px, 100%)" in html
-    assert "grid-template-columns: auto auto minmax(0, 1fr)" in html
+    assert "grid-template-columns: auto auto minmax(0, 1fr) auto" in html
     assert "flex-wrap: wrap" in html
     assert "const PARTICIPANT_ICON_URIS" in html
     assert '"{{CLAUDE_ICON}}"' in html
@@ -418,7 +418,7 @@ def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
     assert 'badge.alt = ""' in html
     assert 'document.createElementNS("http://www.w3.org/2000/svg", "svg")' in html
     assert 'badge.setAttribute("aria-hidden", "true")' in html
-    assert "chip.append(checkbox, createParticipantBadge(id), name, status)" in html
+    assert "chip.append(checkbox, createParticipantBadge(id), name, status, moderator)" in html
     assert "url(http" not in html
 
 
@@ -505,6 +505,14 @@ def test_html_controls_and_history_follow_use_reviewed_logic() -> None:
     assert "if (wasNearBottom && shouldFollow)" in html
     assert "scrollHistoryToBottom()" in html
     assert "historyEl.scrollTop = previousScrollTop" in html
+
+
+def test_moderator_chip_keeps_existing_start_payload_and_rejects_unavailable() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert "moderatorId: moderatorId || null" in html
+    assert "moderator.disabled = !available || !selected.has(id) || isRunning();" in html
+    assert "if (!available || !selected.has(id) || isRunning()) return;" in html
 
 
 def test_html_colors_are_tokenized_with_light_mode_overrides() -> None:

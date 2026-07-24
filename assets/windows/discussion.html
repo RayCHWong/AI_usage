@@ -82,7 +82,7 @@
 
     button:disabled {
       cursor: not-allowed;
-      opacity: 0.48;
+      opacity: 0.52;
     }
 
     .app {
@@ -156,7 +156,7 @@
     .controls {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 0;
       min-width: 0;
     }
 
@@ -168,7 +168,7 @@
 
     .participant-chip {
       display: inline-grid;
-      grid-template-columns: auto auto minmax(0, 1fr);
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
       gap: 2px 7px;
       align-items: center;
       max-width: min(250px, 100%);
@@ -325,6 +325,57 @@
       white-space: nowrap;
     }
 
+    .moderator-toggle {
+      grid-column: 4;
+      grid-row: 1 / span 2;
+      padding: 3px 6px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--transparent);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .moderator-toggle.selected {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .moderator-select-fallback {
+      display: none;
+    }
+
+    .setup-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px 0;
+    }
+
+    .setup-section:first-child {
+      padding-top: 0;
+    }
+
+    .setup-section + .setup-section {
+      border-top: 1px solid var(--border);
+    }
+
+    .setup-section-title {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .detect-status {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
     .moderator-row {
       display: grid;
       grid-template-columns: minmax(130px, 1fr) auto;
@@ -446,6 +497,8 @@
       border-color: var(--accent);
       background: var(--accent);
       color: var(--on-accent);
+      padding-inline: 18px;
+      box-shadow: 0 0 0 1px var(--accent-soft), 0 5px 16px var(--accent-soft);
     }
 
     .stop-button {
@@ -674,6 +727,23 @@
       text-align: center;
     }
 
+    .placeholder-steps {
+      justify-items: start;
+      align-content: center;
+      gap: 8px;
+      text-align: left;
+    }
+
+    .history-progress {
+      max-width: 58%;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .summary-section h3 {
       margin: 0 0 7px;
       color: var(--accent);
@@ -713,16 +783,29 @@
       </div>
       <div class="setup-card">
         <div class="controls">
-          <div class="field">
-            <span class="label" data-i18n="discussion_participants"></span>
+          <section class="setup-section">
+            <h2 class="setup-section-title" data-i18n="discussion_section_participants"></h2>
+            <div class="field">
+              <span class="label" data-i18n="discussion_participants"></span>
             <div class="participants" id="participants"></div>
-          </div>
-          <div class="moderator-row">
-            <label class="label" for="moderator" data-i18n="discussion_moderator"></label>
-            <select id="moderator"></select>
+            </div>
+            <select class="moderator-select-fallback" id="moderator" aria-hidden="true" tabindex="-1"></select>
             <button class="detect-button" id="detect" type="button" data-i18n="discussion_detect"></button>
-          </div>
-          <div class="working-directory-row">
+            <div class="detect-status" id="detect-status" hidden></div>
+          </section>
+          <section class="setup-section">
+            <h2 class="setup-section-title" data-i18n="discussion_section_settings"></h2>
+            <div class="discussion-options">
+              <label class="field" for="total-rounds">
+                <span class="label" data-i18n="discussion_total_rounds"></span>
+                <select id="total-rounds"></select>
+              </label>
+              <label class="summary-toggle" for="include-summary">
+                <input id="include-summary" type="checkbox" checked>
+                <span data-i18n="discussion_include_summary"></span>
+              </label>
+            </div>
+            <div class="working-directory-row">
             <span class="label" data-i18n="discussion_working_directory"></span>
             <span class="working-directory-path" id="working-directory-path"></span>
             <button class="secondary-button" id="pick-folder" type="button"
@@ -732,24 +815,18 @@
           </div>
           <div class="working-directory-warning" id="working-directory-warning"
                data-i18n="discussion_working_directory_warning" hidden></div>
-          <div class="discussion-options">
-            <label class="field" for="total-rounds">
-              <span class="label" data-i18n="discussion_total_rounds"></span>
-              <select id="total-rounds"></select>
-            </label>
-            <label class="summary-toggle" for="include-summary">
-              <input id="include-summary" type="checkbox" checked>
-              <span data-i18n="discussion_include_summary"></span>
-            </label>
-          </div>
-          <div class="estimate" id="estimate"></div>
-          <div class="actions">
+          </section>
+          <section class="setup-section">
+            <h2 class="setup-section-title" data-i18n="discussion_section_start"></h2>
+            <div class="estimate" id="estimate"></div>
+            <div class="actions">
             <button class="primary-button" id="start" type="button" data-i18n="discussion_start"></button>
             <button class="stop-button" id="stop" type="button" data-i18n="discussion_stop"></button>
             <button class="secondary-button danger-button" id="clear" type="button" data-i18n="discussion_clear"></button>
             <span class="session-status" id="session-status"></span>
-          </div>
-          <div class="error-banner" id="error" role="alert"></div>
+            </div>
+            <div class="error-banner" id="error" role="alert"></div>
+          </section>
         </div>
       </div>
     </section>
@@ -758,6 +835,7 @@
       <div class="pane">
         <header class="pane-header">
           <span class="pane-title" data-i18n="discussion_history"></span>
+          <span class="history-progress" id="history-progress" hidden></span>
         </header>
         <div class="scroll" id="history"></div>
       </div>
@@ -814,6 +892,8 @@
     let attachmentHintTimer = null;
     let clearConfirmTimer = null;
     let clearConfirming = false;
+    let moderatorId = null;
+    let detecting = false;
 
     const topicEl = document.getElementById("topic");
     const participantsEl = document.getElementById("participants");
@@ -823,9 +903,11 @@
     const stopEl = document.getElementById("stop");
     const clearEl = document.getElementById("clear");
     const detectEl = document.getElementById("detect");
+    const detectStatusEl = document.getElementById("detect-status");
     const statusEl = document.getElementById("session-status");
     const errorEl = document.getElementById("error");
     const historyEl = document.getElementById("history");
+    const historyProgressEl = document.getElementById("history-progress");
     const summaryEl = document.getElementById("summary");
     const copyEl = document.getElementById("copy");
     const workingDirectoryPathEl = document.getElementById("working-directory-path");
@@ -925,13 +1007,24 @@
       return badge;
     }
 
-    function renderParticipants() {
-      participantsEl.replaceChildren();
-      const detectionById = new Map(detection.map((item) => [item.adapter_id, item]));
+    function initializeSelection() {
       if (!selectionInitialized && detection.length) {
         selected = new Set(detection.filter((item) => item.available).map((item) => item.adapter_id));
         selectionInitialized = true;
       }
+      if (detection.length) {
+        const availableIds = new Set(
+          detection.filter((item) => item.available).map((item) => item.adapter_id),
+        );
+        selected.forEach((id) => {
+          if (!availableIds.has(id)) selected.delete(id);
+        });
+      }
+    }
+
+    function renderParticipants() {
+      participantsEl.replaceChildren();
+      const detectionById = new Map(detection.map((item) => [item.adapter_id, item]));
 
       PARTICIPANT_IDS.forEach((id) => {
         const result = detectionById.get(id);
@@ -939,7 +1032,7 @@
         const failure = failureForParticipant(id);
         if (!available) selected.delete(id);
 
-        const chip = document.createElement("label");
+        const chip = document.createElement("div");
         chip.className = "participant-chip";
         if (!available) chip.classList.add("unavailable");
         if (failure) chip.classList.add("failed");
@@ -951,9 +1044,7 @@
         checkbox.addEventListener("change", () => {
           if (checkbox.checked) selected.add(id);
           else selected.delete(id);
-          renderModerator();
-          renderEstimate();
-          renderControls();
+          render();
         });
 
         const name = document.createElement("span");
@@ -966,13 +1057,24 @@
         else status.textContent = (result && result.error) || t("discussion_not_detected");
         status.title = status.textContent;
 
-        chip.append(checkbox, createParticipantBadge(id), name, status);
+        const moderator = document.createElement("button");
+        moderator.type = "button";
+        moderator.className = "moderator-toggle";
+        moderator.textContent = t("discussion_moderator");
+        moderator.disabled = !available || !selected.has(id) || isRunning();
+        if (moderatorId === id) moderator.classList.add("selected");
+        moderator.addEventListener("click", () => {
+          if (!available || !selected.has(id) || isRunning()) return;
+          moderatorId = id;
+          render();
+        });
+
+        chip.append(checkbox, createParticipantBadge(id), name, status, moderator);
         participantsEl.append(chip);
       });
     }
 
     function renderModerator() {
-      const previous = moderatorEl.value;
       moderatorEl.replaceChildren();
       PARTICIPANT_IDS.filter((id) => selected.has(id)).forEach((id) => {
         const option = document.createElement("option");
@@ -980,7 +1082,9 @@
         option.textContent = participantLabel(id);
         moderatorEl.append(option);
       });
-      if (selected.has(previous)) moderatorEl.value = previous;
+      if (!selected.has(moderatorId)) moderatorId = null;
+      if (!moderatorId && selected.size) moderatorId = [...selected][0];
+      moderatorEl.value = moderatorId || "";
       moderatorEl.disabled = isRunning() || selected.size < 2;
     }
 
@@ -1054,13 +1158,19 @@
       clearEl.disabled = running || !hasDiscussion;
       totalRoundsEl.disabled = running;
       includeSummaryEl.disabled = running;
-      detectEl.disabled = running;
+      detectEl.disabled = running || detecting;
       pickFolderEl.disabled = running;
       clearFolderEl.disabled = running;
       attachImageEl.disabled = running;
       statusEl.textContent = state.status
         ? t(`discussion_status_${state.status.toLowerCase()}`)
         : "";
+      detectEl.textContent = detecting ? t("discussion_detecting") : t("discussion_detect");
+      const unavailableCount = detection.filter((item) => !item.available).length;
+      detectStatusEl.hidden = detecting || unavailableCount === 0;
+      detectStatusEl.textContent = detecting
+        ? ""
+        : t("discussion_detect_unavailable", { count: unavailableCount });
     }
 
     function participantNameFromState(id) {
@@ -1076,6 +1186,39 @@
       return t(`discussion_turn_${`${turn.status || "PENDING"}`.toLowerCase()}`);
     }
 
+    function renderProgress() {
+      const turns = Array.isArray(state.turns) ? state.turns : [];
+      const totalRounds = Number(state.total_rounds) || Number(totalRoundsEl.value);
+      const summaryTurn = turns.find(
+        (turn) => Number(turn.round_index) > totalRounds && turn.status === "RUNNING",
+      );
+      if (summaryTurn) {
+        const moderator = (Array.isArray(state.participants) ? state.participants : [])
+          .find((participant) => participant.is_moderator);
+        historyProgressEl.textContent = t("discussion_progress_summary", {
+          moderator: moderator ? moderator.label : participantNameFromState(summaryTurn.participant_id),
+        });
+        historyProgressEl.hidden = false;
+        return;
+      }
+      const runningTurns = turns.filter(
+        (turn) => turn.status === "RUNNING" && Number(turn.round_index) <= totalRounds,
+      );
+      if (!isRunning() || !runningTurns.length) {
+        historyProgressEl.hidden = true;
+        historyProgressEl.textContent = "";
+        return;
+      }
+      const round = Number(state.current_round) || Number(runningTurns[0].round_index);
+      historyProgressEl.textContent = t("discussion_progress_round", {
+        round,
+        total: totalRounds,
+        participants: runningTurns.map((turn) => participantNameFromState(turn.participant_id)).join("、"),
+        status: statusText(runningTurns[0]),
+      });
+      historyProgressEl.hidden = false;
+    }
+
     function renderHistory() {
       historyEl.replaceChildren();
       const totalRounds = Number(state.total_rounds) || Number(totalRoundsEl.value);
@@ -1083,8 +1226,13 @@
         .filter((turn) => Number(turn.round_index) <= totalRounds);
       if (!turns.length) {
         const empty = document.createElement("div");
-        empty.className = "placeholder";
-        empty.textContent = t("discussion_history_empty");
+        empty.className = "placeholder placeholder-steps";
+        ["discussion_history_step1", "discussion_history_step2", "discussion_history_step3"]
+          .forEach((key) => {
+            const step = document.createElement("div");
+            step.textContent = t(key);
+            empty.append(step);
+          });
         historyEl.append(empty);
         return;
       }
@@ -1248,12 +1396,14 @@
     }
 
     function render() {
-      renderParticipants();
+      initializeSelection();
       renderModerator();
+      renderParticipants();
       renderEstimate();
       renderWorkingDirectory();
       renderAttachments();
       renderControls();
+      renderProgress();
       renderHistory();
       renderSummary();
     }
@@ -1304,6 +1454,7 @@
       } else if (event.kind === "turn_cancelled") {
         ensureTurn(event).status = "CANCELLED";
       } else if (event.kind === "round_started") {
+        state.current_round = Number(payload.round_index);
         state.status = Number(payload.round_index) === 1 ? "ROUND1_RUNNING" : "ROUND2_RUNNING";
       } else if (event.kind === "session_done") {
         state.status = `${payload.status || "COMPLETED"}`;
@@ -1353,6 +1504,7 @@
 
     window.discussionApplyDetection = (results) => {
       detection = Array.isArray(results) ? results : [];
+      detecting = false;
       render();
     };
 
@@ -1455,6 +1607,8 @@
     });
     detectEl.addEventListener("click", () => {
       errorEl.textContent = "";
+      detecting = true;
+      renderControls();
       send("discussion_detect");
     });
     pickFolderEl.addEventListener("click", () => send("discussion_pick_folder"));
@@ -1465,7 +1619,7 @@
       send("discussion_start", {
         topic: topicEl.value,
         participants: [...selected],
-        moderatorId: moderatorEl.value || null,
+        moderatorId: moderatorId || null,
         workingDir: workingDirectory,
         attachments: attachments.map((item) => item.path).filter(Boolean),
         totalRounds: Number(totalRoundsEl.value),

@@ -46,14 +46,14 @@ def test_session_ids_are_unique_and_snapshot_is_json_serializable() -> None:
     assert first.snapshot()["event_seq"] == -1
 
 
-def test_snapshot_includes_clamped_round_progress() -> None:
+def test_snapshot_includes_second_round_progress() -> None:
     session = DiscussionSession("問題", _participants(), total_rounds=9)
     session.transition(SessionStatus.PREPARING)
     session.transition(SessionStatus.ROUND1_RUNNING)
-    session.transition(SessionStatus.ROUND2_RUNNING, round_index=3)
+    session.transition(SessionStatus.ROUND2_RUNNING)
 
     snapshot = session.snapshot()
-    assert snapshot["current_round"] == 3
+    assert snapshot["current_round"] == 2
     assert snapshot["total_rounds"] == 5
 
 
