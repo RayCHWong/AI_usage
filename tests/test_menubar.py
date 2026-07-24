@@ -438,6 +438,10 @@ def test_switch_panel_menu_contains_update_items(monkeypatch: pytest.MonkeyPatch
     assert daily_item.action == "toggleAiDaily:"
     assert daily_item.representedObject() is None
     assert daily_item.state == 0
+    discussion_item = next(item for item in main_menu.items if item.title == "AI Council")
+    assert discussion_item.action == "toggleDiscussion:"
+    assert discussion_item.representedObject() is None
+    assert discussion_item.state == 0
 
     # Panel themes are collapsed into a submenu, not listed inline on the main menu.
     assert "Default" not in main_titles
@@ -2096,6 +2100,48 @@ def test_daily_link_closes_popover_then_opens_browser(
 
     assert events == ["close", "https://aqua5230.github.io/ai-updates/"]
     assert delegate._switch_menu_action_taken is True
+
+
+def test_discussion_action_reuses_controller_and_closes_popover() -> None:
+    events: list[str] = []
+
+    class FakeController:
+        def show(self, close_popover: object) -> None:
+            assert callable(close_popover)
+            close_popover()
+            events.append("show")
+
+    delegate = menubar.AppDelegate.alloc().initWithMock_interval_(True, 60)
+    delegate._discussion_window_controller = FakeController()
+    delegate.popover = SimpleNamespace(
+        isShown=lambda: True,
+        performClose_=lambda sender: events.append("close"),
+    )
+
+    menubar.AppDelegate.toggleDiscussion_(delegate, object())
+
+    assert events == ["close", "show"]
+    assert delegate._switch_menu_action_taken is True
+
+
+def test_discussion_menubar_wiring_stays_thin_and_shuts_down() -> None:
+    source = Path(menubar.__file__).read_text(encoding="utf-8")
+    action_source = source.split("    def toggleDiscussion_", 1)[1].split(
+        "\n    def ",
+        1,
+    )[0]
+    terminate_source = source.split("    def applicationWillTerminate_", 1)[1].split(
+        "\n    def ",
+        1,
+    )[0]
+
+    assert "DiscussionWindowController" in action_source
+    assert ".show(" in action_source
+    assert "close_popover=self._close_popover_after_menu" in action_source
+    assert "ParticipantSpec" not in action_source
+    assert "run_streaming" not in action_source
+    assert "subprocess" not in action_source
+    assert "_discussion_window_controller.shutdown()" in terminate_source
 
 
 def test_state_from_outcome_replaces_claude_reset_with_warning(

@@ -62,6 +62,7 @@ py-modules = [
     "discussion_bridge",
     "discussion_cli",
     "discussion_session",
+    "discussion_window",
 ]
 
 [tool.setuptools.packages.find]

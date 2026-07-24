@@ -59,6 +59,7 @@ if __name__ == "__main__":
             "assets/agy_color_menubar.png",
             "assets/critters",
             "assets/panels",
+            "assets/windows",
             "i18n.json",
             "pyproject.toml",
             "usage_statusline.py",
