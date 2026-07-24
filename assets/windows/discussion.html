@@ -476,6 +476,11 @@
       background: var(--danger-soft);
     }
 
+    .turn-card.cancelled {
+      border-color: var(--muted);
+      opacity: 0.72;
+    }
+
     .turn-head {
       display: flex;
       gap: 8px;
@@ -662,6 +667,7 @@
         <div class="actions">
           <button class="primary-button" id="start" type="button" data-i18n="discussion_start"></button>
           <button class="stop-button" id="stop" type="button" data-i18n="discussion_stop"></button>
+          <button class="secondary-button" id="clear" type="button" data-i18n="discussion_clear"></button>
           <span class="session-status" id="session-status"></span>
         </div>
         <div class="error-banner" id="error" role="alert"></div>
@@ -733,6 +739,7 @@
     const estimateEl = document.getElementById("estimate");
     const startEl = document.getElementById("start");
     const stopEl = document.getElementById("stop");
+    const clearEl = document.getElementById("clear");
     const detectEl = document.getElementById("detect");
     const statusEl = document.getElementById("session-status");
     const errorEl = document.getElementById("error");
@@ -948,9 +955,12 @@
 
     function renderControls() {
       const running = isRunning();
+      const hasDiscussion = (Array.isArray(state.turns) && state.turns.length > 0)
+        || Boolean(state.status);
       topicEl.disabled = running;
       startEl.disabled = !canStartDiscussion(topicEl.value, selected.size, state.status);
       stopEl.disabled = !running;
+      clearEl.disabled = running || !hasDiscussion;
       detectEl.disabled = running;
       pickFolderEl.disabled = running;
       clearFolderEl.disabled = running;
@@ -1004,6 +1014,7 @@
           card.className = "turn-card";
           if (turn.status === "RUNNING") card.classList.add("running");
           if (turn.status === "FAILED") card.classList.add("failed");
+          if (turn.status === "CANCELLED") card.classList.add("cancelled");
           if (turn.supports_token_stream) card.classList.add("token-stream");
 
           const head = document.createElement("div");
@@ -1025,6 +1036,8 @@
             text.textContent = t("discussion_thinking");
           } else if (turn.status === "PENDING" && !turn.text) {
             text.textContent = t("discussion_queued");
+          } else if (turn.status === "CANCELLED" && !turn.text) {
+            text.textContent = t("discussion_turn_cancelled");
           }
           card.append(text);
           if (turn.error) {
@@ -1188,6 +1201,8 @@
         const turn = ensureTurn(event);
         turn.status = "FAILED";
         turn.error = `${payload.error || ""}`;
+      } else if (event.kind === "turn_cancelled") {
+        ensureTurn(event).status = "CANCELLED";
       } else if (event.kind === "round_started") {
         state.status = Number(payload.round_index) === 1 ? "ROUND1_RUNNING" : "ROUND2_RUNNING";
       } else if (event.kind === "session_done") {
@@ -1296,6 +1311,7 @@
       });
     });
     stopEl.addEventListener("click", () => send("discussion_stop"));
+    clearEl.addEventListener("click", () => send("discussion_clear"));
     copyEl.addEventListener("click", async () => {
       if (!summaryText) return;
       const clipboardText = summaryForClipboard();

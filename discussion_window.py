@@ -196,6 +196,7 @@ if sys.platform == "darwin":
 
 ActionName = Literal[
     "discussion_attach",
+    "discussion_clear",
     "discussion_detect",
     "discussion_pick_folder",
     "discussion_clear_folder",
@@ -231,6 +232,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
     action = payload.get("action")
     if action not in {
         "discussion_attach",
+        "discussion_clear",
         "discussion_detect",
         "discussion_pick_folder",
         "discussion_clear_folder",
@@ -619,6 +621,15 @@ class DiscussionWindowController:
             elif action.action == "discussion_stop":
                 self.bridge.stop()
                 self._apply_snapshot()
+            elif action.action == "discussion_clear":
+                result = self.bridge.clear()
+                if result.get("status") == "busy":
+                    self._evaluate(
+                        "discussionApplyError",
+                        _t(self._language, "discussion_clear_busy"),
+                    )
+                else:
+                    self._apply_snapshot()
             else:
                 assert action.topic is not None
                 specs = [

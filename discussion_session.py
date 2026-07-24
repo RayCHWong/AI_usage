@@ -44,6 +44,7 @@ class TurnStatus(StrEnum):
     RUNNING = "RUNNING"
     DONE = "DONE"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
 class InvalidSessionTransition(ValueError):
@@ -323,6 +324,28 @@ class DiscussionSession:
                 turn_id=turn.id,
                 payload={"error": error},
             )
+
+    def cancel_incomplete_turns(self) -> list[DiscussionEvent]:
+        """Move every PENDING/RUNNING turn to CANCELLED, emitting one event each.
+
+        DONE/FAILED turns are left untouched so the answers the user already
+        received before the cancel stay visible. Called by the bridge when the
+        session is cancelled, so the UI never shows a card stuck on "running".
+        """
+        with self._lock:
+            events: list[DiscussionEvent] = []
+            for turn in self._turns.values():
+                if turn.status in (TurnStatus.PENDING, TurnStatus.RUNNING):
+                    turn.status = TurnStatus.CANCELLED
+                    events.append(
+                        self._emit_locked(
+                            "turn_cancelled",
+                            participant_id=turn.participant_id,
+                            turn_id=turn.id,
+                            payload={},
+                        )
+                    )
+            return events
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:

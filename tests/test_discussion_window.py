@@ -39,6 +39,8 @@ class FakeBridge:
     def __init__(self, working_directory: str | None = None) -> None:
         self.started: tuple[str, list[object], str | None, str | None] | None = None
         self.stop_count = 0
+        self.clear_count = 0
+        self.clear_status: dict[str, str] = {"status": "ok"}
         self.working_directory = working_directory
         self.attachments: object = None
 
@@ -57,6 +59,10 @@ class FakeBridge:
 
     def stop(self) -> None:
         self.stop_count += 1
+
+    def clear(self) -> dict[str, str]:
+        self.clear_count += 1
+        return self.clear_status
 
     def snapshot(self) -> dict[str, object]:
         return {
@@ -102,6 +108,7 @@ class VisibleMarkupTextParser(HTMLParser):
         ('{"action":"discussion_detect"}', "discussion_detect"),
         ('{"action":"discussion_pick_folder"}', "discussion_pick_folder"),
         ('{"action":"discussion_clear_folder"}', "discussion_clear_folder"),
+        ('{"action":"discussion_clear"}', "discussion_clear"),
         ('{"action":"discussion_stop"}', "discussion_stop"),
     ],
 )
@@ -238,6 +245,41 @@ def test_controller_dispatches_start_and_stop_actions() -> None:
     assert bridge.started[3] == "/tmp/project"
     assert bridge.stop_count == 1
     assert any(script.startswith("window.discussionApplySnapshot(") for script in webview.scripts)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_dispatches_clear_action() -> None:
+    bridge = FakeBridge()
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._receive_action('{"action":"discussion_clear"}')
+
+    assert bridge.clear_count == 1
+    assert any(
+        script.startswith("window.discussionApplySnapshot(") for script in webview.scripts
+    )
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_clear_busy_applies_error_message() -> None:
+    bridge = FakeBridge()
+    bridge.clear_status = {"status": "busy"}
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._receive_action('{"action":"discussion_clear"}')
+
+    assert bridge.clear_count == 1
+    assert any(
+        script.startswith("window.discussionApplyError(") for script in webview.scripts
+    )
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")

@@ -446,6 +446,81 @@ def test_stop_cancels_immediately_and_blocks_late_events(
     assert all("late text" not in str(event) for event in first_events)
 
 
+def test_stop_marks_incomplete_turns_cancelled(monkeypatch: pytest.MonkeyPatch) -> None:
+    started = threading.Event()
+
+    def stuck_runner(
+        adapter: CLIAdapter,
+        invocation: Invocation,
+        on_delta: Callable[[str], None],
+        on_done: Callable[[], None],
+        on_error: Callable[[str], None],
+        on_cancelled: Callable[[], None],
+        cancel_event: threading.Event,
+    ) -> None:
+        started.set()
+        cancel_event.wait(1)
+
+    bridge, _ = _bridge_with_adapters(("a", "b"))
+    _install_runner(monkeypatch, stuck_runner)
+    bridge.start("問題", _specs("a", "b"))
+    assert started.wait(1)
+
+    bridge.stop()
+    events = cast(list[dict[str, Any]], bridge.drain_events(500))
+    bridge.shutdown(1)
+    time.sleep(0.02)
+
+    cancelled = [event for event in events if event["kind"] == "turn_cancelled"]
+    assert len(cancelled) == 2
+    assert all(event["turn_id"] for event in cancelled)
+    assert events[-1]["kind"] == "session_done"
+    assert events[-1]["payload"]["status"] == "CANCELLED"
+
+
+def test_clear_refuses_while_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    started = threading.Event()
+
+    def stuck_runner(
+        adapter: CLIAdapter,
+        invocation: Invocation,
+        on_delta: Callable[[str], None],
+        on_done: Callable[[], None],
+        on_error: Callable[[str], None],
+        on_cancelled: Callable[[], None],
+        cancel_event: threading.Event,
+    ) -> None:
+        started.set()
+        cancel_event.wait(1)
+
+    bridge, _ = _bridge_with_adapters(("a", "b"))
+    _install_runner(monkeypatch, stuck_runner)
+    bridge.start("問題", _specs("a", "b"))
+    assert started.wait(1)
+
+    assert bridge.clear() == {"status": "busy"}
+    # busy clear must leave the running session intact (not torn down)
+    assert bridge.snapshot().get("status") in {"ROUND1_RUNNING", "CANCELLING"}
+
+    bridge.shutdown(1)
+
+
+def test_clear_when_idle_empties_finished_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge, _ = _bridge_with_adapters(("a", "b"))
+    _install_runner(monkeypatch, FakeRunner())
+    bridge.start("問題", _specs("a", "b"))
+    snapshot = _wait_terminal(bridge)
+
+    assert snapshot["status"] == "COMPLETED"
+    assert bridge.snapshot().get("turns")
+
+    assert bridge.clear() == {"status": "ok"}
+    assert bridge.snapshot() == {}
+    assert bridge.drain_events(500) == []
+
+
 def test_stop_without_session_is_safe_noop() -> None:
     bridge = DiscussionBridge()
 

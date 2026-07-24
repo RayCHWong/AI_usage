@@ -161,6 +161,27 @@ def test_turn_lifecycle_delta_and_commit_once() -> None:
         session.append_delta(turn.id, "不應寫入")
 
 
+def test_cancel_incomplete_turns_finalizes_running_and_preserves_done() -> None:
+    session = _running_session()
+    done = session.add_turn("claude", 1, supports_token_stream=True, turn_id="done")
+    session.start_turn(done.id)
+    session.complete_turn(done.id)
+    running = session.add_turn("codex", 1, supports_token_stream=False, turn_id="running")
+    session.start_turn(running.id)
+    pending = session.add_turn("moderator", 1, supports_token_stream=False, turn_id="pending")
+
+    events = session.cancel_incomplete_turns()
+
+    assert [event.kind for event in events] == ["turn_cancelled", "turn_cancelled"]
+    assert {event.turn_id for event in events} == {running.id, pending.id}
+    turns = {turn["id"]: turn for turn in session.snapshot()["turns"]}
+    assert turns["done"]["status"] == "DONE"
+    assert turns["running"]["status"] == "CANCELLED"
+    assert turns["pending"]["status"] == "CANCELLED"
+    # idempotent: once finalized, nothing is left to cancel
+    assert session.cancel_incomplete_turns() == []
+
+
 def test_turn_and_session_limits_mark_truncation(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(discussion_session, "MAX_TURN_TEXT_CHARS", 20)
     monkeypatch.setattr(discussion_session, "MAX_SESSION_TEXT_CHARS", 35)

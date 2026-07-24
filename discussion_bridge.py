@@ -309,9 +309,30 @@ class DiscussionBridge:
                 return
             cancel_event.set()
             session.transition(SessionStatus.CANCELLING)
+            for cancelled in session.cancel_incomplete_turns():
+                self._enqueue_event_locked(cancelled)
             event = session.transition(SessionStatus.CANCELLED)
             if event is not None:
                 self._enqueue_event_locked(event)
+
+    def clear(self) -> dict[str, str]:
+        """Drop the finished discussion so a new round can start fresh.
+
+        Refuses while the worker thread is still alive (the UI must stop
+        first); returns ``{"status": "busy"}`` rather than raising so a stray
+        call never crashes the window. On success returns ``{"status": "ok"}``
+        and ``snapshot()`` is empty afterwards. Never touches attachment files.
+        """
+        with self._state_lock:
+            if self._worker is not None and self._worker.is_alive():
+                return {"status": "busy"}
+            self._session = None
+            self._worker = None
+            self._cancel_event = None
+            self._working_directory = None
+            with self._event_lock:
+                self._events.clear()
+        return {"status": "ok"}
 
     def snapshot(self) -> dict[str, object]:
         with self._state_lock:
