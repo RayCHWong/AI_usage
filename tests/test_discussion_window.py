@@ -488,8 +488,8 @@ def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
     assert 'badge.alt = ""' in html
     assert 'document.createElementNS("http://www.w3.org/2000/svg", "svg")' in html
     assert 'badge.setAttribute("aria-hidden", "true")' in html
-    assert "head.append(createParticipantBadge(id), infoColumn, moderator)" in html
-    assert "chip.append(checkbox, head, modelSelect)" in html
+    assert "head.append(createParticipantBadge(id), infoColumn, modelSelect, moderator)" in html
+    assert "chip.append(checkbox, head)" in html
     assert "url(http" not in html
 
 

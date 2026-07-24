@@ -22,6 +22,7 @@
       --danger-soft: rgba(255, 133, 133, 0.1);
       --danger-hover: rgba(255, 133, 133, 0.18);
       --success: #68c996;
+      --warning: #e0a458;
       --badge-agy-start: #326fd1;
       --badge-agy-end: #7950aa;
       --badge-symbol: #fff;
@@ -92,12 +93,13 @@
 
     button:disabled {
       cursor: not-allowed;
-      opacity: 0.52;
+      opacity: 0.38;
+      filter: grayscale(1);
     }
 
     .app {
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: minmax(0, auto) minmax(0, 1fr);
       gap: 12px;
       width: 100%;
       height: 100%;
@@ -116,10 +118,62 @@
       display: grid;
       grid-template-columns: minmax(280px, 1fr) minmax(300px, 0.9fr);
       gap: 14px;
+      max-height: clamp(300px, 52vh, 640px);
+    }
+
+    .session-bar {
+      display: none;
+      grid-template-columns: minmax(0, 1fr) auto auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .app.collapsed .session-bar {
+      display: grid;
+    }
+
+    .app.collapsed .setup {
+      display: none;
+    }
+
+    .session-bar-topic {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .session-bar-progress {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .session-bar-toggle {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-strong);
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1;
     }
 
     .setup-card {
+      display: flex;
+      flex-direction: column;
       min-width: 0;
+      min-height: 0;
+      overflow: hidden;
       padding: 14px 16px;
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -140,13 +194,14 @@
       font-weight: 600;
       letter-spacing: 0.02em;
       color: var(--muted);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     #topic {
       width: 100%;
       min-height: 118px;
-      max-height: 220px;
+      max-height: none;
+      flex: 1;
       resize: vertical;
       padding: 11px 12px;
       border: 1px solid var(--border);
@@ -163,26 +218,33 @@
       box-shadow: 0 0 0 3px var(--accent-soft);
     }
 
+    .setup-card:first-child > .field {
+      flex: 1;
+      min-height: 0;
+    }
+
     .controls {
       display: flex;
       flex-direction: column;
       gap: 0;
       min-width: 0;
+      flex: 1;
+      min-height: 0;
     }
 
     .participants {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
 
     .participant-chip {
       position: relative;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       min-width: 0;
-      padding: 12px 14px;
+      padding: 9px 12px;
       border: 1px solid var(--border);
       border-radius: 12px;
       color: var(--text);
@@ -192,7 +254,7 @@
 
     .participant-head {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
       gap: 10px;
       align-items: center;
       min-width: 0;
@@ -436,8 +498,8 @@
     }
 
     .participant-model {
-      width: 100%;
-      height: 34px;
+      width: 128px;
+      height: 30px;
       padding: 0 32px 0 10px;
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -467,8 +529,8 @@
     .setup-section {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding: 12px 0;
+      gap: 8px;
+      padding: 8px 0;
     }
 
     .setup-section:first-child {
@@ -476,6 +538,18 @@
     }
 
     .setup-section + .setup-section {
+      border-top: 1px solid var(--border);
+    }
+
+    .controls-scroll {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .controls-scroll + .setup-section {
       border-top: 1px solid var(--border);
     }
 
@@ -500,16 +574,20 @@
       align-items: center;
     }
 
-    .moderator-row .label,
-    .working-directory-row > .label {
+    .moderator-row .label {
       grid-column: 1 / -1;
     }
 
     .working-directory-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
       gap: 8px;
       align-items: center;
+    }
+
+    .working-directory-row > .label {
+      margin-bottom: 0;
+      white-space: nowrap;
     }
 
     .working-directory-path {
@@ -552,14 +630,34 @@
       background: var(--transparent);
     }
 
+    .detect-button {
+      min-height: 30px;
+    }
+
     .estimate {
-      display: inline-block;
-      align-self: flex-end;
+      display: block;
+      align-self: stretch;
       min-height: 0;
       padding: 3px 8px;
       border-radius: 6px;
       background: var(--accent-soft);
       color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .estimate-tokens {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .estimate.warn .estimate-tokens {
+      color: var(--warning, #e0a458);
+    }
+
+    .estimate-warning {
+      margin-top: 4px;
+      color: var(--warning, #e0a458);
       font-size: 12px;
       line-height: 1.4;
     }
@@ -605,6 +703,7 @@
 
     .segmented {
       display: inline-flex;
+      align-self: flex-start;
       border: 1px solid var(--border);
       border-radius: 9px;
       overflow: hidden;
@@ -737,7 +836,7 @@
       display: grid;
       grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
       gap: 12px;
-      min-height: 0;
+      min-height: 320px;
       overflow: hidden;
     }
 
@@ -978,6 +1077,13 @@
 </head>
 <body>
   <main class="app">
+    <div class="session-bar" id="session-bar" hidden>
+      <span class="session-bar-topic" id="session-bar-topic"></span>
+      <span class="session-bar-progress" id="session-bar-progress"></span>
+      <button class="secondary-button" id="session-bar-stop" type="button" data-i18n="discussion_stop"></button>
+      <button class="session-bar-toggle" id="session-bar-toggle" type="button"
+              data-i18n-title="discussion_expand_settings" aria-label="settings"></button>
+    </div>
     <section class="setup">
       <div class="setup-card">
         <label class="field">
@@ -994,7 +1100,8 @@
       </div>
       <div class="setup-card">
         <div class="controls">
-          <section class="setup-section">
+          <div class="controls-scroll">
+            <section class="setup-section">
             <h2 class="setup-section-title" data-i18n="discussion_section_participants"></h2>
             <div class="field">
               <span class="label" data-i18n="discussion_participants"></span>
@@ -1003,8 +1110,8 @@
             <select class="moderator-select-fallback" id="moderator" aria-hidden="true" tabindex="-1"></select>
             <button class="detect-button" id="detect" type="button" data-i18n="discussion_detect"></button>
             <div class="detect-status" id="detect-status" hidden></div>
-          </section>
-          <section class="setup-section">
+            </section>
+            <section class="setup-section">
             <h2 class="setup-section-title" data-i18n="discussion_section_settings"></h2>
             <div class="discussion-options">
               <div class="field">
@@ -1028,7 +1135,8 @@
           </div>
           <div class="working-directory-warning" id="working-directory-warning"
                data-i18n="discussion_working_directory_warning" hidden></div>
-          </section>
+            </section>
+          </div>
           <section class="setup-section">
             <h2 class="setup-section-title" data-i18n="discussion_section_start"></h2>
             <div class="estimate" id="estimate"></div>
@@ -1127,6 +1235,8 @@
     let clearConfirming = false;
     let moderatorId = null;
     let detecting = false;
+    let settingsCollapsed = false;
+    let wasRunning = false;
 
     const topicEl = document.getElementById("topic");
     const participantsEl = document.getElementById("participants");
@@ -1134,6 +1244,11 @@
     const estimateEl = document.getElementById("estimate");
     const startEl = document.getElementById("start");
     const stopEl = document.getElementById("stop");
+    const sessionBarEl = document.getElementById("session-bar");
+    const sessionBarTopicEl = document.getElementById("session-bar-topic");
+    const sessionBarProgressEl = document.getElementById("session-bar-progress");
+    const sessionBarStopEl = document.getElementById("session-bar-stop");
+    const sessionBarToggleEl = document.getElementById("session-bar-toggle");
     const clearEl = document.getElementById("clear");
     const detectEl = document.getElementById("detect");
     const detectStatusEl = document.getElementById("detect-status");
@@ -1334,20 +1449,21 @@
           render();
         });
 
+        const modelSelect = createModelSelect(id);
+        modelSelect.disabled = !available || isRunning();
+
         const head = document.createElement("div");
         head.className = "participant-head";
-        head.append(createParticipantBadge(id), infoColumn, moderator);
+        head.append(createParticipantBadge(id), infoColumn, modelSelect, moderator);
         head.addEventListener("click", (event) => {
+          if (event.target.closest(".participant-model")) return;
           if (event.target.closest(".moderator-toggle")) return;
           if (!available || isRunning() || checkbox.disabled) return;
           checkbox.checked = !checkbox.checked;
           checkbox.dispatchEvent(new Event("change"));
         });
 
-        const modelSelect = createModelSelect(id);
-        modelSelect.disabled = !available || isRunning();
-
-        chip.append(checkbox, head, modelSelect);
+        chip.append(checkbox, head);
         participantsEl.append(chip);
       });
     }
@@ -1370,14 +1486,53 @@
       return count * Number(totalRoundsEl.value) + (includeSummaryEl.checked ? 1 : 0);
     }
 
+    const AVG_TURN_TOKENS = 600;
+    const TOPIC_TOKENS = 100;
+
+    function estimateTokens(count, roundsOverride) {
+      const rounds = roundsOverride ?? Number(totalRoundsEl.value);
+      const withSummary = includeSummaryEl.checked;
+      let input = 0;
+      for (let r = 1; r <= rounds; r += 1) {
+        input += count * (TOPIC_TOKENS + (r - 1) * count * AVG_TURN_TOKENS);
+      }
+      if (withSummary) input += TOPIC_TOKENS + rounds * count * AVG_TURN_TOKENS;
+      const output = (rounds * count + (withSummary ? 1 : 0)) * AVG_TURN_TOKENS;
+      return input + output;
+    }
+
+    function formatTokens(n) {
+      if (n >= 10000) return `${Math.round(n / 1000)}K`;
+      return `${Math.round(n / 100) * 100}`;
+    }
+
     function renderEstimate() {
       const count = selected.size;
-      estimateEl.textContent = t("discussion_estimate", {
+      const estimate = document.createElement("span");
+      estimate.textContent = t("discussion_estimate", {
         participants: count,
         rounds: totalRoundsEl.value,
         summary: includeSummaryEl.checked ? 1 : 0,
         calls: estimateCalls(count),
       });
+      const tokens = document.createElement("span");
+      tokens.className = "estimate-tokens";
+      tokens.textContent = t("discussion_estimate_tokens", {
+        tokens: formatTokens(estimateTokens(count)),
+      });
+      const rounds = Number(totalRoundsEl.value);
+      const showWarning = rounds >= 3 && count > 0;
+      estimateEl.classList.toggle("warn", showWarning);
+      if (showWarning) {
+        const warning = document.createElement("span");
+        warning.className = "estimate-warning";
+        const base = estimateTokens(count, 2);
+        const multiplier = base > 0 ? (estimateTokens(count) / base).toFixed(1) : "1.0";
+        warning.textContent = t("discussion_estimate_warning", { multiplier });
+        estimateEl.replaceChildren(estimate, document.createElement("br"), tokens, document.createElement("br"), warning);
+      } else {
+        estimateEl.replaceChildren(estimate, document.createElement("br"), tokens);
+      }
     }
 
     function renderWorkingDirectory() {
@@ -1428,11 +1583,25 @@
 
     function renderControls() {
       const running = isRunning();
+      if (running && !wasRunning) settingsCollapsed = true;
+      if (!running && wasRunning) settingsCollapsed = false;
+      wasRunning = running;
+      document.querySelector(".app").classList.toggle("collapsed", settingsCollapsed);
+      sessionBarEl.hidden = !settingsCollapsed;
+      const topic = topicEl.value.trim();
+      sessionBarTopicEl.textContent = topic.length > 60
+        ? `${topic.slice(0, 60)}…`
+        : topic || t("discussion_topic_label");
+      sessionBarProgressEl.textContent = historyProgressEl.textContent;
+      sessionBarStopEl.disabled = stopEl.disabled;
+      sessionBarToggleEl.textContent = settingsCollapsed ? "▾" : "▴";
+      sessionBarToggleEl.title = t("discussion_expand_settings");
       const hasDiscussion = (Array.isArray(state.turns) && state.turns.length > 0)
         || Boolean(state.status);
       topicEl.disabled = running;
       startEl.disabled = !canStartDiscussion(topicEl.value, selected.size, state.status);
       stopEl.disabled = !running;
+      sessionBarStopEl.disabled = stopEl.disabled;
       clearEl.disabled = running || !hasDiscussion;
       totalRoundsEl.disabled = running;
       syncRoundsSegmented();
@@ -1502,6 +1671,7 @@
           moderator: moderator ? moderator.label : participantNameFromState(summaryTurn.participant_id),
         });
         historyProgressEl.hidden = false;
+        sessionBarProgressEl.textContent = historyProgressEl.textContent;
         return;
       }
       const runningTurns = turns.filter(
@@ -1510,6 +1680,7 @@
       if (!isRunning() || !runningTurns.length) {
         historyProgressEl.hidden = true;
         historyProgressEl.textContent = "";
+        sessionBarProgressEl.textContent = historyProgressEl.textContent;
         return;
       }
       const round = Number(state.current_round) || Number(runningTurns[0].round_index);
@@ -1520,6 +1691,7 @@
         status: statusText(runningTurns[0]),
       });
       historyProgressEl.hidden = false;
+      sessionBarProgressEl.textContent = historyProgressEl.textContent;
     }
 
     function renderHistory() {
@@ -1975,6 +2147,11 @@
       });
     });
     stopEl.addEventListener("click", () => send("discussion_stop"));
+    sessionBarStopEl.addEventListener("click", () => stopEl.click());
+    sessionBarToggleEl.addEventListener("click", () => {
+      settingsCollapsed = !settingsCollapsed;
+      render();
+    });
     function resetClearConfirmation() {
       clearConfirming = false;
       if (clearConfirmTimer !== null) window.clearTimeout(clearConfirmTimer);
