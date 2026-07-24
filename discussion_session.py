@@ -97,6 +97,7 @@ _LEGAL_TRANSITIONS: dict[SessionStatus, frozenset[SessionStatus]] = {
     SessionStatus.ROUND1_RUNNING: frozenset(
         {
             SessionStatus.ROUND2_RUNNING,
+            SessionStatus.COMPLETED,
             SessionStatus.CANCELLING,
             SessionStatus.FAILED,
         }
@@ -104,6 +105,7 @@ _LEGAL_TRANSITIONS: dict[SessionStatus, frozenset[SessionStatus]] = {
     SessionStatus.ROUND2_RUNNING: frozenset(
         {
             SessionStatus.SUMMARIZING,
+            SessionStatus.COMPLETED,
             SessionStatus.CANCELLING,
             SessionStatus.FAILED,
         }

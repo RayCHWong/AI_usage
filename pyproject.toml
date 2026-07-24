@@ -59,6 +59,7 @@ py-modules = [
     "usage_terse_mode",
     "project_resolver",
     "doctor",
+    "discussion_bridge",
     "discussion_cli",
     "discussion_session",
 ]
