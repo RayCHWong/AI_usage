@@ -455,6 +455,61 @@ def test_stop_without_session_is_safe_noop() -> None:
     assert bridge.drain_events() == []
 
 
+@pytest.mark.parametrize("working_directory", [None, "project"])
+def test_start_passes_project_mode_to_adapter_specs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    working_directory: str | None,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    captured: list[ParticipantSpec] = []
+    adapter = FakeAdapter("claude")
+
+    def factory(spec: ParticipantSpec) -> CLIAdapter:
+        captured.append(spec)
+        return adapter
+
+    bridge = DiscussionBridge(adapter_factory=factory)
+    _install_runner(monkeypatch, FakeRunner())
+    selected = str(project) if working_directory is not None else None
+
+    bridge.start("問題", _specs("claude"), working_directory=selected)
+    snapshot = _wait_terminal(bridge)
+
+    assert len(captured) == 1
+    assert captured[0].cwd == (str(project.resolve()) if selected else None)
+    assert captured[0].read_only is (selected is not None)
+    assert snapshot["working_directory"] == (
+        str(project.resolve()) if selected else None
+    )
+
+
+@pytest.mark.parametrize("kind", ["blank", "missing", "file"])
+def test_start_rejects_invalid_working_directory_before_adapter_creation(
+    tmp_path: Path,
+    kind: str,
+) -> None:
+    path = tmp_path / kind
+    if kind == "file":
+        path.write_text("not a directory")
+    value = "" if kind == "blank" else str(path)
+    factory_calls = 0
+
+    def factory(spec: ParticipantSpec) -> CLIAdapter:
+        nonlocal factory_calls
+        factory_calls += 1
+        return FakeAdapter(spec.adapter_id)
+
+    bridge = DiscussionBridge(adapter_factory=factory)
+
+    with pytest.raises(ValueError, match="working directory"):
+        bridge.start("問題", _specs("claude"), working_directory=value)
+
+    assert factory_calls == 0
+    assert bridge.snapshot() == {}
+
+
 def test_shutdown_is_bounded_when_runner_is_stuck(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

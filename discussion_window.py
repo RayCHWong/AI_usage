@@ -20,6 +20,7 @@ from typing import Any, Literal, cast
 from discussion_bridge import DiscussionBridge, ParticipantSpec
 from discussion_cli import DetectionResult
 from i18n import _load_i18n_bundle, _t, packaged_resource_path
+from talent_market_bridge import pick_folder
 from usage_lang import detect_lang
 
 SCRIPT_HANDLER_NAME = "usageDiscussion"
@@ -85,6 +86,8 @@ if sys.platform == "darwin":
 ActionName = Literal[
     "discussion_attach",
     "discussion_detect",
+    "discussion_pick_folder",
+    "discussion_clear_folder",
     "discussion_start",
     "discussion_stop",
 ]
@@ -96,6 +99,7 @@ class DiscussionAction:
     topic: str | None = None
     participants: tuple[str, ...] = ()
     moderator_id: str | None = None
+    working_directory: str | None = None
 
 
 def parse_discussion_action(raw: object) -> DiscussionAction:
@@ -112,6 +116,8 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
     if action not in {
         "discussion_attach",
         "discussion_detect",
+        "discussion_pick_folder",
+        "discussion_clear_folder",
         "discussion_start",
         "discussion_stop",
     }:
@@ -122,6 +128,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
     topic = payload.get("topic")
     participant_value = payload.get("participants")
     moderator_value = payload.get("moderatorId")
+    working_directory_value = payload.get("workingDir")
     if not isinstance(topic, str):
         raise ValueError("discussion_start requires a string topic")
     if not isinstance(participant_value, list) or not participant_value:
@@ -135,6 +142,10 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         raise ValueError("discussion_start contains an unknown participant")
     if moderator_value is not None and not isinstance(moderator_value, str):
         raise ValueError("discussion_start moderatorId must be a string or null")
+    if working_directory_value is not None and not isinstance(
+        working_directory_value, str
+    ):
+        raise ValueError("discussion_start workingDir must be a string or null")
     moderator_id = moderator_value
     if moderator_id is not None and moderator_id not in participants:
         raise ValueError("discussion_start moderatorId must be selected")
@@ -143,6 +154,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         topic=topic,
         participants=participants,
         moderator_id=moderator_id,
+        working_directory=working_directory_value or None,
     )
 
 
@@ -283,6 +295,13 @@ class DiscussionWindowController:
         self._drain_scheduled = False
         self._drain_lock = threading.Lock()
         self._language = detect_lang()
+        snapshot = self.bridge.snapshot()
+        snapshot_working_directory = snapshot.get("working_directory")
+        self._working_directory = (
+            snapshot_working_directory
+            if isinstance(snapshot_working_directory, str)
+            else None
+        )
         if sys.platform == "darwin":
             self._dispatcher = _MainThreadDispatcher.alloc().initWithController_(self)
 
@@ -442,6 +461,14 @@ class DiscussionWindowController:
                 self._apply_full_state()
             elif action.action == "discussion_detect":
                 self._apply_detection()
+            elif action.action == "discussion_pick_folder":
+                selected = pick_folder()
+                if selected is not None:
+                    self._working_directory = selected
+                    self._apply_working_directory()
+            elif action.action == "discussion_clear_folder":
+                self._working_directory = None
+                self._apply_working_directory()
             elif action.action == "discussion_stop":
                 self.bridge.stop()
                 self._apply_snapshot()
@@ -455,7 +482,19 @@ class DiscussionWindowController:
                     )
                     for participant_id in action.participants
                 ]
-                self.bridge.start(action.topic, specs, action.moderator_id)
+                self.bridge.start(
+                    action.topic,
+                    specs,
+                    action.moderator_id,
+                    working_directory=action.working_directory,
+                )
+                snapshot = self.bridge.snapshot()
+                snapshot_working_directory = snapshot.get("working_directory")
+                self._working_directory = (
+                    snapshot_working_directory
+                    if isinstance(snapshot_working_directory, str)
+                    else None
+                )
                 self._apply_snapshot()
         except Exception as exc:
             self._evaluate("discussionApplyError", str(exc))
@@ -464,6 +503,7 @@ class DiscussionWindowController:
         if not self._attached or not self._web_ready:
             return
         self._apply_snapshot()
+        self._apply_working_directory()
         self._apply_detection()
 
     def _apply_snapshot(self) -> None:
@@ -475,6 +515,9 @@ class DiscussionWindowController:
             "discussionApplyDetection",
             [asdict(detection) for detection in detections],
         )
+
+    def _apply_working_directory(self) -> None:
+        self._evaluate("discussionApplyWorkingDir", self._working_directory)
 
     def _evaluate(self, function_name: str, payload: object) -> None:
         self._require_main_thread()

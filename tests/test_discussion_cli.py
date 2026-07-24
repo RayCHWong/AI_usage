@@ -288,6 +288,105 @@ def test_explicit_cwd_bypasses_default_neutral_directory(tmp_path: Path) -> None
     assert invocation.cwd == str(explicit)
 
 
+@pytest.mark.parametrize(
+    ("adapter", "required"),
+    [
+        (
+            ClaudeAdapter,
+            (
+                "--safe-mode",
+                "--setting-sources",
+                "project",
+                "--tools",
+                "Read,Grep,Glob",
+            ),
+        ),
+        (
+            CodexAdapter,
+            (
+                "--skip-git-repo-check",
+                "--ignore-user-config",
+                "-s",
+                "read-only",
+            ),
+        ),
+    ],
+)
+def test_builtin_project_invocation_is_read_only(
+    tmp_path: Path,
+    adapter: type[ClaudeAdapter] | type[CodexAdapter],
+    required: tuple[str, ...],
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    invocation = adapter(
+        "/bin/echo",
+        cwd=str(project),
+        read_only=True,
+    ).build_invocation("問題", None)
+
+    assert invocation.cwd == str(project.resolve())
+    assert all(item in invocation.argv for item in required)
+
+
+def test_gemini_project_invocation_only_changes_cwd(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    invocation = GeminiAdapter(
+        "/bin/echo",
+        cwd=str(project),
+        read_only=True,
+    ).build_invocation("問題", None)
+
+    assert invocation.cwd == str(project.resolve())
+    assert invocation.argv == ("/bin/echo", "-o", "stream-json", "-p", "問題")
+
+
+@pytest.mark.parametrize(
+    "forbidden",
+    [
+        "--dangerously-bypass-approvals-and-sandbox",
+        "workspace-write",
+        "danger-full-access",
+        "bypassPermissions",
+        "acceptEdits",
+        "dontAsk",
+    ],
+)
+def test_project_invocations_never_enable_writes(
+    tmp_path: Path,
+    forbidden: str,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    invocations = [
+        adapter("/bin/echo", cwd=str(project), read_only=True).build_invocation(
+            "問題", None
+        )
+        for adapter in (ClaudeAdapter, CodexAdapter, GeminiAdapter)
+    ]
+
+    assert all(forbidden not in invocation.argv for invocation in invocations)
+
+
+@pytest.mark.parametrize("kind", ["blank", "missing", "file"])
+def test_project_invocation_rejects_invalid_working_directory(
+    tmp_path: Path,
+    kind: str,
+) -> None:
+    path = tmp_path / kind
+    if kind == "file":
+        path.write_text("not a directory")
+    value = "" if kind == "blank" else str(path)
+
+    with pytest.raises(ValueError, match="working directory"):
+        ClaudeAdapter(
+            "/bin/echo",
+            cwd=value,
+            read_only=True,
+        ).build_invocation("問題", None)
+
+
 def test_protocol_exposes_coordinator_metadata() -> None:
     adapter: CLIAdapter = ClaudeAdapter()
 
@@ -344,6 +443,7 @@ def test_normal_streaming_uses_parsed_deltas_and_separate_reader_threads(
     kwargs = captured["kwargs"]
     assert kwargs["stdin"] is subprocess.DEVNULL
     assert kwargs["start_new_session"] is True
+    assert kwargs["shell"] is False
     assert kwargs["bufsize"] == 1
 
 def test_final_line_without_newline_is_processed_at_eof(

@@ -198,6 +198,32 @@
       align-items: center;
     }
 
+    .working-directory-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .working-directory-path {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .working-directory-warning {
+      padding: 8px 10px;
+      border: 1px solid var(--danger);
+      border-radius: 8px;
+      color: var(--danger);
+      background: var(--danger-soft);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
     select {
       min-width: 0;
       height: 34px;
@@ -455,6 +481,16 @@
           <select id="moderator"></select>
           <button class="detect-button" id="detect" type="button" data-i18n="discussion_detect"></button>
         </div>
+        <div class="working-directory-row">
+          <span class="label" data-i18n="discussion_working_directory"></span>
+          <span class="working-directory-path" id="working-directory-path"></span>
+          <button class="secondary-button" id="pick-folder" type="button"
+                  data-i18n="discussion_pick_folder"></button>
+          <button class="secondary-button" id="clear-folder" type="button"
+                  data-i18n="discussion_clear_folder" hidden></button>
+        </div>
+        <div class="working-directory-warning" id="working-directory-warning"
+             data-i18n="discussion_working_directory_warning" hidden></div>
         <div class="estimate" id="estimate"></div>
         <div class="actions">
           <button class="primary-button" id="start" type="button" data-i18n="discussion_start"></button>
@@ -505,6 +541,7 @@
     let latestEventSeq = -1;
     let summaryText = "";
     let copyFeedbackTimer = null;
+    let workingDirectory = null;
 
     const topicEl = document.getElementById("topic");
     const participantsEl = document.getElementById("participants");
@@ -518,6 +555,10 @@
     const historyEl = document.getElementById("history");
     const summaryEl = document.getElementById("summary");
     const copyEl = document.getElementById("copy");
+    const workingDirectoryPathEl = document.getElementById("working-directory-path");
+    const workingDirectoryWarningEl = document.getElementById("working-directory-warning");
+    const pickFolderEl = document.getElementById("pick-folder");
+    const clearFolderEl = document.getElementById("clear-folder");
 
     function t(key, params) {
       const lang = I18N[currentLanguage] ? currentLanguage : "en";
@@ -653,12 +694,24 @@
       });
     }
 
+    function renderWorkingDirectory() {
+      const selected = typeof workingDirectory === "string" && workingDirectory.length > 0;
+      workingDirectoryPathEl.textContent = selected
+        ? workingDirectory
+        : t("discussion_working_directory_none");
+      workingDirectoryPathEl.title = selected ? workingDirectory : "";
+      clearFolderEl.hidden = !selected;
+      workingDirectoryWarningEl.hidden = !selected;
+    }
+
     function renderControls() {
       const running = isRunning();
       topicEl.disabled = running;
       startEl.disabled = !canStartDiscussion(topicEl.value, selected.size, state.status);
       stopEl.disabled = !running;
       detectEl.disabled = running;
+      pickFolderEl.disabled = running;
+      clearFolderEl.disabled = running;
       statusEl.textContent = state.status
         ? t(`discussion_status_${state.status.toLowerCase()}`)
         : "";
@@ -833,6 +886,7 @@
       renderParticipants();
       renderModerator();
       renderEstimate();
+      renderWorkingDirectory();
       renderControls();
       renderHistory();
       renderSummary();
@@ -899,6 +953,11 @@
         latestEventSeq = Math.max(latestEventSeq, Number(next.event_seq) || -1);
       }
       state = next;
+      if (Object.prototype.hasOwnProperty.call(next, "working_directory")) {
+        workingDirectory = typeof next.working_directory === "string"
+          ? next.working_directory
+          : null;
+      }
       if (typeof next.topic === "string" && next.topic && topicEl.value !== next.topic) {
         topicEl.value = next.topic;
       }
@@ -926,6 +985,11 @@
       render();
     };
 
+    window.discussionApplyWorkingDir = (path) => {
+      workingDirectory = typeof path === "string" && path.length > 0 ? path : null;
+      renderWorkingDirectory();
+    };
+
     window.discussionApplyError = (message) => {
       errorEl.textContent = `${message || ""}`;
     };
@@ -935,12 +999,15 @@
       errorEl.textContent = "";
       send("discussion_detect");
     });
+    pickFolderEl.addEventListener("click", () => send("discussion_pick_folder"));
+    clearFolderEl.addEventListener("click", () => send("discussion_clear_folder"));
     startEl.addEventListener("click", () => {
       errorEl.textContent = "";
       send("discussion_start", {
         topic: topicEl.value,
         participants: [...selected],
         moderatorId: moderatorEl.value || null,
+        workingDir: workingDirectory,
       });
     });
     stopEl.addEventListener("click", () => send("discussion_stop"));

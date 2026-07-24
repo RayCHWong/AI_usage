@@ -114,11 +114,13 @@ class _JSONAdapter:
         user_configured_path: str | None = None,
         *,
         cwd: str | None = None,
+        read_only: bool = False,
         env_overrides: Mapping[str, str] | None = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
         self._user_configured_path = user_configured_path
         self._cwd = cwd
+        self._read_only = read_only
         self._env_overrides = dict(env_overrides or {})
         self._timeout_seconds = timeout_seconds
         self._parse_error_count = 0
@@ -179,9 +181,15 @@ class _JSONAdapter:
         return detection.path
 
     def _invocation(self, argv: Sequence[str]) -> Invocation:
+        if self._read_only:
+            if self._cwd is None:
+                raise ValueError("read-only project mode requires a working directory")
+            cwd = validate_project_working_directory(self._cwd)
+        else:
+            cwd = self._cwd or resolve_neutral_working_directory()
         return Invocation(
             argv=tuple(argv),
-            cwd=self._cwd or resolve_neutral_working_directory(),
+            cwd=cwd,
             env_overrides=dict(self._env_overrides),
             timeout_seconds=self._timeout_seconds,
         )
@@ -219,6 +227,8 @@ class ClaudeAdapter(_JSONAdapter):
             "--include-partial-messages",
             "--verbose",
         ]
+        if self._read_only:
+            argv.extend(("--tools", "Read,Grep,Glob"))
         if model is not None:
             argv.extend(("--model", model))
         argv.append(prompt)
@@ -264,6 +274,8 @@ class CodexAdapter(_JSONAdapter):
             "--ignore-user-config",
             "--json",
         ]
+        if self._read_only:
+            argv.extend(("-s", "read-only"))
         if model is not None:
             argv.extend(("--model", model))
         argv.append(prompt)
@@ -296,6 +308,7 @@ class GeminiAdapter(_JSONAdapter):
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
         # Gemini has no equivalent of Claude's or Codex's user-config isolation flag.
         # The neutral cwd blocks project-level GEMINI.md only; user settings may apply.
+        # Project mode can only change cwd; Gemini exposes no read-only sandbox flag.
         argv = [self._require_path(), "-o", "stream-json"]
         if model is not None:
             argv.extend(("-m", model))
@@ -408,6 +421,7 @@ def run_streaming(
     try:
         process = subprocess.Popen(
             invocation.argv,
+            shell=False,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -536,6 +550,20 @@ def _is_executable(path: Path) -> bool:
         return path.is_file() and os.access(path, os.X_OK)
     except OSError:
         return False
+
+
+def validate_project_working_directory(path: str) -> str:
+    if not path.strip():
+        raise ValueError("working directory must not be blank")
+    project_path = Path(path).expanduser()
+    try:
+        if not project_path.exists():
+            raise ValueError(f"working directory does not exist: {project_path}")
+        if not project_path.is_dir():
+            raise ValueError(f"working directory is not a directory: {project_path}")
+        return str(project_path.resolve())
+    except OSError as exc:
+        raise ValueError(f"cannot access working directory {project_path}: {exc}") from exc
 
 
 def resolve_neutral_working_directory(path: Path | None = None) -> str:

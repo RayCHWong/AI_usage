@@ -14,7 +14,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
@@ -30,6 +30,7 @@ from discussion_cli import (
     build_login_shell_invocation,
     resolve_neutral_working_directory,
     run_streaming,
+    validate_project_working_directory,
 )
 from discussion_session import (
     DiscussionEvent,
@@ -66,6 +67,7 @@ class ParticipantSpec:
     login_shell_script: str | None = None
     login_shell_opt_in: bool = False
     cwd: str | None = None
+    read_only: bool = False
     env_overrides: Mapping[str, str] = field(default_factory=dict)
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     supports_token_stream: bool = False
@@ -166,6 +168,8 @@ class _CustomLineAdapter:
         )
 
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
+        if self._spec.read_only:
+            raise ValueError("read-only project mode is unavailable for custom participants")
         cwd = self._spec.cwd or resolve_neutral_working_directory()
         if self._spec.source == "login_shell":
             script = self._spec.login_shell_script
@@ -208,6 +212,7 @@ class DiscussionBridge:
         self._events: deque[DiscussionEvent] = deque()
         self._event_listener: Callable[[], None] | None = None
         self._callbacks_enabled = True
+        self._working_directory: str | None = None
 
     def detect_participants(self) -> list[DetectionResult]:
         return [
@@ -221,6 +226,7 @@ class DiscussionBridge:
         topic: str,
         participants: Sequence[ParticipantSpec],
         moderator_id: str | None = None,
+        working_directory: str | None = None,
     ) -> str:
         normalized_topic = topic.strip()
         if not normalized_topic:
@@ -228,6 +234,15 @@ class DiscussionBridge:
         specs = tuple(participants)
         if not specs:
             raise ValueError("at least one participant is required")
+        project_cwd = (
+            validate_project_working_directory(working_directory)
+            if working_directory is not None
+            else None
+        )
+        if project_cwd is not None:
+            specs = tuple(
+                replace(spec, cwd=project_cwd, read_only=True) for spec in specs
+            )
         participant_models = [
             Participant(
                 id=spec.id,
@@ -244,6 +259,7 @@ class DiscussionBridge:
             if self._worker is not None and self._worker.is_alive():
                 raise DiscussionBusyError("a discussion session is already running")
             self._session = session
+            self._working_directory = project_cwd
             self._cancel_event = cancel_event
             self._callbacks_enabled = True
             with self._event_lock:
@@ -282,9 +298,12 @@ class DiscussionBridge:
     def snapshot(self) -> dict[str, object]:
         with self._state_lock:
             session = self._session
+            working_directory = self._working_directory
         if session is None:
             return {}
-        return session.snapshot()
+        snapshot = session.snapshot()
+        snapshot["working_directory"] = working_directory
+        return snapshot
 
     def drain_events(self, max_count: int = 50) -> list[dict[str, object]]:
         if max_count <= 0:
@@ -662,18 +681,21 @@ def _default_adapter_factory(spec: ParticipantSpec) -> CLIAdapter:
     if spec.adapter_id == "claude":
         return ClaudeAdapter(
             cwd=spec.cwd,
+            read_only=spec.read_only,
             env_overrides=spec.env_overrides,
             timeout_seconds=spec.timeout_seconds,
         )
     if spec.adapter_id == "codex":
         return CodexAdapter(
             cwd=spec.cwd,
+            read_only=spec.read_only,
             env_overrides=spec.env_overrides,
             timeout_seconds=spec.timeout_seconds,
         )
     if spec.adapter_id == "gemini":
         return GeminiAdapter(
             cwd=spec.cwd,
+            read_only=spec.read_only,
             env_overrides=spec.env_overrides,
             timeout_seconds=spec.timeout_seconds,
         )
