@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -173,6 +173,11 @@ PARTICIPANT_LABELS = {
     "codex": "Codex",
     "agy": "Antigravity",
 }
+ALLOWED_MODELS: dict[str, frozenset[str]] = {
+    "claude": frozenset({"opus", "sonnet", "haiku"}),
+    "codex": frozenset({"gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6-sol"}),
+    "agy": frozenset({"gemini-3.6-flash-high", "gemini-3.1-pro-high"}),
+}
 RUNNING_STATUSES = frozenset(
     {"PREPARING", "ROUND1_RUNNING", "ROUND2_RUNNING", "SUMMARIZING", "CANCELLING"}
 )
@@ -250,6 +255,7 @@ class DiscussionAction:
     attachments: tuple[str, ...] = ()
     total_rounds: int = 2
     include_summary: bool = True
+    models: Mapping[str, str | None] = field(default_factory=dict)
     attachment_path: str | None = None
     attachment_data: str | None = None
     attachment_name: str | None = None
@@ -342,6 +348,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
     moderator_id = moderator_value
     if moderator_id is not None and moderator_id not in participants:
         raise ValueError("discussion_start moderatorId must be selected")
+    models = _parse_discussion_models(payload.get("models"))
     return DiscussionAction(
         cast(ActionName, action),
         topic=topic,
@@ -351,7 +358,29 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         attachments=attachments,
         total_rounds=min(5, max(1, rounds_value)),
         include_summary=include_summary_value,
+        models=models,
     )
+
+
+def _parse_discussion_models(raw: object) -> dict[str, str | None]:
+    """Validate the optional per-participant model map; absent means all default."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError("discussion_start models must be an object")
+    models: dict[str, str | None] = {}
+    for key, value in raw.items():
+        if key not in BUILTIN_PARTICIPANTS:
+            raise ValueError("discussion_start models has an unknown participant")
+        if value is None or value == "":
+            models[key] = None
+        elif isinstance(value, str):
+            if value not in ALLOWED_MODELS[key]:
+                raise ValueError("discussion_start models has an unknown model")
+            models[key] = value
+        else:
+            raise ValueError("discussion_start models values must be strings or null")
+    return models
 
 
 def estimate_cli_calls(
@@ -700,6 +729,7 @@ class DiscussionWindowController:
                         id=participant_id,
                         label=PARTICIPANT_LABELS[participant_id],
                         adapter_id=participant_id,
+                        model=action.models.get(participant_id),
                     )
                     for participant_id in action.participants
                 ]

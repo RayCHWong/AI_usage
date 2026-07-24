@@ -155,6 +155,47 @@ def test_parse_start_action_clamps_total_rounds() -> None:
     assert action.include_summary is False
 
 
+def test_parse_start_action_models_optional_defaults_empty() -> None:
+    action = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "x",
+                "participants": ["claude"],
+            }
+        )
+    )
+    assert action.models == {}
+
+
+def test_parse_start_action_rejects_unknown_model_value() -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(
+            json.dumps(
+                {
+                    "action": "discussion_start",
+                    "topic": "x",
+                    "participants": ["claude"],
+                    "models": {"claude": "gpt-5.6-sol"},
+                }
+            )
+        )
+
+
+def test_parse_start_action_rejects_unknown_model_participant() -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(
+            json.dumps(
+                {
+                    "action": "discussion_start",
+                    "topic": "x",
+                    "participants": ["claude"],
+                    "models": {"other": "opus"},
+                }
+            )
+        )
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -265,6 +306,33 @@ def test_controller_dispatches_start_and_stop_actions() -> None:
     assert bridge.started[3] == "/tmp/project"
     assert bridge.stop_count == 1
     assert any(script.startswith("window.discussionApplySnapshot(") for script in webview.scripts)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_start_carries_whitelisted_model_into_spec() -> None:
+    bridge = FakeBridge()
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._receive_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "x",
+                "participants": ["claude", "codex"],
+                "models": {"claude": "opus", "codex": None},
+            }
+        )
+    )
+
+    assert bridge.started is not None
+    specs = bridge.started[1]
+    assert [cast(Any, spec).id for spec in specs] == ["claude", "codex"]
+    assert cast(Any, specs[0]).model == "opus"
+    assert cast(Any, specs[1]).model is None
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
@@ -405,8 +473,10 @@ def test_failed_turn_error_is_collapsed_with_first_line_summary() -> None:
 def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
     html = HTML_PATH.read_text(encoding="utf-8")
 
-    assert "max-width: min(250px, 100%)" in html
-    assert "grid-template-columns: auto auto minmax(0, 1fr) auto" in html
+    assert "border-radius: 12px" in html
+    assert "--surface-raised" in html
+    assert "--brand-claude-soft" in html
+    assert "grid-template-columns: auto minmax(0, 1fr) auto" in html
     assert "flex-wrap: wrap" in html
     assert "const PARTICIPANT_ICON_URIS" in html
     assert '"{{CLAUDE_ICON}}"' in html
@@ -418,7 +488,8 @@ def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
     assert 'badge.alt = ""' in html
     assert 'document.createElementNS("http://www.w3.org/2000/svg", "svg")' in html
     assert 'badge.setAttribute("aria-hidden", "true")' in html
-    assert "chip.append(checkbox, createParticipantBadge(id), name, status, moderator)" in html
+    assert "head.append(createParticipantBadge(id), infoColumn, moderator)" in html
+    assert "chip.append(checkbox, head, modelSelect)" in html
     assert "url(http" not in html
 
 

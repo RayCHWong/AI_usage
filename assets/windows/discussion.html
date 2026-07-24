@@ -10,11 +10,13 @@
       --bg: #080d12;
       --surface: rgba(25, 33, 42, 0.86);
       --surface-strong: #151c25;
-      --border: rgba(255, 255, 255, 0.15);
+      --surface-raised: #10161e;
+      --border: rgba(255, 255, 255, 0.08);
       --text: rgba(255, 255, 255, 0.94);
       --muted: rgba(255, 255, 255, 0.58);
       --accent: #80a6ff;
       --accent-soft: rgba(128, 166, 255, 0.14);
+      --accent-glow: rgba(128, 166, 255, 0.3);
       --on-accent: #11151c;
       --danger: #ff9292;
       --danger-soft: rgba(255, 133, 133, 0.1);
@@ -26,6 +28,9 @@
       --brand-claude: #f49164;
       --brand-codex: #58d6e6;
       --brand-agy: #6b9aff;
+      --brand-claude-soft: rgba(244, 145, 100, 0.1);
+      --brand-codex-soft: rgba(88, 214, 230, 0.1);
+      --brand-agy-soft: rgba(107, 154, 255, 0.1);
       --shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
       --transparent: transparent;
     }
@@ -36,11 +41,13 @@
         --bg: #f3f5f8;
         --surface: rgba(255, 255, 255, 0.92);
         --surface-strong: #fff;
-        --border: rgba(27, 35, 48, 0.16);
+        --surface-raised: #ffffff;
+        --border: rgba(27, 35, 48, 0.1);
         --text: #18202c;
         --muted: #5c6676;
         --accent: #275cc7;
         --accent-soft: rgba(39, 92, 199, 0.12);
+        --accent-glow: rgba(39, 92, 199, 0.28);
         --on-accent: #fff;
         --danger: #a92e2e;
         --danger-soft: rgba(169, 46, 46, 0.1);
@@ -49,6 +56,9 @@
         --badge-agy-start: #326fd1;
         --badge-agy-end: #7950aa;
         --badge-symbol: #fff;
+        --brand-claude-soft: rgba(244, 145, 100, 0.12);
+        --brand-codex-soft: rgba(88, 214, 230, 0.14);
+        --brand-agy-soft: rgba(107, 154, 255, 0.12);
         --shadow: 0 10px 30px rgba(28, 37, 52, 0.08);
         --transparent: transparent;
       }
@@ -162,22 +172,42 @@
 
     .participants {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
       gap: 8px;
     }
 
     .participant-chip {
-      display: inline-grid;
-      grid-template-columns: auto auto minmax(0, 1fr) auto;
-      gap: 2px 7px;
-      align-items: center;
-      max-width: min(250px, 100%);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       min-width: 0;
-      padding: 9px 12px;
+      padding: 12px 14px;
       border: 1px solid var(--border);
-      border-radius: 999px;
+      border-radius: 12px;
       color: var(--text);
-      background: var(--surface-strong);
+      background: var(--surface-raised);
+      transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+    }
+
+    .participant-head {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+      cursor: pointer;
+    }
+
+    .participant-chip.unavailable .participant-head {
+      cursor: not-allowed;
+    }
+
+    .participant-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0;
     }
 
     .participant-chip.unavailable {
@@ -191,21 +221,60 @@
     }
 
     #participants .participant-chip:nth-child(1):has(input:checked) {
-      border-color: var(--brand-claude);
+      background: var(--brand-claude-soft);
+      border-color: rgba(244, 145, 100, 0.3);
+      box-shadow: inset 3px 0 0 var(--brand-claude);
     }
 
     #participants .participant-chip:nth-child(2):has(input:checked) {
-      border-color: var(--brand-codex);
+      background: var(--brand-codex-soft);
+      border-color: rgba(88, 214, 230, 0.3);
+      box-shadow: inset 3px 0 0 var(--brand-codex);
     }
 
     #participants .participant-chip:nth-child(3):has(input:checked) {
-      border-color: var(--brand-agy);
+      background: var(--brand-agy-soft);
+      border-color: rgba(107, 154, 255, 0.3);
+      box-shadow: inset 3px 0 0 var(--brand-agy);
+    }
+
+    .participant-chip:has(input:checked) .participant-badge::after {
+      content: "✓";
+      position: absolute;
+      right: -3px;
+      bottom: -3px;
+      display: grid;
+      place-items: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--muted);
+      color: var(--badge-symbol);
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 1;
+      box-shadow: 0 0 0 1.5px var(--surface-raised);
+    }
+
+    #participants .participant-chip:nth-child(1):has(input:checked) .participant-badge::after {
+      background: var(--brand-claude);
+    }
+
+    #participants .participant-chip:nth-child(2):has(input:checked) .participant-badge::after {
+      background: var(--brand-codex);
+    }
+
+    #participants .participant-chip:nth-child(3):has(input:checked) .participant-badge::after {
+      background: var(--brand-agy);
     }
 
     .participant-chip input {
-      grid-row: 1 / span 2;
+      position: absolute;
+      width: 0;
+      height: 0;
       margin: 0;
-      accent-color: var(--accent);
+      opacity: 0;
+      pointer-events: none;
     }
 
     .attachment-row {
@@ -270,11 +339,11 @@
     }
 
     .participant-badge {
+      position: relative;
       display: block;
-      grid-row: 1 / span 2;
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
       background: var(--muted);
       object-fit: cover;
       box-shadow: 0 0 0 1px var(--border);
@@ -292,8 +361,8 @@
 
     .participant-badge svg {
       display: block;
-      width: 14px;
-      height: 14px;
+      width: 18px;
+      height: 18px;
     }
 
     .participant-badge-symbol {
@@ -311,7 +380,7 @@
 
     .participant-name {
       min-width: 0;
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 700;
     }
 
@@ -326,25 +395,73 @@
     }
 
     .moderator-toggle {
-      grid-column: 4;
-      grid-row: 1 / span 2;
-      padding: 3px 6px;
-      border: 1px solid var(--border);
-      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: 1px solid var(--transparent);
+      border-radius: 8px;
       color: var(--muted);
       background: var(--transparent);
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 16px;
+      line-height: 1;
+      transition: color 150ms ease, background 150ms ease;
+    }
+
+    .moderator-toggle:hover:not(:disabled) {
+      background: var(--accent-soft);
+      color: var(--text);
     }
 
     .moderator-toggle.selected {
-      border-color: var(--accent);
       color: var(--accent);
-      background: var(--accent-soft);
+    }
+
+    #participants .participant-chip:nth-child(1) .moderator-toggle.selected {
+      color: var(--brand-claude);
+    }
+
+    #participants .participant-chip:nth-child(2) .moderator-toggle.selected {
+      color: var(--brand-codex);
+    }
+
+    #participants .participant-chip:nth-child(3) .moderator-toggle.selected {
+      color: var(--brand-agy);
     }
 
     .moderator-select-fallback {
       display: none;
+    }
+
+    .participant-model {
+      width: 100%;
+      height: 34px;
+      padding: 0 32px 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      color: var(--text);
+      background-color: var(--surface-strong);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%237a8794' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 10px;
+      font-size: 13px;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .participant-model:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .participant-model:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .setup-section {
@@ -483,22 +600,110 @@
       display: grid;
       grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr);
       gap: 8px;
+      align-items: start;
+    }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      overflow: hidden;
+      background: var(--surface-raised);
+    }
+
+    .segmented button {
+      min-width: 38px;
+      height: 34px;
+      padding: 0 10px;
+      border: none;
+      border-right: 1px solid var(--border);
+      background: var(--transparent);
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 150ms ease, color 150ms ease;
+    }
+
+    .segmented button:last-child {
+      border-right: none;
+    }
+
+    .segmented button:hover:not(:disabled):not(.active) {
+      color: var(--text);
+      background: var(--accent-soft);
+    }
+
+    .segmented button.active {
+      background: var(--accent);
+      color: var(--on-accent);
+    }
+
+    .segmented button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
     }
 
     .summary-toggle {
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 9px;
       color: var(--text);
       font-size: 14px;
+    }
+
+    .summary-toggle input {
+      position: absolute;
+      width: 0;
+      height: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .switch {
+      position: relative;
+      width: 38px;
+      height: 22px;
+      border-radius: 999px;
+      background: var(--surface-strong);
+      border: 1px solid var(--border);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+      transition: background 150ms ease, border-color 150ms ease;
+      flex: 0 0 auto;
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: transform 150ms ease, background 150ms ease;
+    }
+
+    .summary-toggle input:checked + .switch {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .summary-toggle input:checked + .switch::after {
+      transform: translateX(16px);
+      background: var(--on-accent);
+    }
+
+    .summary-toggle input:disabled + .switch {
+      opacity: 0.5;
     }
 
     .primary-button {
       border-color: var(--accent);
       background: var(--accent);
       color: var(--on-accent);
-      padding-inline: 18px;
-      box-shadow: 0 0 0 1px var(--accent-soft), 0 5px 16px var(--accent-soft);
+      min-height: 38px;
+      padding: 10px 18px;
+      box-shadow: 0 4px 14px var(--accent-glow);
     }
 
     .stop-button {
@@ -802,12 +1007,14 @@
           <section class="setup-section">
             <h2 class="setup-section-title" data-i18n="discussion_section_settings"></h2>
             <div class="discussion-options">
-              <label class="field" for="total-rounds">
+              <div class="field">
                 <span class="label" data-i18n="discussion_total_rounds"></span>
-                <select id="total-rounds"></select>
-              </label>
+                <div class="segmented" id="rounds-segmented" role="group"></div>
+                <select id="total-rounds" hidden></select>
+              </div>
               <label class="summary-toggle" for="include-summary">
                 <input id="include-summary" type="checkbox" checked>
+                <span class="switch" aria-hidden="true"></span>
                 <span data-i18n="discussion_include_summary"></span>
               </label>
             </div>
@@ -883,6 +1090,26 @@
       path: "M8 3.5A4.5 4.5 0 1 1 8 12.5 4.5 4.5 0 0 1 8 3.5Z",
       filled: false,
     };
+    const MODEL_OPTIONS = {
+      claude: [
+        { value: "", label: null },
+        { value: "opus", label: "Opus" },
+        { value: "sonnet", label: "Sonnet" },
+        { value: "haiku", label: "Haiku" },
+      ],
+      codex: [
+        { value: "", label: null },
+        { value: "gpt-5.6-terra", label: "Terra" },
+        { value: "gpt-5.6-luna", label: "Luna" },
+        { value: "gpt-5.6-sol", label: "Sol" },
+      ],
+      agy: [
+        { value: "", label: null },
+        { value: "gemini-3.6-flash-high", label: "Gemini Flash" },
+        { value: "gemini-3.1-pro-high", label: "Gemini Pro" },
+      ],
+    };
+    const selectedModels = { claude: null, codex: null, agy: null };
 
     let currentLanguage = "en";
     let detection = [];
@@ -924,6 +1151,7 @@
     const attachmentsEl = document.getElementById("attachments");
     const attachmentHintEl = document.getElementById("attachment-hint");
     const totalRoundsEl = document.getElementById("total-rounds");
+    const roundsSegmentedEl = document.getElementById("rounds-segmented");
     const includeSummaryEl = document.getElementById("include-summary");
 
     function t(key, params) {
@@ -941,6 +1169,11 @@
       option.textContent = `${round}`;
       option.selected = round === 2;
       totalRoundsEl.append(option);
+      const segment = document.createElement("button");
+      segment.type = "button";
+      segment.dataset.round = `${round}`;
+      segment.textContent = `${round}`;
+      roundsSegmentedEl.append(segment);
     }
 
     function applyStaticText() {
@@ -954,6 +1187,7 @@
         const key = node.dataset.i18nPlaceholder;
         if (key) node.placeholder = t(key);
       });
+      roundsSegmentedEl.setAttribute("aria-label", t("discussion_total_rounds"));
     }
 
     function send(action, extra) {
@@ -1013,6 +1247,25 @@
       return badge;
     }
 
+    function createModelSelect(id) {
+      const select = document.createElement("select");
+      select.className = "participant-model";
+      select.dataset.participant = id;
+      select.setAttribute("aria-label", t("discussion_model"));
+      MODEL_OPTIONS[id].forEach((option) => {
+        const element = document.createElement("option");
+        element.value = option.value;
+        element.textContent = option.label || t("discussion_model_default");
+        select.append(element);
+      });
+      select.value = selectedModels[id] || "";
+      select.disabled = isRunning();
+      select.addEventListener("change", () => {
+        selectedModels[id] = select.value || null;
+      });
+      return select;
+    }
+
     function initializeSelection() {
       if (!selectionInitialized && detection.length) {
         selected = new Set(detection.filter((item) => item.available).map((item) => item.adapter_id));
@@ -1063,10 +1316,16 @@
         else status.textContent = (result && result.error) || t("discussion_not_detected");
         status.title = status.textContent;
 
+        const infoColumn = document.createElement("div");
+        infoColumn.className = "participant-info";
+        infoColumn.append(name, status);
+
         const moderator = document.createElement("button");
         moderator.type = "button";
         moderator.className = "moderator-toggle";
-        moderator.textContent = t("discussion_moderator");
+        moderator.textContent = moderatorId === id ? "★" : "☆";
+        moderator.title = t("discussion_moderator");
+        moderator.setAttribute("aria-label", t("discussion_moderator"));
         moderator.disabled = !available || !selected.has(id) || isRunning();
         if (moderatorId === id) moderator.classList.add("selected");
         moderator.addEventListener("click", () => {
@@ -1075,7 +1334,20 @@
           render();
         });
 
-        chip.append(checkbox, createParticipantBadge(id), name, status, moderator);
+        const head = document.createElement("div");
+        head.className = "participant-head";
+        head.append(createParticipantBadge(id), infoColumn, moderator);
+        head.addEventListener("click", (event) => {
+          if (event.target.closest(".moderator-toggle")) return;
+          if (!available || isRunning() || checkbox.disabled) return;
+          checkbox.checked = !checkbox.checked;
+          checkbox.dispatchEvent(new Event("change"));
+        });
+
+        const modelSelect = createModelSelect(id);
+        modelSelect.disabled = !available || isRunning();
+
+        chip.append(checkbox, head, modelSelect);
         participantsEl.append(chip);
       });
     }
@@ -1163,6 +1435,7 @@
       stopEl.disabled = !running;
       clearEl.disabled = running || !hasDiscussion;
       totalRoundsEl.disabled = running;
+      syncRoundsSegmented();
       includeSummaryEl.disabled = running;
       detectEl.disabled = running || detecting;
       pickFolderEl.disabled = running;
@@ -1177,6 +1450,13 @@
       detectStatusEl.textContent = detecting
         ? ""
         : t("discussion_detect_unavailable", { count: unavailableCount });
+    }
+
+    function syncRoundsSegmented() {
+      roundsSegmentedEl.querySelectorAll("button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.round === totalRoundsEl.value);
+        button.disabled = isRunning();
+      });
     }
 
     function participantNameFromState(id) {
@@ -1643,6 +1923,13 @@
       renderEstimate();
       renderControls();
     });
+    roundsSegmentedEl.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-round]");
+      if (!button || isRunning()) return;
+      totalRoundsEl.value = button.dataset.round;
+      renderEstimate();
+      renderControls();
+    });
     includeSummaryEl.addEventListener("change", () => {
       renderEstimate();
       renderControls();
@@ -1684,6 +1971,7 @@
         attachments: attachments.map((item) => item.path).filter(Boolean),
         totalRounds: Number(totalRoundsEl.value),
         includeSummary: includeSummaryEl.checked,
+        models: { ...selectedModels },
       });
     });
     stopEl.addEventListener("click", () => send("discussion_stop"));
