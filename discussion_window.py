@@ -20,6 +20,7 @@ from typing import Any, Literal, cast
 from discussion_bridge import DiscussionBridge, ParticipantSpec
 from discussion_cli import DetectionResult
 from i18n import _load_i18n_bundle, _t, packaged_resource_path
+from panels.payload import _data_uri
 from talent_market_bridge import pick_folder
 from usage_lang import detect_lang
 
@@ -208,7 +209,9 @@ def _load_discussion_html(language: str | None = None) -> str:
     )
     html = path.read_text(encoding="utf-8")
     return (
-        html.replace(
+        html.replace("{{CLAUDE_ICON}}", _data_uri("claude.webp"))
+        .replace("{{CODEX_ICON}}", _data_uri("codex.webp"))
+        .replace(
             "{{I18N_BUNDLE}}",
             json.dumps(_load_i18n_bundle(), ensure_ascii=False),
         )

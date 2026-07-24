@@ -322,6 +322,57 @@ def test_html_uses_isolated_handler_and_safe_dynamic_dom() -> None:
     assert "workingDir: workingDirectory" in html
 
 
+def test_failed_turn_error_is_collapsed_with_first_line_summary() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert 'document.createElement("details")' in html
+    assert 'document.createElement("summary")' in html
+    assert "fullError.split(/\\r?\\n/, 1)[0]" in html
+    assert "summaryText.textContent = firstLine" in html
+    assert "summaryText.title = firstLine" in html
+    assert "error.textContent = fullError" in html
+    assert "details.open" not in html
+    assert ".turn-error-summary-text" in html
+    assert "text-overflow: ellipsis" in html
+
+
+def test_participant_chips_use_project_icons_and_inline_gemini_badge() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert "max-width: min(250px, 100%)" in html
+    assert "grid-template-columns: auto auto minmax(0, 1fr)" in html
+    assert "flex-wrap: wrap" in html
+    assert "const PARTICIPANT_ICON_URIS" in html
+    assert '"{{CLAUDE_ICON}}"' in html
+    assert '"{{CODEX_ICON}}"' in html
+    assert "const GEMINI_BADGE" in html
+    assert "const DEFAULT_PARTICIPANT_BADGE" in html
+    assert 'document.createElement("img")' in html
+    assert 'badge.className = "participant-badge"' in html
+    assert 'badge.alt = ""' in html
+    assert 'document.createElementNS("http://www.w3.org/2000/svg", "svg")' in html
+    assert 'badge.setAttribute("aria-hidden", "true")' in html
+    assert "chip.append(checkbox, createParticipantBadge(id), name, status)" in html
+    assert "url(http" not in html
+
+
+def test_discussion_html_injects_existing_project_icon_data_uris(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        discussion_window,
+        "_data_uri",
+        lambda name: f"data:image/webp;base64,{name}",
+    )
+
+    html = discussion_window._load_discussion_html("en")
+
+    assert "{{CLAUDE_ICON}}" not in html
+    assert "{{CODEX_ICON}}" not in html
+    assert "data:image/webp;base64,claude.webp" in html
+    assert "data:image/webp;base64,codex.webp" in html
+
+
 @pytest.mark.parametrize(
     ("topic", "participant_count", "status", "expected"),
     [

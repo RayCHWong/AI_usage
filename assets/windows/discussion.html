@@ -18,7 +18,11 @@
       --on-accent: #11151c;
       --danger: #ff9292;
       --danger-soft: rgba(255, 133, 133, 0.1);
+      --danger-hover: rgba(255, 133, 133, 0.18);
       --success: #68c996;
+      --badge-gemini-start: #326fd1;
+      --badge-gemini-end: #7950aa;
+      --badge-symbol: #fff;
       --shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
       --transparent: transparent;
     }
@@ -37,7 +41,11 @@
         --on-accent: #fff;
         --danger: #a92e2e;
         --danger-soft: rgba(169, 46, 46, 0.1);
+        --danger-hover: rgba(169, 46, 46, 0.16);
         --success: #24754c;
+        --badge-gemini-start: #326fd1;
+        --badge-gemini-end: #7950aa;
+        --badge-symbol: #fff;
         --shadow: 0 10px 30px rgba(28, 37, 52, 0.08);
         --transparent: transparent;
       }
@@ -149,10 +157,11 @@
 
     .participant-chip {
       display: inline-grid;
-      grid-template-columns: auto 1fr;
+      grid-template-columns: auto auto minmax(0, 1fr);
       gap: 2px 7px;
       align-items: center;
-      max-width: 100%;
+      max-width: min(250px, 100%);
+      min-width: 0;
       padding: 7px 10px;
       border: 1px solid var(--border);
       border-radius: 999px;
@@ -176,7 +185,48 @@
       accent-color: var(--accent);
     }
 
+    .participant-badge {
+      display: block;
+      grid-row: 1 / span 2;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: var(--muted);
+      object-fit: cover;
+      box-shadow: 0 0 0 1px var(--border);
+    }
+
+    .participant-badge.gemini {
+      display: grid;
+      place-items: center;
+      background: linear-gradient(
+        135deg,
+        var(--badge-gemini-start),
+        var(--badge-gemini-end)
+      );
+    }
+
+    .participant-badge svg {
+      display: block;
+      width: 14px;
+      height: 14px;
+    }
+
+    .participant-badge-symbol {
+      fill: none;
+      stroke: var(--badge-symbol);
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.7;
+    }
+
+    .participant-badge-symbol.filled {
+      fill: var(--badge-symbol);
+      stroke: none;
+    }
+
     .participant-name {
+      min-width: 0;
       font-size: 12px;
       font-weight: 700;
     }
@@ -405,6 +455,55 @@
       line-height: 1.42;
     }
 
+    .turn-error-details {
+      min-width: 0;
+      margin-top: 7px;
+      color: var(--danger);
+      font-size: 11px;
+      line-height: 1.42;
+    }
+
+    .turn-error-details summary {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 6px;
+      align-items: center;
+      padding: 5px 7px;
+      border-radius: 6px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .turn-error-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .turn-error-details summary::before {
+      content: "▸";
+      transition: transform 120ms ease;
+    }
+
+    .turn-error-details[open] summary::before {
+      transform: rotate(90deg);
+    }
+
+    .turn-error-details summary:hover {
+      background: var(--danger-hover);
+    }
+
+    .turn-error-summary-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .turn-error-details .turn-error {
+      margin-top: 2px;
+      padding: 7px;
+      border-top: 1px solid var(--danger);
+    }
+
     .thinking {
       display: inline-flex;
       gap: 4px;
@@ -531,6 +630,20 @@
       "CANCELLING",
     ]);
     const SUMMARY_HEADINGS = ["共識", "主要分歧", "建議方案", "風險與未知"];
+    const PARTICIPANT_ICON_URIS = {
+      claude: "{{CLAUDE_ICON}}",
+      codex: "{{CODEX_ICON}}",
+    };
+    const GEMINI_BADGE = {
+      className: "gemini",
+      path: "M8 1.5C8.7 5.8 10.2 7.3 14.5 8 10.2 8.7 8.7 10.2 8 14.5 7.3 10.2 5.8 8.7 1.5 8 5.8 7.3 7.3 5.8 8 1.5Z",
+      filled: true,
+    };
+    const DEFAULT_PARTICIPANT_BADGE = {
+      className: "default",
+      path: "M8 3.5A4.5 4.5 0 1 1 8 12.5 4.5 4.5 0 0 1 8 3.5Z",
+      filled: false,
+    };
 
     let currentLanguage = "en";
     let detection = [];
@@ -612,6 +725,33 @@
       return failed ? `${failed.error}` : "";
     }
 
+    function createParticipantBadge(id) {
+      const iconUri = PARTICIPANT_ICON_URIS[id];
+      if (iconUri) {
+        const badge = document.createElement("img");
+        badge.className = "participant-badge";
+        badge.alt = "";
+        badge.setAttribute("aria-hidden", "true");
+        badge.src = iconUri;
+        return badge;
+      }
+      const config = id === "gemini" ? GEMINI_BADGE : DEFAULT_PARTICIPANT_BADGE;
+      const badge = document.createElement("span");
+      badge.className = `participant-badge ${config.className}`;
+      badge.setAttribute("aria-hidden", "true");
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      const symbol = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      symbol.setAttribute("d", config.path);
+      symbol.setAttribute(
+        "class",
+        `participant-badge-symbol${config.filled ? " filled" : ""}`,
+      );
+      svg.append(symbol);
+      badge.append(svg);
+      return badge;
+    }
+
     function renderParticipants() {
       participantsEl.replaceChildren();
       const detectionById = new Map(detection.map((item) => [item.adapter_id, item]));
@@ -653,7 +793,7 @@
         else status.textContent = (result && result.error) || t("discussion_not_detected");
         status.title = status.textContent;
 
-        chip.append(checkbox, name, status);
+        chip.append(checkbox, createParticipantBadge(id), name, status);
         participantsEl.append(chip);
       });
     }
@@ -785,10 +925,22 @@
           }
           card.append(text);
           if (turn.error) {
+            const fullError = `${turn.error}`;
+            const firstLine = fullError.split(/\r?\n/, 1)[0]
+              || t("discussion_turn_failed");
+            const details = document.createElement("details");
+            details.className = "turn-error-details";
+            const summary = document.createElement("summary");
+            const summaryText = document.createElement("span");
+            summaryText.className = "turn-error-summary-text";
+            summaryText.textContent = firstLine;
+            summaryText.title = firstLine;
+            summary.append(summaryText);
             const error = document.createElement("div");
             error.className = "turn-error";
-            error.textContent = `${turn.error}`;
-            card.append(error);
+            error.textContent = fullError;
+            details.append(summary, error);
+            card.append(details);
           }
           section.append(card);
         });
