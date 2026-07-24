@@ -7,6 +7,9 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
+import subprocess
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
@@ -245,6 +248,94 @@ def test_html_uses_isolated_handler_and_safe_dynamic_dom() -> None:
     assert "prefers-color-scheme" in html
     assert "event.session_id !== currentSessionId" in html
     assert "sequence <= latestEventSeq" in html
+
+
+@pytest.mark.parametrize(
+    ("topic", "participant_count", "status", "expected"),
+    [
+        ("", 1, "IDLE", False),
+        (" \n\t", 1, "COMPLETED", False),
+        ("question", 0, "IDLE", False),
+        ("question", 1, "IDLE", True),
+        ("question", 2, "COMPLETED", True),
+        ("question", 1, "PREPARING", False),
+        ("question", 1, "ROUND1_RUNNING", False),
+        ("question", 1, "ROUND2_RUNNING", False),
+        ("question", 1, "SUMMARIZING", False),
+        ("question", 1, "CANCELLING", False),
+        ("question", 1, "FAILED", True),
+    ],
+)
+def test_start_button_logic(
+    topic: str,
+    participant_count: int,
+    status: str,
+    expected: bool,
+) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to evaluate the pure browser control function")
+    html = HTML_PATH.read_text(encoding="utf-8")
+    statuses = re.search(
+        r"    const RUNNING_STATUSES = new Set\(\[.*?^    \]\);",
+        html,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    function = re.search(
+        r"    function canStartDiscussion\(.*?^    \}",
+        html,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert statuses is not None
+    assert function is not None
+    invocation = (
+        f"{statuses.group(0)}\n{function.group(0)}\n"
+        "process.stdout.write(JSON.stringify(canStartDiscussion("
+        f"{json.dumps(topic)}, {participant_count}, {json.dumps(status)})));"
+    )
+
+    result = subprocess.run(
+        [node, "-e", invocation],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(result.stdout) is expected
+
+
+def test_html_controls_and_history_follow_use_reviewed_logic() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert "function canStartDiscussion(topic, participantCount, status)" in html
+    assert "startEl.disabled = !canStartDiscussion(" in html
+    assert "stopEl.disabled = !running" in html
+    assert "PARTICIPANT_IDS.filter((id) => selected.has(id))" in html
+    assert "function isHistoryNearBottom()" in html
+    assert "return distance < 80" in html
+    assert "if (wasNearBottom && shouldFollow)" in html
+    assert "scrollHistoryToBottom()" in html
+    assert "historyEl.scrollTop = previousScrollTop" in html
+
+
+def test_html_colors_are_tokenized_with_light_mode_overrides() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+    styles = html.split("<style>", 1)[1].split("</style>", 1)[0]
+
+    assert "@media (prefers-color-scheme: light)" in styles
+    assert "@media (prefers-color-scheme: dark)" not in styles
+    assert "color: white" not in styles
+    assert "background: transparent" not in styles
+
+
+def test_copy_feedback_uses_i18n_and_four_section_plain_text() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert "function summaryForClipboard()" in html
+    assert "SUMMARY_HEADINGS.map" in html
+    assert 't("discussion_copied")' in html
+    assert 't("discussion_copy_failed")' in html
+    assert "JSON.stringify(summaryText)" not in html
 
 
 def test_html_visible_static_elements_use_i18n_keys() -> None:
