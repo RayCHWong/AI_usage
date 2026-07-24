@@ -7,12 +7,12 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #11151c;
-      --surface: rgba(30, 36, 47, 0.92);
-      --surface-strong: #222936;
-      --border: rgba(255, 255, 255, 0.12);
-      --text: #edf1f7;
-      --muted: #aeb8c7;
+      --bg: #080d12;
+      --surface: rgba(25, 33, 42, 0.86);
+      --surface-strong: #151c25;
+      --border: rgba(255, 255, 255, 0.15);
+      --text: rgba(255, 255, 255, 0.94);
+      --muted: rgba(255, 255, 255, 0.58);
       --accent: #80a6ff;
       --accent-soft: rgba(128, 166, 255, 0.14);
       --on-accent: #11151c;
@@ -23,6 +23,9 @@
       --badge-agy-start: #326fd1;
       --badge-agy-end: #7950aa;
       --badge-symbol: #fff;
+      --brand-claude: #f49164;
+      --brand-codex: #58d6e6;
+      --brand-agy: #6b9aff;
       --shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
       --transparent: transparent;
     }
@@ -78,7 +81,7 @@
     }
 
     button:disabled {
-      cursor: default;
+      cursor: not-allowed;
       opacity: 0.48;
     }
 
@@ -92,7 +95,6 @@
       overflow: hidden;
     }
 
-    .setup,
     .pane {
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -104,7 +106,15 @@
       display: grid;
       grid-template-columns: minmax(280px, 1fr) minmax(300px, 0.9fr);
       gap: 14px;
-      padding: 14px;
+    }
+
+    .setup-card {
+      min-width: 0;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
     }
 
     .field {
@@ -116,10 +126,11 @@
 
     .label,
     .pane-title {
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 13px;
+      font-weight: 600;
       letter-spacing: 0.02em;
       color: var(--muted);
+      margin-bottom: 8px;
     }
 
     #topic {
@@ -145,14 +156,14 @@
     .controls {
       display: flex;
       flex-direction: column;
-      gap: 11px;
+      gap: 14px;
       min-width: 0;
     }
 
     .participants {
       display: flex;
       flex-wrap: wrap;
-      gap: 7px;
+      gap: 8px;
     }
 
     .participant-chip {
@@ -162,7 +173,7 @@
       align-items: center;
       max-width: min(250px, 100%);
       min-width: 0;
-      padding: 7px 10px;
+      padding: 9px 12px;
       border: 1px solid var(--border);
       border-radius: 999px;
       color: var(--text);
@@ -179,6 +190,18 @@
       background: var(--danger-soft);
     }
 
+    #participants .participant-chip:nth-child(1):has(input:checked) {
+      border-color: var(--brand-claude);
+    }
+
+    #participants .participant-chip:nth-child(2):has(input:checked) {
+      border-color: var(--brand-codex);
+    }
+
+    #participants .participant-chip:nth-child(3):has(input:checked) {
+      border-color: var(--brand-agy);
+    }
+
     .participant-chip input {
       grid-row: 1 / span 2;
       margin: 0;
@@ -193,7 +216,7 @@
     }
 
     .attachment-hint {
-      font-size: 11px;
+      font-size: 13px;
       color: var(--muted);
     }
 
@@ -221,7 +244,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 12px;
+      font-size: 14px;
     }
 
     .attachment-chip-remove {
@@ -236,7 +259,7 @@
       border-radius: 999px;
       background: var(--transparent);
       color: var(--muted);
-      font-size: 13px;
+      font-size: 15px;
       line-height: 1;
     }
 
@@ -288,7 +311,7 @@
 
     .participant-name {
       min-width: 0;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 700;
     }
 
@@ -296,7 +319,7 @@
       min-width: 0;
       overflow: hidden;
       color: var(--muted);
-      font-size: 10px;
+      font-size: 12px;
       line-height: 1.25;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -304,14 +327,19 @@
 
     .moderator-row {
       display: grid;
-      grid-template-columns: auto minmax(130px, 1fr) auto;
+      grid-template-columns: minmax(130px, 1fr) auto;
       gap: 8px;
       align-items: center;
     }
 
+    .moderator-row .label,
+    .working-directory-row > .label {
+      grid-column: 1 / -1;
+    }
+
     .working-directory-row {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      grid-template-columns: minmax(0, 1fr) auto auto;
       gap: 8px;
       align-items: center;
     }
@@ -320,7 +348,7 @@
       min-width: 0;
       overflow: hidden;
       color: var(--muted);
-      font-size: 11px;
+      font-size: 13px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
@@ -331,7 +359,7 @@
       border-radius: 8px;
       color: var(--danger);
       background: var(--danger-soft);
-      font-size: 11px;
+      font-size: 13px;
       line-height: 1.4;
     }
 
@@ -357,9 +385,14 @@
     }
 
     .estimate {
-      min-height: 18px;
+      display: inline-block;
+      align-self: flex-end;
+      min-height: 0;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--accent-soft);
       color: var(--muted);
-      font-size: 11px;
+      font-size: 12px;
       line-height: 1.4;
     }
 
@@ -367,30 +400,63 @@
       display: flex;
       gap: 8px;
       align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
     }
 
     .primary-button,
     .stop-button {
       min-height: 36px;
-      padding: 0 18px;
-      border: 0;
+      padding: 0 12px;
+      border: 1px solid var(--border);
       border-radius: 9px;
-      color: var(--on-accent);
-      font-weight: 700;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .danger-button {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .attachment-thumbnail {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 auto;
+      border-radius: 4px;
+      object-fit: cover;
+    }
+
+    .discussion-options {
+      display: grid;
+      grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr);
+      gap: 8px;
+    }
+
+    .summary-toggle {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--text);
+      font-size: 14px;
     }
 
     .primary-button {
+      border-color: var(--accent);
       background: var(--accent);
+      color: var(--on-accent);
     }
 
     .stop-button {
-      background: var(--danger);
+      color: var(--text);
+      background: var(--transparent);
     }
 
     .session-status {
-      margin-left: auto;
+      flex-basis: 100%;
       color: var(--muted);
-      font-size: 11px;
+      font-size: 13px;
       text-align: right;
     }
 
@@ -401,7 +467,7 @@
       border-radius: 8px;
       color: var(--danger);
       background: var(--danger-soft);
-      font-size: 11px;
+      font-size: 13px;
       white-space: pre-wrap;
     }
 
@@ -454,7 +520,7 @@
     .round-title {
       margin: 0 0 7px 2px;
       color: var(--muted);
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 700;
     }
 
@@ -489,14 +555,14 @@
     }
 
     .turn-name {
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 750;
     }
 
     .turn-status {
       margin-left: auto;
       color: var(--muted);
-      font-size: 10px;
+      font-size: 12px;
     }
 
     .turn-text,
@@ -510,14 +576,14 @@
 
     .turn-text,
     .summary-text {
-      font-size: 12.5px;
-      line-height: 1.52;
+      font-size: 15px;
+      line-height: 1.65;
     }
 
     .turn-error {
       margin-top: 7px;
       color: var(--danger);
-      font-size: 11px;
+      font-size: 13px;
       line-height: 1.42;
     }
 
@@ -525,7 +591,7 @@
       min-width: 0;
       margin-top: 7px;
       color: var(--danger);
-      font-size: 11px;
+      font-size: 13px;
       line-height: 1.42;
     }
 
@@ -575,7 +641,7 @@
       gap: 4px;
       align-items: center;
       color: var(--muted);
-      font-size: 12px;
+      font-size: 14px;
     }
 
     .thinking::after {
@@ -603,7 +669,7 @@
       place-items: center;
       padding: 22px;
       color: var(--muted);
-      font-size: 12px;
+      font-size: 14px;
       line-height: 1.5;
       text-align: center;
     }
@@ -611,7 +677,7 @@
     .summary-section h3 {
       margin: 0 0 7px;
       color: var(--accent);
-      font-size: 12px;
+      font-size: 14px;
     }
 
     @media (max-width: 720px) {
@@ -632,45 +698,59 @@
 <body>
   <main class="app">
     <section class="setup">
-      <label class="field">
-        <span class="label" data-i18n="discussion_topic_label"></span>
-        <textarea id="topic" data-i18n-placeholder="discussion_topic_placeholder"></textarea>
-        <div class="attachment-row">
-          <button class="secondary-button" id="attach-image" type="button"
-                  data-i18n="discussion_attach_image"></button>
-          <span class="attachment-hint" id="attachment-hint"
-                data-i18n="discussion_attachment_hint"></span>
+      <div class="setup-card">
+        <label class="field">
+          <span class="label" data-i18n="discussion_topic_label"></span>
+          <textarea id="topic" data-i18n-placeholder="discussion_topic_placeholder"></textarea>
+          <div class="attachment-row">
+            <button class="secondary-button" id="attach-image" type="button"
+                    data-i18n="discussion_attach_image"></button>
+            <span class="attachment-hint" id="attachment-hint"
+                  data-i18n="discussion_attachment_hint"></span>
+          </div>
+          <div class="attachments" id="attachments" hidden></div>
+        </label>
+      </div>
+      <div class="setup-card">
+        <div class="controls">
+          <div class="field">
+            <span class="label" data-i18n="discussion_participants"></span>
+            <div class="participants" id="participants"></div>
+          </div>
+          <div class="moderator-row">
+            <label class="label" for="moderator" data-i18n="discussion_moderator"></label>
+            <select id="moderator"></select>
+            <button class="detect-button" id="detect" type="button" data-i18n="discussion_detect"></button>
+          </div>
+          <div class="working-directory-row">
+            <span class="label" data-i18n="discussion_working_directory"></span>
+            <span class="working-directory-path" id="working-directory-path"></span>
+            <button class="secondary-button" id="pick-folder" type="button"
+                    data-i18n="discussion_pick_folder"></button>
+            <button class="secondary-button" id="clear-folder" type="button"
+                    data-i18n="discussion_clear_folder" hidden></button>
+          </div>
+          <div class="working-directory-warning" id="working-directory-warning"
+               data-i18n="discussion_working_directory_warning" hidden></div>
+          <div class="discussion-options">
+            <label class="field" for="total-rounds">
+              <span class="label" data-i18n="discussion_total_rounds"></span>
+              <select id="total-rounds"></select>
+            </label>
+            <label class="summary-toggle" for="include-summary">
+              <input id="include-summary" type="checkbox" checked>
+              <span data-i18n="discussion_include_summary"></span>
+            </label>
+          </div>
+          <div class="estimate" id="estimate"></div>
+          <div class="actions">
+            <button class="primary-button" id="start" type="button" data-i18n="discussion_start"></button>
+            <button class="stop-button" id="stop" type="button" data-i18n="discussion_stop"></button>
+            <button class="secondary-button danger-button" id="clear" type="button" data-i18n="discussion_clear"></button>
+            <span class="session-status" id="session-status"></span>
+          </div>
+          <div class="error-banner" id="error" role="alert"></div>
         </div>
-        <div class="attachments" id="attachments" hidden></div>
-      </label>
-      <div class="controls">
-        <div class="field">
-          <span class="label" data-i18n="discussion_participants"></span>
-          <div class="participants" id="participants"></div>
-        </div>
-        <div class="moderator-row">
-          <label class="label" for="moderator" data-i18n="discussion_moderator"></label>
-          <select id="moderator"></select>
-          <button class="detect-button" id="detect" type="button" data-i18n="discussion_detect"></button>
-        </div>
-        <div class="working-directory-row">
-          <span class="label" data-i18n="discussion_working_directory"></span>
-          <span class="working-directory-path" id="working-directory-path"></span>
-          <button class="secondary-button" id="pick-folder" type="button"
-                  data-i18n="discussion_pick_folder"></button>
-          <button class="secondary-button" id="clear-folder" type="button"
-                  data-i18n="discussion_clear_folder" hidden></button>
-        </div>
-        <div class="working-directory-warning" id="working-directory-warning"
-             data-i18n="discussion_working_directory_warning" hidden></div>
-        <div class="estimate" id="estimate"></div>
-        <div class="actions">
-          <button class="primary-button" id="start" type="button" data-i18n="discussion_start"></button>
-          <button class="stop-button" id="stop" type="button" data-i18n="discussion_stop"></button>
-          <button class="secondary-button" id="clear" type="button" data-i18n="discussion_clear"></button>
-          <span class="session-status" id="session-status"></span>
-        </div>
-        <div class="error-banner" id="error" role="alert"></div>
       </div>
     </section>
 
@@ -732,6 +812,8 @@
     let workingDirectory = null;
     let attachments = [];
     let attachmentHintTimer = null;
+    let clearConfirmTimer = null;
+    let clearConfirming = false;
 
     const topicEl = document.getElementById("topic");
     const participantsEl = document.getElementById("participants");
@@ -753,6 +835,8 @@
     const attachImageEl = document.getElementById("attach-image");
     const attachmentsEl = document.getElementById("attachments");
     const attachmentHintEl = document.getElementById("attachment-hint");
+    const totalRoundsEl = document.getElementById("total-rounds");
+    const includeSummaryEl = document.getElementById("include-summary");
 
     function t(key, params) {
       const lang = I18N[currentLanguage] ? currentLanguage : "en";
@@ -761,6 +845,14 @@
         template = template.replace(/\{(\w+)\}/g, (_, name) => `${params[name] ?? ""}`);
       }
       return template;
+    }
+
+    for (let round = 1; round <= 5; round += 1) {
+      const option = document.createElement("option");
+      option.value = `${round}`;
+      option.textContent = `${round}`;
+      option.selected = round === 2;
+      totalRoundsEl.append(option);
     }
 
     function applyStaticText() {
@@ -893,24 +985,15 @@
     }
 
     function estimateCalls(count) {
-      if (count <= 0) return 0;
-      if (count === 1) return 1;
-      return count * 2 + 1;
+      return count * Number(totalRoundsEl.value) + (includeSummaryEl.checked ? 1 : 0);
     }
 
     function renderEstimate() {
       const count = selected.size;
-      if (count === 1) {
-        estimateEl.textContent = t("discussion_estimate_single", {
-          participants: count,
-          calls: estimateCalls(count),
-        });
-        return;
-      }
       estimateEl.textContent = t("discussion_estimate", {
         participants: count,
-        rounds: 2,
-        summary: count > 1 ? 1 : 0,
+        rounds: totalRoundsEl.value,
+        summary: includeSummaryEl.checked ? 1 : 0,
         calls: estimateCalls(count),
       });
     }
@@ -936,6 +1019,14 @@
         const chip = document.createElement("span");
         chip.className = "attachment-chip";
         chip.title = `${item.path || ""}`;
+        if (item.thumbnail) {
+          const thumbnail = document.createElement("img");
+          thumbnail.className = "attachment-thumbnail";
+          thumbnail.alt = "";
+          thumbnail.src = `${item.thumbnail}`;
+          thumbnail.addEventListener("error", () => thumbnail.remove(), { once: true });
+          chip.append(thumbnail);
+        }
         const name = document.createElement("span");
         name.className = "attachment-chip-name";
         name.textContent = `${item.name || ""}`;
@@ -961,6 +1052,8 @@
       startEl.disabled = !canStartDiscussion(topicEl.value, selected.size, state.status);
       stopEl.disabled = !running;
       clearEl.disabled = running || !hasDiscussion;
+      totalRoundsEl.disabled = running;
+      includeSummaryEl.disabled = running;
       detectEl.disabled = running;
       pickFolderEl.disabled = running;
       clearFolderEl.disabled = running;
@@ -985,8 +1078,9 @@
 
     function renderHistory() {
       historyEl.replaceChildren();
+      const totalRounds = Number(state.total_rounds) || Number(totalRoundsEl.value);
       const turns = (Array.isArray(state.turns) ? state.turns : [])
-        .filter((turn) => Number(turn.round_index) < 3);
+        .filter((turn) => Number(turn.round_index) <= totalRounds);
       if (!turns.length) {
         const empty = document.createElement("div");
         empty.className = "placeholder";
@@ -1095,7 +1189,10 @@
     function renderSummary() {
       summaryEl.replaceChildren();
       const turns = Array.isArray(state.turns) ? state.turns : [];
-      const summaryTurn = [...turns].reverse().find((turn) => Number(turn.round_index) === 3);
+      const totalRounds = Number(state.total_rounds) || Number(totalRoundsEl.value);
+      const summaryTurn = [...turns].reverse().find(
+        (turn) => Number(turn.round_index) > totalRounds,
+      );
       summaryText = summaryTurn ? `${summaryTurn.text || ""}` : "";
       copyEl.disabled = !summaryText;
 
@@ -1195,6 +1292,9 @@
       } else if (event.kind === "text_delta") {
         const turn = ensureTurn(event);
         turn.text = `${turn.text || ""}${payload.text || ""}`;
+      } else if (event.kind === "text_replace") {
+        const turn = ensureTurn(event);
+        turn.text = `${payload.text || ""}`;
       } else if (event.kind === "turn_done") {
         ensureTurn(event).status = "DONE";
       } else if (event.kind === "turn_failed") {
@@ -1211,7 +1311,7 @@
         state.status = "FAILED";
         window.discussionApplyError(`${payload.error || ""}`);
       }
-      return event.kind === "turn_started" || event.kind === "text_delta";
+      return event.kind === "turn_started" || event.kind === "text_delta" || event.kind === "text_replace";
     }
 
     window.discussionApplySnapshot = (snapshot) => {
@@ -1327,6 +1427,14 @@
     }
 
     topicEl.addEventListener("input", renderControls);
+    totalRoundsEl.addEventListener("change", () => {
+      renderEstimate();
+      renderControls();
+    });
+    includeSummaryEl.addEventListener("change", () => {
+      renderEstimate();
+      renderControls();
+    });
     topicEl.addEventListener("paste", (event) => {
       const clipboard = event.clipboardData;
       const types = clipboard ? Array.from(clipboard.types || []) : [];
@@ -1360,10 +1468,28 @@
         moderatorId: moderatorEl.value || null,
         workingDir: workingDirectory,
         attachments: attachments.map((item) => item.path).filter(Boolean),
+        totalRounds: Number(totalRoundsEl.value),
+        includeSummary: includeSummaryEl.checked,
       });
     });
     stopEl.addEventListener("click", () => send("discussion_stop"));
-    clearEl.addEventListener("click", () => send("discussion_clear"));
+    function resetClearConfirmation() {
+      clearConfirming = false;
+      if (clearConfirmTimer !== null) window.clearTimeout(clearConfirmTimer);
+      clearConfirmTimer = null;
+      clearEl.textContent = t("discussion_clear");
+    }
+    clearEl.addEventListener("click", () => {
+      if (!clearConfirming) {
+        clearConfirming = true;
+        clearEl.textContent = t("discussion_clear_confirm");
+        clearConfirmTimer = window.setTimeout(resetClearConfirmation, 5000);
+        return;
+      }
+      resetClearConfirmation();
+      send("discussion_clear");
+    });
+    clearEl.addEventListener("mouseleave", resetClearConfirmation);
     copyEl.addEventListener("click", async () => {
       if (!summaryText) return;
       const clipboardText = summaryForClipboard();

@@ -46,6 +46,17 @@ def test_session_ids_are_unique_and_snapshot_is_json_serializable() -> None:
     assert first.snapshot()["event_seq"] == -1
 
 
+def test_snapshot_includes_clamped_round_progress() -> None:
+    session = DiscussionSession("問題", _participants(), total_rounds=9)
+    session.transition(SessionStatus.PREPARING)
+    session.transition(SessionStatus.ROUND1_RUNNING)
+    session.transition(SessionStatus.ROUND2_RUNNING, round_index=3)
+
+    snapshot = session.snapshot()
+    assert snapshot["current_round"] == 3
+    assert snapshot["total_rounds"] == 5
+
+
 def test_happy_path_transitions_and_completion_commit_once() -> None:
     session = DiscussionSession("問題", _participants())
 
@@ -159,6 +170,19 @@ def test_turn_lifecycle_delta_and_commit_once() -> None:
         session.complete_turn(turn.id)
     with pytest.raises(InvalidTurnTransition, match="cannot receive text from DONE"):
         session.append_delta(turn.id, "不應寫入")
+
+
+def test_replace_text_replaces_turn_and_emits_full_text() -> None:
+    session = _running_session()
+    turn = session.add_turn("claude", 1, supports_token_stream=True, turn_id="turn-1")
+    session.start_turn(turn.id)
+    session.append_delta(turn.id, "破碎�文字")
+
+    event = session.replace_text(turn.id, "完整文字")
+
+    assert event.kind == "text_replace"
+    assert event.payload == {"text": "完整文字"}
+    assert session.snapshot()["turns"][0]["text"] == "完整文字"
 
 
 def test_cancel_incomplete_turns_finalizes_running_and_preserves_done() -> None:

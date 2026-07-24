@@ -18,7 +18,13 @@ import pytest
 import discussion_bridge
 import discussion_cli
 from discussion_bridge import DiscussionBridge, DiscussionBusyError, ParticipantSpec
-from discussion_cli import CLIAdapter, DetectionResult, Invocation
+from discussion_cli import (
+    CLIAdapter,
+    DetectionResult,
+    Invocation,
+    StreamError,
+    StreamFailureReason,
+)
 from discussion_session import build_round1_prompt
 
 TERMINAL_STATUSES = {"COMPLETED", "CANCELLED", "FAILED"}
@@ -60,6 +66,9 @@ class FakeAdapter:
     def parse_stdout_line(self, line: str) -> tuple[str | None, bool]:
         return line, True
 
+    def take_final_text(self) -> str | None:
+        return None
+
 
 class FakeRunner:
     def __init__(
@@ -78,7 +87,8 @@ class FakeRunner:
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         round_index = _prompt_round(invocation.argv[-1])
         with self._lock:
@@ -98,6 +108,7 @@ def _neutral_cwd(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "NEUTRAL_DISCUSSION_CWD",
         tmp_path / "neutral-discussion-cwd",
     )
+    monkeypatch.setattr(discussion_bridge, "DISCUSSIONS_DIRECTORY", tmp_path / "discussions")
 
 
 def _specs(*ids: str) -> list[ParticipantSpec]:
@@ -175,7 +186,8 @@ def test_normal_three_participant_flow_and_event_sequence(
         if event["kind"] == "round_started"
     ]
     assert round_events == [1, 2]
-    assert "A（你在第一輪的發言）" in adapters["a"].prompts[1]
+    assert "參與者 A" in adapters["a"].prompts[1]
+    assert "A（你在第一輪的發言）" not in adapters["a"].prompts[1]
     assert "a-r1" in adapters["b"].prompts[1]
     assert "共識" in adapters["b"].prompts[2]
 
@@ -193,6 +205,175 @@ def test_single_participant_skips_round2_and_moderator(
     assert snapshot["status"] == "COMPLETED"
     assert runner.calls == [("solo", 1)]
     assert [turn["round_index"] for turn in snapshot["turns"]] == [1]
+
+
+def test_one_round_creates_only_independent_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge, _ = _bridge_with_adapters(("a", "b"))
+    runner = FakeRunner()
+    _install_runner(monkeypatch, runner)
+
+    bridge.start("問題", _specs("a", "b"), total_rounds=1, include_summary=False)
+    snapshot = _wait_terminal(bridge)
+
+    assert [turn["round_index"] for turn in snapshot["turns"]] == [1, 1]
+    assert Counter(round_index for _, round_index in runner.calls) == {1: 2}
+
+
+def test_three_rounds_keep_peer_review_anonymous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specs = [
+        ParticipantSpec("claude", "Claude", "claude"),
+        ParticipantSpec("codex", "Codex", "codex"),
+    ]
+    bridge, adapters = _bridge_with_adapters(("claude", "codex"))
+    runner = FakeRunner()
+    _install_runner(monkeypatch, runner)
+
+    bridge.start("問題", specs, total_rounds=3, include_summary=False)
+    snapshot = _wait_terminal(bridge)
+
+    assert {turn["round_index"] for turn in snapshot["turns"]} == {1, 2, 3}
+    for prompt in adapters["claude"].prompts[1:]:
+        assert "參與者 A" in prompt
+        assert "Claude" not in prompt
+        assert "Codex" not in prompt
+
+
+def test_summary_can_be_disabled_without_preventing_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge, _ = _bridge_with_adapters(("a", "b"))
+    runner = FakeRunner()
+    _install_runner(monkeypatch, runner)
+
+    bridge.start("問題", _specs("a", "b"), include_summary=False)
+    snapshot = _wait_terminal(bridge)
+
+    assert snapshot["status"] == "COMPLETED"
+    assert all(round_index != 3 for _, round_index in runner.calls)
+
+
+def test_round2_is_anonymous_but_moderator_transcript_uses_real_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specs = [
+        ParticipantSpec("claude", "Claude", "claude"),
+        ParticipantSpec("codex", "Codex", "codex"),
+        ParticipantSpec("agy", "Antigravity", "agy"),
+    ]
+    bridge, adapters = _bridge_with_adapters(("claude", "codex", "agy"))
+    _install_runner(monkeypatch, FakeRunner())
+
+    bridge.start("問題", specs, moderator_id="claude")
+    _wait_terminal(bridge)
+
+    round2 = adapters["claude"].prompts[1]
+    transcript = adapters["claude"].prompts[2]
+    assert "參與者 A" in round2
+    assert not any(label in round2 for label in ("Claude", "Codex", "Antigravity"))
+    assert "你在第一輪的發言" not in round2
+    assert all(label in transcript for label in ("Claude", "Codex", "Antigravity"))
+
+
+def test_nonzero_exit_retries_once_then_completes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def runner(
+        adapter: CLIAdapter,
+        invocation: Invocation,
+        on_delta: Callable[[str], None],
+        on_done: Callable[[], None],
+        on_error: Callable[[str], None],
+        on_cancelled: Callable[[], None],
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
+    ) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            on_delta("殘缺")
+            on_error(StreamError("exit 1", StreamFailureReason.NONZERO_EXIT))
+            return
+        on_delta("成功")
+        on_done()
+
+    bridge, _ = _bridge_with_adapters(("solo",))
+    _install_runner(monkeypatch, runner)
+    bridge.start("問題", _specs("solo"))
+    snapshot = _wait_terminal(bridge)
+
+    assert calls == 2
+    assert snapshot["turns"][0]["status"] == "DONE"
+    assert snapshot["turns"][0]["text"] == "成功"
+
+
+def test_cancelled_turn_does_not_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+    started = threading.Event()
+
+    def runner(
+        adapter: CLIAdapter,
+        invocation: Invocation,
+        on_delta: Callable[[str], None],
+        on_done: Callable[[], None],
+        on_error: Callable[[str], None],
+        on_cancelled: Callable[[], None],
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
+    ) -> None:
+        nonlocal calls
+        calls += 1
+        assert cancel_event is not None
+        started.set()
+        cancel_event.wait(1)
+        on_cancelled()
+
+    bridge, _ = _bridge_with_adapters(("solo",))
+    _install_runner(monkeypatch, runner)
+    bridge.start("問題", _specs("solo"))
+    assert started.wait(1)
+    bridge.stop()
+    snapshot = _wait_terminal(bridge)
+
+    assert calls == 1
+    assert snapshot["status"] == "CANCELLED"
+
+
+def test_completed_session_is_archived_as_json_and_markdown(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    archive_dir = tmp_path / "archive"
+    monkeypatch.setattr(discussion_bridge, "DISCUSSIONS_DIRECTORY", archive_dir)
+    bridge, _ = _bridge_with_adapters(("a", "b"))
+    _install_runner(monkeypatch, FakeRunner())
+    session_id = bridge.start("存檔主題", _specs("a", "b"))
+    _wait_terminal(bridge)
+
+    assert (archive_dir / f"{session_id}.json").is_file()
+    markdown = (archive_dir / f"{session_id}.md").read_text()
+    assert "存檔主題" in markdown
+    assert "## 主持人總結" in markdown
+
+
+def test_archive_failure_does_not_prevent_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BrokenDirectory:
+        def mkdir(self, **kwargs: object) -> None:
+            raise OSError("read-only")
+
+    monkeypatch.setattr(discussion_bridge, "DISCUSSIONS_DIRECTORY", BrokenDirectory())
+    bridge, _ = _bridge_with_adapters(("solo",))
+    _install_runner(monkeypatch, FakeRunner())
+    bridge.start("問題", _specs("solo"))
+
+    assert _wait_terminal(bridge)["status"] == "COMPLETED"
 
 
 def test_all_round1_failures_fail_session_without_round2_spawn(
@@ -367,7 +548,8 @@ def test_start_reentry_raises_busy_error(monkeypatch: pytest.MonkeyPatch) -> Non
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
         release.wait(1)
@@ -423,9 +605,11 @@ def test_stop_cancels_immediately_and_blocks_late_events(
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
+        assert cancel_event is not None
         cancel_event.wait(1)
         on_delta("late text")
         on_done()
@@ -456,9 +640,11 @@ def test_stop_marks_incomplete_turns_cancelled(monkeypatch: pytest.MonkeyPatch) 
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
+        assert cancel_event is not None
         cancel_event.wait(1)
 
     bridge, _ = _bridge_with_adapters(("a", "b"))
@@ -488,9 +674,11 @@ def test_clear_refuses_while_running(monkeypatch: pytest.MonkeyPatch) -> None:
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
+        assert cancel_event is not None
         cancel_event.wait(1)
 
     bridge, _ = _bridge_with_adapters(("a", "b"))
@@ -598,7 +786,8 @@ def test_shutdown_is_bounded_when_runner_is_stuck(
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
         release.wait(2)
@@ -631,7 +820,8 @@ def test_listener_notified_only_when_queue_becomes_nonempty(
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         started.set()
         release.wait(1)
@@ -699,7 +889,8 @@ def test_delta_coalescing_preserves_all_text_and_flushes_tail(
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         for part in ("甲", "乙", "丙"):
             on_delta(part)
@@ -731,7 +922,8 @@ def test_concurrent_process_limit_never_exceeds_four(
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         nonlocal active, peak
         with active_lock:
@@ -783,7 +975,8 @@ def test_custom_argv_and_login_shell_sources_build_safe_invocations(
         on_done: Callable[[], None],
         on_error: Callable[[str], None],
         on_cancelled: Callable[[], None],
-        cancel_event: threading.Event,
+        on_final_text: Callable[[str], None] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         captured.append(invocation.argv)
         parsed_lines.append(adapter.parse_stdout_line("first line\n"))

@@ -139,7 +139,7 @@ def _run(
         on_done,
         errors.append,
         on_cancelled,
-        cancel_event or threading.Event(),
+        cancel_event=cancel_event or threading.Event(),
     )
     return deltas, errors, done_count, cancelled_count
 
@@ -494,6 +494,37 @@ def test_adapters_parse_documented_events_and_finish_markers() -> None:
     assert agy.parse_stdout_line(
         '{"event":"result","result":{"status":"SUCCESS"}}'
     ) == (None, True)
+
+
+def test_agy_result_response_is_taken_once() -> None:
+    adapter = AgyAdapter()
+
+    assert adapter.parse_stdout_line(
+        '{"event":"result","result":{"response":"完整文字"}}'
+    ) == (None, True)
+    assert adapter.take_final_text() == "完整文字"
+    assert adapter.take_final_text() is None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        '{"event":"result","result":{}}',
+        '{"event":"result","result":{"response":123}}',
+    ],
+)
+def test_agy_result_without_string_response_is_ignored(line: str) -> None:
+    adapter = AgyAdapter()
+    before = adapter.parse_error_count
+
+    assert adapter.parse_stdout_line(line) == (None, True)
+    assert adapter.take_final_text() is None
+    assert adapter.parse_error_count == before
+
+
+@pytest.mark.parametrize("adapter", [ClaudeAdapter(), CodexAdapter()])
+def test_existing_adapters_have_no_final_text(adapter: CLIAdapter) -> None:
+    assert adapter.take_final_text() is None
 
 
 @pytest.mark.parametrize("adapter", [ClaudeAdapter(), CodexAdapter(), AgyAdapter()])

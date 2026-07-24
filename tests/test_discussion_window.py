@@ -52,6 +52,8 @@ class FakeBridge:
         moderator_id: str | None,
         working_directory: str | None = None,
         attachments: object = None,
+        total_rounds: int = 2,
+        include_summary: bool = True,
     ) -> str:
         self.started = (topic, participants, moderator_id, working_directory)
         self.working_directory = working_directory
@@ -136,6 +138,23 @@ def test_parse_start_action_validates_and_normalizes_fields() -> None:
     assert action.working_directory == "/tmp/project"
 
 
+def test_parse_start_action_clamps_total_rounds() -> None:
+    action = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "問題",
+                "participants": ["claude"],
+                "totalRounds": 99,
+                "includeSummary": False,
+            }
+        )
+    )
+
+    assert action.total_rounds == 5
+    assert action.include_summary is False
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -170,7 +189,7 @@ def test_parse_action_rejects_bad_parameters(payload: object) -> None:
 
 @pytest.mark.parametrize(
     ("participant_count", "expected"),
-    [(-1, 0), (0, 0), (1, 1), (2, 5), (3, 7), (5, 11)],
+    [(-1, 0), (0, 0), (1, 3), (2, 5), (3, 7), (5, 11)],
 )
 def test_estimate_cli_calls(participant_count: int, expected: int) -> None:
     assert discussion_window.estimate_cli_calls(participant_count) == expected

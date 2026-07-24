@@ -33,6 +33,7 @@ ATTACHMENTS_DIR = Path(os.path.expanduser("~/.usage/discussion_attachments"))
 ATTACHMENT_MAX_FILES = 50
 ATTACHMENT_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 DROP_MAX_BYTES = 20 * 1024 * 1024
+THUMBNAIL_MAX_PIXELS = 128
 
 
 def _attachment_timestamp() -> str:
@@ -80,6 +81,34 @@ def import_attachment_file(
     shutil.copy2(path, target)
     prune_attachments(directory=directory)
     return target
+
+
+def attachment_thumbnail_data_uri(path: Path) -> str | None:
+    """Return a small PNG data URI for a managed image, or None on failure."""
+    if sys.platform != "darwin" or not path.is_file():
+        return None
+    try:
+        from AppKit import NSBitmapImageFileTypePNG, NSBitmapImageRep, NSImage, NSMakeSize
+
+        image = NSImage.alloc().initWithContentsOfFile_(str(path))
+        if image is None:
+            return None
+        size = image.size()
+        longest = max(float(size.width), float(size.height))
+        if longest <= 0:
+            return None
+        scale = min(1.0, THUMBNAIL_MAX_PIXELS / longest)
+        image.setSize_(NSMakeSize(size.width * scale, size.height * scale))
+        tiff = image.TIFFRepresentation()
+        representation = NSBitmapImageRep.imageRepWithData_(tiff)
+        png = representation.representationUsingType_properties_(
+            NSBitmapImageFileTypePNG, {}
+        )
+        if png is None:
+            return None
+        return "data:image/png;base64," + base64.b64encode(bytes(png)).decode("ascii")
+    except Exception:
+        return None
 
 
 def prune_attachments(
@@ -219,6 +248,8 @@ class DiscussionAction:
     moderator_id: str | None = None
     working_directory: str | None = None
     attachments: tuple[str, ...] = ()
+    total_rounds: int = 2
+    include_summary: bool = True
     attachment_path: str | None = None
     attachment_data: str | None = None
     attachment_name: str | None = None
@@ -294,6 +325,12 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
     ):
         raise ValueError("discussion_start workingDir must be a string or null")
     attachments_value = payload.get("attachments")
+    rounds_value = payload.get("totalRounds", 2)
+    include_summary_value = payload.get("includeSummary", True)
+    if not isinstance(rounds_value, int) or isinstance(rounds_value, bool):
+        raise ValueError("discussion_start totalRounds must be an integer")
+    if not isinstance(include_summary_value, bool):
+        raise ValueError("discussion_start includeSummary must be a boolean")
     if attachments_value is not None:
         if not isinstance(attachments_value, list) or not all(
             isinstance(item, str) for item in attachments_value
@@ -312,16 +349,20 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         moderator_id=moderator_id,
         working_directory=working_directory_value or None,
         attachments=attachments,
+        total_rounds=min(5, max(1, rounds_value)),
+        include_summary=include_summary_value,
     )
 
 
-def estimate_cli_calls(participant_count: int) -> int:
+def estimate_cli_calls(
+    participant_count: int,
+    total_rounds: int = 2,
+    include_summary: bool = True,
+) -> int:
     """Return the maximum calls shown before a discussion starts."""
     if participant_count <= 0:
         return 0
-    if participant_count == 1:
-        return 1
-    return participant_count * 2 + 1
+    return participant_count * min(5, max(1, total_rounds)) + int(include_summary)
 
 
 def serialize_javascript_call(function_name: str, payload: object) -> str:
@@ -668,6 +709,8 @@ class DiscussionWindowController:
                     action.moderator_id,
                     working_directory=action.working_directory,
                     attachments=action.attachments,
+                    total_rounds=action.total_rounds,
+                    include_summary=action.include_summary,
                 )
                 snapshot = self.bridge.snapshot()
                 snapshot_working_directory = snapshot.get("working_directory")
@@ -715,12 +758,17 @@ class DiscussionWindowController:
             )
             return
         data, suffix = result
+        if len(data) > DROP_MAX_BYTES:
+            self._apply_attachments(
+                hint=_t(self._language, "discussion_drop_too_large", name="")
+            )
+            return
         try:
             target = save_attachment_bytes(data, suffix)
-        except OSError as exc:
-            self._apply_attachments(hint=str(exc))
+        except OSError:
+            self._apply_attachments(hint=_t(self._language, "discussion_drop_failed"))
             return
-        self._attachments.append({"name": target.name, "path": str(target)})
+        self._add_attachment(target)
         self._apply_attachments()
 
     def _handle_drop_image(self, data: str, name: str) -> None:
@@ -732,8 +780,8 @@ class DiscussionWindowController:
             return
         try:
             raw = base64.b64decode(data, validate=True)
-        except ValueError as exc:
-            self._apply_attachments(hint=str(exc))
+        except ValueError:
+            self._apply_attachments(hint=_t(self._language, "discussion_drop_failed"))
             return
         if len(raw) > DROP_MAX_BYTES:
             self._apply_attachments(
@@ -742,10 +790,10 @@ class DiscussionWindowController:
             return
         try:
             target = save_attachment_bytes(raw, suffix)
-        except OSError as exc:
-            self._apply_attachments(hint=str(exc))
+        except OSError:
+            self._apply_attachments(hint=_t(self._language, "discussion_drop_failed"))
             return
-        self._attachments.append({"name": target.name, "path": str(target)})
+        self._add_attachment(target)
         self._apply_attachments()
 
     def _handle_pick_image(self) -> None:
@@ -754,16 +802,23 @@ class DiscussionWindowController:
             return
         try:
             target = import_attachment_file(selected)
-        except OSError as exc:
-            self._apply_attachments(hint=str(exc))
+        except OSError:
+            self._apply_attachments(hint=_t(self._language, "discussion_drop_failed"))
             return
         if target is None:
             self._apply_attachments(
                 hint=_t(self._language, "discussion_paste_no_image")
             )
             return
-        self._attachments.append({"name": target.name, "path": str(target)})
+        self._add_attachment(target)
         self._apply_attachments()
+
+    def _add_attachment(self, target: Path) -> None:
+        attachment = {"name": target.name, "path": str(target)}
+        thumbnail = attachment_thumbnail_data_uri(target)
+        if thumbnail is not None:
+            attachment["thumbnail"] = thumbnail
+        self._attachments.append(attachment)
 
     def _remove_attachment(self, path: str) -> None:
         before = len(self._attachments)

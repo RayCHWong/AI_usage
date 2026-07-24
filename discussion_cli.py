@@ -95,9 +95,32 @@ class CLIAdapter(Protocol):
 
     def parse_stdout_line(self, line: str) -> tuple[str | None, bool]: ...
 
+    def take_final_text(self) -> str | None: ...
+
 
 class CLIUnavailableError(RuntimeError):
     """Raised when an invocation is requested for an unavailable adapter."""
+
+
+class StreamFailureReason:
+    """Machine-readable reasons for a failed CLI stream."""
+
+    LAUNCH = "launch"
+    TIMEOUT = "timeout"
+    NONZERO_EXIT = "nonzero_exit"
+    READER = "reader"
+    INCOMPLETE = "incomplete"
+
+
+class StreamError(str):
+    """A stream failure message that retains its reason for the caller."""
+
+    reason: str
+
+    def __new__(cls, message: str, reason: str) -> StreamError:
+        instance = super().__new__(cls, message)
+        instance.reason = reason
+        return instance
 
 
 class NeutralWorkingDirectoryError(RuntimeError):
@@ -223,6 +246,9 @@ class _JSONAdapter:
                 resolved.append(str(path.resolve()))
         return tuple(resolved)
 
+    def take_final_text(self) -> str | None:
+        return None
+
 
 class ClaudeAdapter(_JSONAdapter):
     adapter_id = "claude"
@@ -334,8 +360,10 @@ class AgyAdapter(_JSONAdapter):
     adapter_id = "agy"
     executable_name = "agy"
     supports_token_stream = True
+    _final_text: str | None = None
 
     def build_invocation(self, prompt: str, model: str | None) -> Invocation:
+        self._final_text = None
         # agy has no equivalent of Claude's or Codex's user-config isolation flag.
         # The neutral cwd blocks project-level AGENTS.md only; user settings may apply.
         # Project mode can only change cwd; agy exposes no read-only sandbox flag.
@@ -355,6 +383,11 @@ class AgyAdapter(_JSONAdapter):
             return None, False
         event_type = event.get("event")
         if event_type == "result":
+            result = event.get("result")
+            if isinstance(result, dict):
+                response = result.get("response")
+                if isinstance(response, str) and response:
+                    self._final_text = response
             return None, True
         if event_type != "step_update":
             return None, False
@@ -369,6 +402,11 @@ class AgyAdapter(_JSONAdapter):
             self._record_parse_error()
             return None, False
         return text, False
+
+    def take_final_text(self) -> str | None:
+        final_text = self._final_text
+        self._final_text = None
+        return final_text
 
 
 def build_argv_invocation(
@@ -453,8 +491,10 @@ def run_streaming(
     on_done: Callable[[], None],
     on_error: Callable[[str], None],
     on_cancelled: Callable[[], None],
-    cancel_event: threading.Event,
+    on_final_text: Callable[[str], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> None:
+    cancel_event = cancel_event or threading.Event()
     completion = _Completion(on_done, on_error, on_cancelled)
     merged_env = os.environ.copy()
     merged_env.update(invocation.env_overrides)
@@ -474,7 +514,12 @@ def run_streaming(
             env=merged_env,
         )
     except OSError as exc:
-        completion.error(_redact_environment_values(str(exc), merged_env))
+        completion.error(
+            StreamError(
+                _redact_environment_values(str(exc), merged_env),
+                StreamFailureReason.LAUNCH,
+            )
+        )
         return
 
     assert process.stdout is not None
@@ -542,11 +587,21 @@ def run_streaming(
         completion.cancelled()
         return
     if termination_reason == "timeout":
-        completion.error(f"CLI invocation timed out after {invocation.timeout_seconds:g} seconds")
+        completion.error(
+            StreamError(
+                f"CLI invocation timed out after {invocation.timeout_seconds:g} seconds",
+                StreamFailureReason.TIMEOUT,
+            )
+        )
         return
     if reader_errors:
         message = "\n".join(reader_errors)
-        completion.error(_redact_environment_values(message, merged_env))
+        completion.error(
+            StreamError(
+                _redact_environment_values(message, merged_env),
+                StreamFailureReason.READER,
+            )
+        )
         return
 
     returncode = process.returncode
@@ -556,12 +611,25 @@ def run_streaming(
         stderr_message = "\n".join(stderr_tail).strip()
         stdout_message = "\n".join(stdout_tail).strip()
         message = stderr_message or stdout_message or f"CLI exited with status {returncode}"
-        completion.error(_redact_environment_values(message, merged_env))
+        completion.error(
+            StreamError(
+                _redact_environment_values(message, merged_env),
+                StreamFailureReason.NONZERO_EXIT,
+            )
+        )
         return
 
     if not parser_reported_done.is_set():
-        completion.error("CLI exited without a completion event; output may be incomplete")
+        completion.error(
+            StreamError(
+                "CLI exited without a completion event; output may be incomplete",
+                StreamFailureReason.INCOMPLETE,
+            )
+        )
         return
+    final_text = adapter.take_final_text()
+    if final_text and on_final_text is not None:
+        on_final_text(output_state.replace(_clean_text(final_text)))
     completion.done()
 
 
@@ -583,6 +651,12 @@ class _OutputState:
             prefix = delta[: max(0, remaining)]
             self._length += len(prefix)
             return prefix + TRUNCATION_MARKER
+
+    def replace(self, text: str) -> str:
+        with self._lock:
+            self._length = 0
+            self._truncated = False
+        return self.apply(text)
 
 
 def _is_executable(path: Path) -> bool:

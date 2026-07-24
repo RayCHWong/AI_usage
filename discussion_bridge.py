@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import shutil
 import threading
@@ -15,6 +17,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -26,6 +29,8 @@ from discussion_cli import (
     CodexAdapter,
     DetectionResult,
     Invocation,
+    StreamError,
+    StreamFailureReason,
     build_argv_invocation,
     build_login_shell_invocation,
     resolve_neutral_working_directory,
@@ -44,9 +49,12 @@ from discussion_session import (
 from i18n import _t
 from usage_lang import detect_lang
 
+logger = logging.getLogger(__name__)
+
 MAX_CONCURRENT_PROCESSES = 4
 DELTA_FLUSH_CHARS = 128
 DELTA_FLUSH_SECONDS = 0.05
+DISCUSSIONS_DIRECTORY = Path("~/.usage/discussions").expanduser()
 
 ParticipantSource = Literal["builtin", "argv", "login_shell"]
 AdapterFactory = Callable[["ParticipantSpec"], CLIAdapter]
@@ -202,6 +210,9 @@ class _CustomLineAdapter:
     def parse_stdout_line(self, line: str) -> tuple[str | None, bool]:
         return (line, False) if line else (None, False)
 
+    def take_final_text(self) -> str | None:
+        return None
+
 
 class DiscussionBridge:
     def __init__(self, adapter_factory: AdapterFactory | None = None) -> None:
@@ -231,6 +242,8 @@ class DiscussionBridge:
         moderator_id: str | None = None,
         working_directory: str | None = None,
         attachments: Sequence[str] | None = None,
+        total_rounds: int = 2,
+        include_summary: bool = True,
     ) -> str:
         normalized_topic = topic.strip()
         if not normalized_topic:
@@ -266,7 +279,10 @@ class DiscussionBridge:
             )
             for spec in specs
         ]
-        session = DiscussionSession(normalized_topic, participant_models)
+        rounds = min(5, max(1, total_rounds))
+        session = DiscussionSession(
+            normalized_topic, participant_models, total_rounds=rounds
+        )
         # The session keeps the user's original topic for display; only the
         # prompt handed to each CLI carries the appended image paths.
         effective_topic = normalized_topic + build_attachment_block(
@@ -285,7 +301,15 @@ class DiscussionBridge:
             session.transition(SessionStatus.PREPARING)
             worker = threading.Thread(
                 target=self._run_session,
-                args=(session, specs, moderator_id, effective_topic, cancel_event),
+                args=(
+                    session,
+                    specs,
+                    moderator_id,
+                    effective_topic,
+                    rounds,
+                    include_summary,
+                    cancel_event,
+                ),
                 name=f"discussion-session-{session.session_id}",
                 daemon=True,
             )
@@ -373,6 +397,8 @@ class DiscussionBridge:
         specs: tuple[ParticipantSpec, ...],
         moderator_id: str | None,
         effective_topic: str,
+        total_rounds: int,
+        include_summary: bool,
         cancel_event: threading.Event,
     ) -> None:
         try:
@@ -402,42 +428,49 @@ class DiscussionBridge:
             if len(round1_survivors) < 2:
                 self._transition(session, cancel_event, SessionStatus.COMPLETED)
                 return
-
-            self._transition(session, cancel_event, SessionStatus.ROUND2_RUNNING)
-            round1_answers = [
-                (result.participant.spec.label, result.text) for result in round1_survivors
-            ]
-
-            def round2_prompt(participant: _ResolvedParticipant) -> str:
-                labelled_answers = [
-                    (
-                        label
-                        + (
-                            "（你在第一輪的發言）"
-                            if result.participant is participant
-                            else ""
-                        ),
-                        text,
-                    )
-                    for (label, text), result in zip(round1_answers, round1_survivors, strict=True)
+            survivors = round1_survivors
+            for round_index in range(2, total_rounds + 1):
+                if len(survivors) < 2:
+                    break
+                self._transition(
+                    session,
+                    cancel_event,
+                    SessionStatus.ROUND2_RUNNING,
+                    round_index=round_index,
+                )
+                answers = [
+                    (_anonymous_participant_label(index), result.text)
+                    for index, result in enumerate(survivors)
                 ]
-                return build_round2_prompt(effective_topic, labelled_answers)
 
-            round2 = self._run_round(
-                session,
-                [result.participant for result in round1_survivors],
-                2,
-                round2_prompt,
-                cancel_event,
-            )
-            if cancel_event.is_set():
-                return
-            round2_survivors = [result for result in round2 if result.success]
-            if not round2_survivors:
+                def round_prompt(
+                    participant: _ResolvedParticipant,
+                    answers: list[tuple[str, str]] = answers,
+                    prior_round: int = round_index - 1,
+                ) -> str:
+                    del participant
+                    return build_round2_prompt(
+                        effective_topic, answers, prior_round=prior_round
+                    )
+
+                survivors = [
+                    result
+                    for result in self._run_round(
+                        session,
+                        [result.participant for result in survivors],
+                        round_index,
+                        round_prompt,
+                        cancel_event,
+                    )
+                    if result.success
+                ]
+                if cancel_event.is_set() or not survivors:
+                    break
+            if cancel_event.is_set() or not survivors or not include_summary:
                 self._transition(session, cancel_event, SessionStatus.COMPLETED)
                 return
 
-            moderator = _select_moderator(round2_survivors, moderator_id)
+            moderator = _select_moderator(survivors, moderator_id)
             if moderator is None:
                 self._transition(session, cancel_event, SessionStatus.COMPLETED)
                 return
@@ -446,7 +479,7 @@ class DiscussionBridge:
             self._run_turn(
                 session,
                 moderator.participant,
-                3,
+                total_rounds + 1,
                 build_moderator_prompt(transcript),
                 cancel_event,
             )
@@ -498,8 +531,26 @@ class DiscussionBridge:
         results: list[_TurnResult | None] = [None] * len(participants)
         results_lock = threading.Lock()
         semaphore = threading.Semaphore(MAX_CONCURRENT_PROCESSES)
+        turn_ids = [
+            self._begin_turn(
+                session,
+                participant.spec.id,
+                round_index,
+                (
+                    participant.adapter.supports_token_stream
+                    if participant.adapter is not None
+                    else participant.spec.supports_token_stream
+                ),
+                cancel_event,
+            )
+            for participant in participants
+        ]
 
-        def run_one(index: int, participant: _ResolvedParticipant) -> None:
+        def run_one(
+            index: int,
+            participant: _ResolvedParticipant,
+            turn_id: str | None,
+        ) -> None:
             with semaphore:
                 if cancel_event.is_set():
                     return
@@ -509,6 +560,7 @@ class DiscussionBridge:
                     round_index,
                     prompt_factory(participant),
                     cancel_event,
+                    turn_id=turn_id,
                 )
                 with results_lock:
                     results[index] = result
@@ -516,7 +568,7 @@ class DiscussionBridge:
         threads = [
             threading.Thread(
                 target=run_one,
-                args=(index, participant),
+                args=(index, participant, turn_ids[index]),
                 name=f"discussion-turn-r{round_index}-{participant.spec.id}",
                 daemon=True,
             )
@@ -535,6 +587,8 @@ class DiscussionBridge:
         round_index: int,
         prompt: str,
         cancel_event: threading.Event,
+        *,
+        turn_id: str | None = None,
     ) -> _TurnResult:
         adapter = participant.adapter
         supports_token_stream = (
@@ -542,13 +596,14 @@ class DiscussionBridge:
             if adapter is not None
             else participant.spec.supports_token_stream
         )
-        turn_id = self._begin_turn(
-            session,
-            participant.spec.id,
-            round_index,
-            supports_token_stream,
-            cancel_event,
-        )
+        if turn_id is None:
+            turn_id = self._begin_turn(
+                session,
+                participant.spec.id,
+                round_index,
+                supports_token_stream,
+                cancel_event,
+            )
         if turn_id is None:
             return _TurnResult(participant, None, False, "", "cancelled")
         if (
@@ -560,54 +615,97 @@ class DiscussionBridge:
             self._fail_turn(session, turn_id, error, _DeltaAccumulator(), cancel_event)
             return _TurnResult(participant, turn_id, False, "", error)
 
-        accumulator = _DeltaAccumulator()
-        terminal = threading.Event()
-        outcome_lock = threading.Lock()
-        success = False
-        outcome_error: str | None = None
+        result_success = False
+        result_error: str | None = None
+        for attempt in range(2):
+            accumulator = _DeltaAccumulator()
+            terminal = threading.Event()
+            attempt_done = False
+            attempt_error: str | None = None
+            attempt_reason: str | None = None
+            attempt_text: list[str] = []
+            final_text: str | None = None
 
-        def on_delta(text: str) -> None:
+            def on_delta(
+                text: str,
+                accumulator: _DeltaAccumulator = accumulator,
+                attempt_text: list[str] = attempt_text,
+            ) -> None:
+                if cancel_event.is_set():
+                    return
+                attempt_text.append(text)
+                combined = accumulator.add(text)
+                if combined:
+                    self._append_delta(session, turn_id, combined, cancel_event)
+
+            def on_done(terminal: threading.Event = terminal) -> None:
+                nonlocal attempt_done
+                attempt_done = True
+                terminal.set()
+
+            def on_final_text(text: str) -> None:
+                nonlocal final_text
+                final_text = text
+                self._replace_text(session, turn_id, text, cancel_event)
+
+            def on_error(
+                message: str,
+                terminal: threading.Event = terminal,
+            ) -> None:
+                nonlocal attempt_error, attempt_reason
+                attempt_error = str(message)
+                if isinstance(message, StreamError):
+                    attempt_reason = message.reason
+                terminal.set()
+
+            def on_cancelled(terminal: threading.Event = terminal) -> None:
+                terminal.set()
+
+            try:
+                # A failed agy invocation can retain its final response. Clear
+                # it before every attempt so a retry cannot inherit stale text.
+                adapter.take_final_text()
+                invocation = adapter.build_invocation(prompt, participant.spec.model)
+                run_streaming(
+                    adapter,
+                    invocation,
+                    on_delta,
+                    on_done,
+                    on_error,
+                    on_cancelled,
+                    on_final_text=on_final_text,
+                    cancel_event=cancel_event,
+                )
+            except OSError as exc:
+                attempt_error = str(exc)
+                attempt_reason = StreamFailureReason.LAUNCH
+                terminal.set()
+            except Exception as exc:
+                attempt_error = str(exc)
+                terminal.set()
+
             if cancel_event.is_set():
-                return
-            combined = accumulator.add(text)
-            if combined:
-                self._append_delta(session, turn_id, combined, cancel_event)
-
-        def on_done() -> None:
-            nonlocal success
-            completed = self._complete_turn(session, turn_id, accumulator, cancel_event)
-            with outcome_lock:
-                success = completed
-            terminal.set()
-
-        def on_error(message: str) -> None:
-            nonlocal outcome_error
-            self._fail_turn(session, turn_id, message, accumulator, cancel_event)
-            with outcome_lock:
-                outcome_error = message
-            terminal.set()
-
-        def on_cancelled() -> None:
-            terminal.set()
-
-        try:
-            invocation = adapter.build_invocation(prompt, participant.spec.model)
-            run_streaming(
-                adapter,
-                invocation,
-                on_delta,
-                on_done,
-                on_error,
-                on_cancelled,
-                cancel_event,
-            )
-        except Exception as exc:
-            on_error(str(exc))
-        if not terminal.is_set() and not cancel_event.is_set():
-            on_error("stream runner returned without a terminal callback")
-        with outcome_lock:
-            result_success = success
-            result_error = outcome_error
+                break
+            if not terminal.is_set():
+                attempt_error = "stream runner returned without a terminal callback"
+            produced_text = final_text if final_text is not None else "".join(attempt_text)
+            retryable = attempt_reason == StreamFailureReason.NONZERO_EXIT
+            if attempt_done and attempt_error is None:
+                if produced_text.strip():
+                    if final_text is not None:
+                        accumulator = _DeltaAccumulator()
+                    result_success = self._complete_turn(
+                        session, turn_id, accumulator, cancel_event
+                    )
+                    break
+                attempt_error = "CLI exited with empty output"
+                retryable = True
+            if retryable and attempt == 0:
+                self._replace_text(session, turn_id, "", cancel_event)
+                continue
+            result_error = attempt_error or "stream runner returned without a terminal callback"
+            self._fail_turn(session, turn_id, result_error, accumulator, cancel_event)
+            break
         return _TurnResult(
             participant,
             turn_id,
@@ -647,6 +745,20 @@ class DiscussionBridge:
             if cancel_event.is_set():
                 return False
             event = session.append_delta(turn_id, text)
+            self._enqueue_event_locked(event)
+            return True
+
+    def _replace_text(
+        self,
+        session: DiscussionSession,
+        turn_id: str,
+        text: str,
+        cancel_event: threading.Event,
+    ) -> bool:
+        with self._event_order_lock:
+            if cancel_event.is_set():
+                return False
+            event = session.replace_text(turn_id, text)
             self._enqueue_event_locked(event)
             return True
 
@@ -690,14 +802,40 @@ class DiscussionBridge:
         status: SessionStatus,
         *,
         error: str | None = None,
+        round_index: int | None = None,
     ) -> bool:
         with self._event_order_lock:
             if cancel_event.is_set():
                 return False
-            event = session.transition(status, error=error)
+            if status is SessionStatus.COMPLETED:
+                snapshot = session.snapshot()
+                snapshot["status"] = status.value
+                with self._state_lock:
+                    snapshot["working_directory"] = self._working_directory
+                self._archive_completed_session(session.session_id, snapshot)
+            event = session.transition(status, error=error, round_index=round_index)
             if event is not None:
                 self._enqueue_event_locked(event)
             return True
+
+    def _archive_completed_session(
+        self,
+        session_id: str,
+        snapshot: dict[str, object],
+    ) -> None:
+        try:
+            DISCUSSIONS_DIRECTORY.mkdir(parents=True, exist_ok=True)
+            base = DISCUSSIONS_DIRECTORY / session_id
+            base.with_suffix(".json").write_text(
+                json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            base.with_suffix(".md").write_text(
+                _render_discussion_markdown(snapshot), encoding="utf-8"
+            )
+        except Exception:
+            if os.environ.get("USAGE_DEBUG") == "1":
+                logger.warning("failed to archive discussion %s", session_id, exc_info=True)
+            return
 
     def _enqueue_event_locked(self, event: DiscussionEvent) -> None:
         listener: Callable[[], None] | None = None
@@ -762,6 +900,38 @@ def _turn_text(session: DiscussionSession, turn_id: str) -> str:
         if turn["id"] == turn_id:
             return str(turn["text"])
     return ""
+
+
+def _anonymous_participant_label(index: int) -> str:
+    """Return a stable A, B, … label for a zero-based participant index."""
+    return f"參與者 {chr(ord('A') + index)}" if index < 26 else f"參與者 {index + 1}"
+
+
+def _render_discussion_markdown(snapshot: dict[str, object]) -> str:
+    participants = snapshot["participants"]
+    turns = snapshot["turns"]
+    assert isinstance(participants, list)
+    assert isinstance(turns, list)
+    labels = {
+        str(participant["id"]): str(participant["label"])
+        for participant in participants
+        if isinstance(participant, dict)
+    }
+    lines = [
+        f"# {snapshot['topic']}",
+        datetime.now().astimezone().isoformat(),
+        "參與者：" + "、".join(labels.values()),
+    ]
+    for turn in turns:
+        if not isinstance(turn, dict):
+            continue
+        text = str(turn["text"])
+        participant = labels.get(str(turn["participant_id"]), str(turn["participant_id"]))
+        if turn["round_index"] == 3:
+            lines.extend(("## 主持人總結", text))
+        else:
+            lines.extend((f"## 第 {turn['round_index']} 輪 · {participant}", text))
+    return "\n\n".join(lines) + "\n"
 
 
 def _build_transcript(session: DiscussionSession) -> str:
