@@ -160,3 +160,33 @@ def pick_folder() -> str | None:
         return None
     path = url.path()
     return str(path) if path else None
+
+
+def pick_image_file() -> str | None:
+    """Open a native image picker; return the chosen path or ``None``.
+
+    Shares the activation/level fixups of :func:`pick_folder` so the panel lands
+    in front of the discussion window instead of behind it.
+    """
+    try:
+        from AppKit import NSApp, NSOpenPanel, NSPopUpMenuWindowLevel
+    except ImportError:
+        return None
+    NSApp.activateIgnoringOtherApps_(True)
+    panel = NSOpenPanel.openPanel()
+    panel.setCanChooseFiles_(True)
+    panel.setCanChooseDirectories_(False)
+    panel.setAllowsMultipleSelection_(False)
+    panel.setResolvesAliases_(True)
+    panel.setAllowedFileTypes_(["png", "jpg", "jpeg", "gif", "webp"])
+    panel.setLevel_(NSPopUpMenuWindowLevel + 1)
+    if panel.runModal() != 1:  # NSModalResponseOK
+        return None
+    urls = panel.URLs()
+    if urls is None or len(urls) == 0:
+        return None
+    url = urls[0]
+    if url is None:
+        return None
+    path = url.path()
+    return str(path) if path else None

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -39,6 +40,7 @@ class FakeBridge:
         self.started: tuple[str, list[object], str | None, str | None] | None = None
         self.stop_count = 0
         self.working_directory = working_directory
+        self.attachments: object = None
 
     def start(
         self,
@@ -46,9 +48,11 @@ class FakeBridge:
         participants: list[object],
         moderator_id: str | None,
         working_directory: str | None = None,
+        attachments: object = None,
     ) -> str:
         self.started = (topic, participants, moderator_id, working_directory)
         self.working_directory = working_directory
+        self.attachments = attachments
         return "session"
 
     def stop(self) -> None:
@@ -467,6 +471,8 @@ def test_html_visible_static_elements_use_i18n_keys() -> None:
     for key in (
         "discussion_topic_label",
         "discussion_topic_placeholder",
+        "discussion_attach_image",
+        "discussion_attachment_hint",
         "discussion_participants",
         "discussion_moderator",
         "discussion_working_directory",
@@ -497,3 +503,233 @@ def test_window_source_keeps_bridge_logic_out_and_main_thread_drain_batched() ->
     assert "run_streaming" not in source
     assert "subprocess" not in source
     assert "build_round1_prompt" not in source
+
+
+def test_build_attachment_name_uses_timestamp_and_index() -> None:
+    assert (
+        discussion_window.build_attachment_name("20260724-185530", 1, ".png")
+        == "20260724-185530-1.png"
+    )
+    assert (
+        discussion_window.build_attachment_name("20260724-185530", 12, ".jpg")
+        == "20260724-185530-12.jpg"
+    )
+
+
+def test_prune_attachments_keeps_newest_fifty(tmp_path: Path) -> None:
+    directory = tmp_path / "attachments"
+    directory.mkdir()
+    for index in range(55):
+        entry = directory / f"2026010{index // 10}-00000{index % 10}-{index}.png"
+        entry.write_bytes(b"x")
+        stat = entry.stat()
+        os.utime(entry, (stat.st_atime, 1_000_000 + index))
+
+    discussion_window.prune_attachments(directory=directory, keep=50)
+
+    remaining = sorted(directory.iterdir(), key=lambda path: path.name)
+    assert len(remaining) == 50
+    remaining_indexes = {
+        int(path.name.rsplit("-", 1)[1].split(".", 1)[0]) for path in remaining
+    }
+    assert remaining_indexes == set(range(5, 55))
+
+
+def test_save_attachment_bytes_writes_timestamped_names_and_prunes(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "attachments"
+    first = discussion_window.save_attachment_bytes(b"data", ".png", directory=directory)
+    second = discussion_window.save_attachment_bytes(b"data", ".png", directory=directory)
+
+    assert first.is_file() and second.is_file()
+    assert first.parent == directory
+    assert re.fullmatch(r"\d{8}-\d{6}-\d+\.png", first.name)
+    assert second != first
+
+
+def test_import_attachment_file_copies_supported_rejects_others(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "attachments"
+    src = tmp_path / "screen.png"
+    src.write_bytes(b"png")
+    unsupported = tmp_path / "notes.txt"
+    unsupported.write_bytes(b"text")
+
+    copied = discussion_window.import_attachment_file(str(src), directory=directory)
+    assert copied is not None
+    assert copied.is_file()
+    assert copied.parent == directory
+    assert copied.read_bytes() == b"png"
+
+    assert (
+        discussion_window.import_attachment_file(str(unsupported), directory=directory)
+        is None
+    )
+    assert (
+        discussion_window.import_attachment_file(
+            str(tmp_path / "missing.png"), directory=directory
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"action":"discussion_paste_image"}',
+        '{"action":"discussion_pick_image"}',
+    ],
+)
+def test_parse_simple_attachment_actions(raw: str) -> None:
+    assert (
+        discussion_window.parse_discussion_action(raw).action
+        == json.loads(raw)["action"]
+    )
+
+
+def test_parse_remove_attachment_requires_string_path() -> None:
+    parsed = discussion_window.parse_discussion_action(
+        json.dumps(
+            {"action": "discussion_remove_attachment", "path": "/tmp/x.png"}
+        )
+    )
+    assert parsed.action == "discussion_remove_attachment"
+    assert parsed.attachment_path == "/tmp/x.png"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"action": "discussion_remove_attachment"},
+        {"action": "discussion_remove_attachment", "path": ""},
+        {"action": "discussion_remove_attachment", "path": 3},
+    ],
+)
+def test_parse_remove_attachment_rejects_bad_path(payload: object) -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(json.dumps(payload))
+
+
+def test_parse_start_action_carries_attachments() -> None:
+    parsed = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "問題",
+                "participants": ["claude"],
+                "attachments": ["/tmp/a.png", "/tmp/b.jpg"],
+            }
+        )
+    )
+    assert parsed.attachments == ("/tmp/a.png", "/tmp/b.jpg")
+
+
+def test_parse_start_rejects_non_string_attachments() -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(
+            json.dumps(
+                {
+                    "action": "discussion_start",
+                    "topic": "x",
+                    "participants": ["claude"],
+                    "attachments": ["/tmp/a.png", 3],
+                }
+            )
+        )
+
+
+def _attachments_controller(bridge: object) -> Any:
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+    return controller
+
+
+def _last_attachment_payload(scripts: list[str]) -> dict[str, object]:
+    matches = [
+        script
+        for script in scripts
+        if script.startswith("window.discussionApplyAttachments(")
+    ]
+    assert matches
+    encoded = matches[-1].removeprefix("window.discussionApplyAttachments(").removesuffix(")")
+    return cast(dict[str, object], json.loads(encoded))
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_paste_image_saves_attachment_and_applies(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    saved = tmp_path / "20260724-185530-1.png"
+    monkeypatch.setattr(
+        discussion_window, "read_pasteboard_image", lambda: (b"png", ".png")
+    )
+    monkeypatch.setattr(
+        discussion_window,
+        "save_attachment_bytes",
+        lambda data, suffix, directory=discussion_window.ATTACHMENTS_DIR: saved,
+    )
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action('{"action":"discussion_paste_image"}')
+
+    assert controller._attachments == [{"name": saved.name, "path": str(saved)}]
+    payload = _last_attachment_payload(controller.webview.scripts)
+    assert payload["attachments"] == [{"name": saved.name, "path": str(saved)}]
+    assert payload["hint"] is None
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_paste_without_image_reports_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(discussion_window, "read_pasteboard_image", lambda: None)
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action('{"action":"discussion_paste_image"}')
+
+    assert controller._attachments == []
+    payload = _last_attachment_payload(controller.webview.scripts)
+    assert payload["hint"]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_pick_image_imports_attachment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    src = tmp_path / "source.png"
+    src.write_bytes(b"png")
+    copied = tmp_path / "attachments" / "20260724-185530-1.png"
+    copied.parent.mkdir()
+    monkeypatch.setattr(discussion_window, "pick_image_file", lambda: str(src))
+    monkeypatch.setattr(
+        discussion_window,
+        "import_attachment_file",
+        lambda path, directory=discussion_window.ATTACHMENTS_DIR: copied,
+    )
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action('{"action":"discussion_pick_image"}')
+
+    assert controller._attachments == [{"name": copied.name, "path": str(copied)}]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_remove_attachment_deletes_file(tmp_path: Path) -> None:
+    target = tmp_path / "20260724-185530-1.png"
+    target.write_bytes(b"png")
+    controller = _attachments_controller(FakeBridge())
+    controller._attachments = [{"name": target.name, "path": str(target)}]
+
+    controller._receive_action(
+        json.dumps({"action": "discussion_remove_attachment", "path": str(target)})
+    )
+
+    assert controller._attachments == []
+    assert not target.exists()

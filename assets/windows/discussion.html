@@ -185,6 +185,67 @@
       accent-color: var(--accent);
     }
 
+    .attachment-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex-wrap: wrap;
+    }
+
+    .attachment-hint {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .attachments {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .attachment-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      max-width: min(250px, 100%);
+      min-width: 0;
+      padding: 6px 8px 6px 11px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--text);
+      background: var(--surface-strong);
+    }
+
+    .attachment-chip-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .attachment-chip-remove {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--transparent);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .attachment-chip-remove:hover {
+      color: var(--danger);
+      border-color: var(--danger);
+      background: var(--danger-soft);
+    }
+
     .participant-badge {
       display: block;
       grid-row: 1 / span 2;
@@ -569,6 +630,13 @@
       <label class="field">
         <span class="label" data-i18n="discussion_topic_label"></span>
         <textarea id="topic" data-i18n-placeholder="discussion_topic_placeholder"></textarea>
+        <div class="attachment-row">
+          <button class="secondary-button" id="attach-image" type="button"
+                  data-i18n="discussion_attach_image"></button>
+          <span class="attachment-hint" id="attachment-hint"
+                data-i18n="discussion_attachment_hint"></span>
+        </div>
+        <div class="attachments" id="attachments" hidden></div>
       </label>
       <div class="controls">
         <div class="field">
@@ -656,6 +724,8 @@
     let summaryText = "";
     let copyFeedbackTimer = null;
     let workingDirectory = null;
+    let attachments = [];
+    let attachmentHintTimer = null;
 
     const topicEl = document.getElementById("topic");
     const participantsEl = document.getElementById("participants");
@@ -673,6 +743,9 @@
     const workingDirectoryWarningEl = document.getElementById("working-directory-warning");
     const pickFolderEl = document.getElementById("pick-folder");
     const clearFolderEl = document.getElementById("clear-folder");
+    const attachImageEl = document.getElementById("attach-image");
+    const attachmentsEl = document.getElementById("attachments");
+    const attachmentHintEl = document.getElementById("attachment-hint");
 
     function t(key, params) {
       const lang = I18N[currentLanguage] ? currentLanguage : "en";
@@ -845,6 +918,34 @@
       workingDirectoryWarningEl.hidden = !selected;
     }
 
+    function renderAttachments() {
+      attachmentsEl.replaceChildren();
+      if (!attachments.length) {
+        attachmentsEl.hidden = true;
+        return;
+      }
+      attachmentsEl.hidden = false;
+      attachments.forEach((item) => {
+        const chip = document.createElement("span");
+        chip.className = "attachment-chip";
+        chip.title = `${item.path || ""}`;
+        const name = document.createElement("span");
+        name.className = "attachment-chip-name";
+        name.textContent = `${item.name || ""}`;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "attachment-chip-remove";
+        remove.setAttribute("aria-label", t("discussion_attachment_remove"));
+        remove.title = t("discussion_attachment_remove");
+        remove.textContent = "×";
+        remove.addEventListener("click", () => {
+          if (item.path) send("discussion_remove_attachment", { path: item.path });
+        });
+        chip.append(name, remove);
+        attachmentsEl.append(chip);
+      });
+    }
+
     function renderControls() {
       const running = isRunning();
       topicEl.disabled = running;
@@ -853,6 +954,7 @@
       detectEl.disabled = running;
       pickFolderEl.disabled = running;
       clearFolderEl.disabled = running;
+      attachImageEl.disabled = running;
       statusEl.textContent = state.status
         ? t(`discussion_status_${state.status.toLowerCase()}`)
         : "";
@@ -1040,6 +1142,7 @@
       renderModerator();
       renderEstimate();
       renderWorkingDirectory();
+      renderAttachments();
       renderControls();
       renderHistory();
       renderSummary();
@@ -1143,17 +1246,45 @@
       renderWorkingDirectory();
     };
 
+    window.discussionApplyAttachments = (payload) => {
+      const data = payload && typeof payload === "object" ? payload : {};
+      attachments = Array.isArray(data.attachments) ? data.attachments : [];
+      renderAttachments();
+      const hint = typeof data.hint === "string" && data.hint ? data.hint : null;
+      if (attachmentHintTimer !== null) {
+        window.clearTimeout(attachmentHintTimer);
+        attachmentHintTimer = null;
+      }
+      attachmentHintEl.textContent = hint || t("discussion_attachment_hint");
+      if (hint) {
+        attachmentHintTimer = window.setTimeout(() => {
+          attachmentHintEl.textContent = t("discussion_attachment_hint");
+          attachmentHintTimer = null;
+        }, 1800);
+      }
+    };
+
     window.discussionApplyError = (message) => {
       errorEl.textContent = `${message || ""}`;
     };
 
     topicEl.addEventListener("input", renderControls);
+    topicEl.addEventListener("paste", (event) => {
+      const clipboard = event.clipboardData;
+      if (!clipboard) return;
+      const types = Array.from(clipboard.types || []);
+      const hasImage = types.some((type) => /^image\//i.test(`${type}`));
+      if (!hasImage) return;
+      event.preventDefault();
+      send("discussion_paste_image");
+    });
     detectEl.addEventListener("click", () => {
       errorEl.textContent = "";
       send("discussion_detect");
     });
     pickFolderEl.addEventListener("click", () => send("discussion_pick_folder"));
     clearFolderEl.addEventListener("click", () => send("discussion_clear_folder"));
+    attachImageEl.addEventListener("click", () => send("discussion_pick_image"));
     startEl.addEventListener("click", () => {
       errorEl.textContent = "";
       send("discussion_start", {
@@ -1161,6 +1292,7 @@
         participants: [...selected],
         moderatorId: moderatorEl.value || null,
         workingDir: workingDirectory,
+        attachments: attachments.map((item) => item.path).filter(Boolean),
       });
     });
     stopEl.addEventListener("click", () => send("discussion_stop"));

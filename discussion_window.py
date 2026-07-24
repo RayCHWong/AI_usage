@@ -9,9 +9,13 @@
 # mypy: disable-error-code="import-untyped,import-not-found,misc"
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import shutil
 import sys
 import threading
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -21,8 +25,114 @@ from discussion_bridge import DiscussionBridge, ParticipantSpec
 from discussion_cli import DetectionResult
 from i18n import _load_i18n_bundle, _t, packaged_resource_path
 from panels.payload import _data_uri
-from talent_market_bridge import pick_folder
+from talent_market_bridge import pick_folder, pick_image_file
 from usage_lang import detect_lang
+
+ATTACHMENTS_DIR = Path(os.path.expanduser("~/.usage/discussion_attachments"))
+ATTACHMENT_MAX_FILES = 50
+ATTACHMENT_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+
+
+def _attachment_timestamp() -> str:
+    return time.strftime("%Y%m%d-%H%M%S")
+
+
+def build_attachment_name(stamp: str, index: int, suffix: str) -> str:
+    """Pure filename builder so naming is testable without touching disk."""
+    return f"{stamp}-{index}{suffix}"
+
+
+def _next_attachment_path(suffix: str, directory: Path) -> Path:
+    stamp = _attachment_timestamp()
+    index = 1
+    while True:
+        candidate = directory / build_attachment_name(stamp, index, suffix)
+        if not candidate.exists():
+            return candidate
+        index += 1
+
+
+def save_attachment_bytes(
+    data: bytes,
+    suffix: str,
+    directory: Path = ATTACHMENTS_DIR,
+) -> Path:
+    """Persist raw image bytes under the managed directory and prune old files."""
+    directory.mkdir(parents=True, exist_ok=True)
+    target = _next_attachment_path(suffix, directory)
+    target.write_bytes(data)
+    prune_attachments(directory=directory)
+    return target
+
+
+def import_attachment_file(
+    src: str,
+    directory: Path = ATTACHMENTS_DIR,
+) -> Path | None:
+    """Copy a user-picked image into the managed directory; None on bad input."""
+    path = Path(src)
+    if not path.is_file() or path.suffix.lower() not in ATTACHMENT_SUFFIXES:
+        return None
+    directory.mkdir(parents=True, exist_ok=True)
+    target = _next_attachment_path(path.suffix.lower(), directory)
+    shutil.copy2(path, target)
+    prune_attachments(directory=directory)
+    return target
+
+
+def prune_attachments(
+    directory: Path = ATTACHMENTS_DIR,
+    keep: int = ATTACHMENT_MAX_FILES,
+) -> None:
+    """Keep only the newest ``keep`` files, deleting the oldest by mtime."""
+    if not directory.exists() or keep < 0:
+        return
+    files = [entry for entry in directory.iterdir() if entry.is_file()]
+    if len(files) <= keep:
+        return
+    files.sort(key=lambda entry: entry.stat().st_mtime)
+    for stale in files[: len(files) - keep]:
+        with contextlib.suppress(OSError):
+            stale.unlink()
+
+
+def read_pasteboard_image() -> tuple[bytes, str] | None:
+    """Read an image from the macOS pasteboard; return (bytes, suffix) or None.
+
+    AppKit is imported lazily so the module loads on non-darwin hosts; the call
+    itself only works on macOS. Screenshots land as TIFF, so both PNG and TIFF
+    pasteboard types are handled, converting TIFF to PNG on the way to disk.
+    """
+    try:
+        from AppKit import (
+            NSBitmapImageFileTypePNG,
+            NSBitmapImageRep,
+            NSPasteboard,
+            NSPasteboardTypePNG,
+            NSPasteboardTypeTIFF,
+        )
+    except ImportError:
+        return None
+    pb = NSPasteboard.generalPasteboard()
+    if pb is None:
+        return None
+    types = pb.types()
+    if NSPasteboardTypePNG in types:
+        raw = pb.dataForType_(NSPasteboardTypePNG)
+        if raw:
+            return (bytes(raw), ".png")
+    if NSPasteboardTypeTIFF in types:
+        tiff = pb.dataForType_(NSPasteboardTypeTIFF)
+        if tiff:
+            rep = NSBitmapImageRep.imageRepWithData_(tiff)
+            if rep is not None:
+                png = rep.representationUsingType_properties_(
+                    NSBitmapImageFileTypePNG, {}
+                )
+                if png:
+                    return (bytes(png), ".png")
+    return None
+
 
 SCRIPT_HANDLER_NAME = "usageDiscussion"
 WINDOW_AUTOSAVE_NAME = "usage.discussion.window"
@@ -91,6 +201,9 @@ ActionName = Literal[
     "discussion_clear_folder",
     "discussion_start",
     "discussion_stop",
+    "discussion_paste_image",
+    "discussion_pick_image",
+    "discussion_remove_attachment",
 ]
 
 
@@ -101,6 +214,8 @@ class DiscussionAction:
     participants: tuple[str, ...] = ()
     moderator_id: str | None = None
     working_directory: str | None = None
+    attachments: tuple[str, ...] = ()
+    attachment_path: str | None = None
 
 
 def parse_discussion_action(raw: object) -> DiscussionAction:
@@ -121,8 +236,19 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         "discussion_clear_folder",
         "discussion_start",
         "discussion_stop",
+        "discussion_paste_image",
+        "discussion_pick_image",
+        "discussion_remove_attachment",
     }:
         raise ValueError("unknown discussion action")
+    if action == "discussion_remove_attachment":
+        path_value = payload.get("path")
+        if not isinstance(path_value, str) or not path_value.strip():
+            raise ValueError("discussion_remove_attachment requires a string path")
+        return DiscussionAction(
+            cast(ActionName, action),
+            attachment_path=path_value,
+        )
     if action != "discussion_start":
         return DiscussionAction(cast(ActionName, action))
 
@@ -147,6 +273,15 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         working_directory_value, str
     ):
         raise ValueError("discussion_start workingDir must be a string or null")
+    attachments_value = payload.get("attachments")
+    if attachments_value is not None:
+        if not isinstance(attachments_value, list) or not all(
+            isinstance(item, str) for item in attachments_value
+        ):
+            raise ValueError("discussion_start attachments must be a list of strings")
+        attachments = tuple(cast(list[str], attachments_value))
+    else:
+        attachments = ()
     moderator_id = moderator_value
     if moderator_id is not None and moderator_id not in participants:
         raise ValueError("discussion_start moderatorId must be selected")
@@ -156,6 +291,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         participants=participants,
         moderator_id=moderator_id,
         working_directory=working_directory_value or None,
+        attachments=attachments,
     )
 
 
@@ -305,6 +441,7 @@ class DiscussionWindowController:
             if isinstance(snapshot_working_directory, str)
             else None
         )
+        self._attachments: list[dict[str, str]] = []
         if sys.platform == "darwin":
             self._dispatcher = _MainThreadDispatcher.alloc().initWithController_(self)
 
@@ -472,6 +609,13 @@ class DiscussionWindowController:
             elif action.action == "discussion_clear_folder":
                 self._working_directory = None
                 self._apply_working_directory()
+            elif action.action == "discussion_paste_image":
+                self._handle_paste_image()
+            elif action.action == "discussion_pick_image":
+                self._handle_pick_image()
+            elif action.action == "discussion_remove_attachment":
+                assert action.attachment_path is not None
+                self._remove_attachment(action.attachment_path)
             elif action.action == "discussion_stop":
                 self.bridge.stop()
                 self._apply_snapshot()
@@ -490,6 +634,7 @@ class DiscussionWindowController:
                     specs,
                     action.moderator_id,
                     working_directory=action.working_directory,
+                    attachments=action.attachments,
                 )
                 snapshot = self.bridge.snapshot()
                 snapshot_working_directory = snapshot.get("working_directory")
@@ -508,6 +653,7 @@ class DiscussionWindowController:
         self._apply_snapshot()
         self._apply_working_directory()
         self._apply_detection()
+        self._apply_attachments()
 
     def _apply_snapshot(self) -> None:
         self._evaluate("discussionApplySnapshot", self.bridge.snapshot())
@@ -521,6 +667,56 @@ class DiscussionWindowController:
 
     def _apply_working_directory(self) -> None:
         self._evaluate("discussionApplyWorkingDir", self._working_directory)
+
+    def _apply_attachments(self, hint: str | None = None) -> None:
+        self._evaluate(
+            "discussionApplyAttachments",
+            {"attachments": list(self._attachments), "hint": hint},
+        )
+
+    def _handle_paste_image(self) -> None:
+        result = read_pasteboard_image()
+        if result is None:
+            self._apply_attachments(
+                hint=_t(self._language, "discussion_paste_no_image")
+            )
+            return
+        data, suffix = result
+        try:
+            target = save_attachment_bytes(data, suffix)
+        except OSError as exc:
+            self._apply_attachments(hint=str(exc))
+            return
+        self._attachments.append({"name": target.name, "path": str(target)})
+        self._apply_attachments()
+
+    def _handle_pick_image(self) -> None:
+        selected = pick_image_file()
+        if selected is None:
+            return
+        try:
+            target = import_attachment_file(selected)
+        except OSError as exc:
+            self._apply_attachments(hint=str(exc))
+            return
+        if target is None:
+            self._apply_attachments(
+                hint=_t(self._language, "discussion_paste_no_image")
+            )
+            return
+        self._attachments.append({"name": target.name, "path": str(target)})
+        self._apply_attachments()
+
+    def _remove_attachment(self, path: str) -> None:
+        before = len(self._attachments)
+        self._attachments = [
+            attachment for attachment in self._attachments if attachment["path"] != path
+        ]
+        if len(self._attachments) == before:
+            return
+        with contextlib.suppress(OSError):
+            Path(path).unlink()
+        self._apply_attachments()
 
     def _evaluate(self, function_name: str, payload: object) -> None:
         self._require_main_thread()

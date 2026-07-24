@@ -41,6 +41,8 @@ from discussion_session import (
     build_round1_prompt,
     build_round2_prompt,
 )
+from i18n import _t
+from usage_lang import detect_lang
 
 MAX_CONCURRENT_PROCESSES = 4
 DELTA_FLUSH_CHARS = 128
@@ -227,6 +229,7 @@ class DiscussionBridge:
         participants: Sequence[ParticipantSpec],
         moderator_id: str | None = None,
         working_directory: str | None = None,
+        attachments: Sequence[str] | None = None,
     ) -> str:
         normalized_topic = topic.strip()
         if not normalized_topic:
@@ -254,6 +257,11 @@ class DiscussionBridge:
             for spec in specs
         ]
         session = DiscussionSession(normalized_topic, participant_models)
+        # The session keeps the user's original topic for display; only the
+        # prompt handed to each CLI carries the appended image paths.
+        effective_topic = normalized_topic + build_attachment_block(
+            attachments or (), detect_lang()
+        )
         cancel_event = threading.Event()
         with self._state_lock:
             if self._worker is not None and self._worker.is_alive():
@@ -267,7 +275,7 @@ class DiscussionBridge:
             session.transition(SessionStatus.PREPARING)
             worker = threading.Thread(
                 target=self._run_session,
-                args=(session, specs, moderator_id, cancel_event),
+                args=(session, specs, moderator_id, effective_topic, cancel_event),
                 name=f"discussion-session-{session.session_id}",
                 daemon=True,
             )
@@ -333,6 +341,7 @@ class DiscussionBridge:
         session: DiscussionSession,
         specs: tuple[ParticipantSpec, ...],
         moderator_id: str | None,
+        effective_topic: str,
         cancel_event: threading.Event,
     ) -> None:
         try:
@@ -340,7 +349,7 @@ class DiscussionBridge:
             if cancel_event.is_set():
                 return
             self._transition(session, cancel_event, SessionStatus.ROUND1_RUNNING)
-            round1_prompt = build_round1_prompt(session.topic)
+            round1_prompt = build_round1_prompt(effective_topic)
             round1 = self._run_round(
                 session,
                 resolved,
@@ -381,7 +390,7 @@ class DiscussionBridge:
                     )
                     for (label, text), result in zip(round1_answers, round1_survivors, strict=True)
                 ]
-                return build_round2_prompt(session.topic, labelled_answers)
+                return build_round2_prompt(effective_topic, labelled_answers)
 
             round2 = self._run_round(
                 session,
@@ -740,3 +749,21 @@ def _build_transcript(session: DiscussionSession) -> str:
             f"{body}\n<<<TURN_END>>>"
         )
     return "\n\n".join(sections)
+
+
+def build_attachment_block(attachments: Sequence[str], language: str) -> str:
+    """Append-only image section for the prompt sent to each CLI.
+
+    Returns ``""`` when none of the paths point at an existing file, so the
+    discussion proceeds unchanged. Existing-file paths are resolved to absolute
+    form; missing paths are skipped rather than aborting the whole session.
+    """
+    resolved: list[str] = []
+    for raw in attachments:
+        path = Path(str(raw))
+        if path.is_file():
+            resolved.append(str(path.resolve()))
+    if not resolved:
+        return ""
+    header = _t(language, "discussion_prompt_attachment_header")
+    return "\n\n" + header + "\n" + "\n".join(resolved)

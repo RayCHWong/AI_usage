@@ -755,3 +755,64 @@ def test_custom_argv_and_login_shell_sources_build_safe_invocations(
 
 def build_round1_prompt_text() -> str:
     return build_round1_prompt("安全提示")
+
+
+def test_build_attachment_block_appends_existing_files_only(
+    tmp_path: Path,
+) -> None:
+    image = tmp_path / "shot.png"
+    image.write_bytes(b"x")
+    missing = str(tmp_path / "nope.png")
+
+    block = discussion_bridge.build_attachment_block([str(image), missing], "en")
+
+    assert block
+    assert str(image.resolve()) in block
+    assert missing not in block
+    # header text is sourced from i18n, not hardcoded in the prompt
+    assert "read the following image" in block
+
+
+def test_build_attachment_block_empty_when_no_existing_files(
+    tmp_path: Path,
+) -> None:
+    assert discussion_bridge.build_attachment_block([], "en") == ""
+    assert (
+        discussion_bridge.build_attachment_block(
+            [str(tmp_path / "missing.png")], "en"
+        )
+        == ""
+    )
+
+
+def test_start_appends_attachment_paths_to_prompt_and_keeps_topic(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    image = tmp_path / "shot.png"
+    image.write_bytes(b"x")
+    bridge, adapters = _bridge_with_adapters(("solo",))
+    _install_runner(monkeypatch, FakeRunner())
+
+    bridge.start("看圖回答", _specs("solo"), attachments=[str(image)])
+    snapshot = _wait_terminal(bridge)
+
+    assert snapshot["status"] == "COMPLETED"
+    assert snapshot["topic"] == "看圖回答"
+    assert str(image.resolve()) in adapters["solo"].prompts[0]
+    assert "看圖回答" in adapters["solo"].prompts[0]
+
+
+def test_start_skips_missing_attachments_and_still_runs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    bridge, adapters = _bridge_with_adapters(("solo",))
+    _install_runner(monkeypatch, FakeRunner())
+    missing = str(tmp_path / "nope.png")
+
+    bridge.start("問題", _specs("solo"), attachments=[missing])
+    snapshot = _wait_terminal(bridge)
+
+    assert snapshot["status"] == "COMPLETED"
+    assert missing not in adapters["solo"].prompts[0]
