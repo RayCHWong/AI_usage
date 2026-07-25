@@ -482,7 +482,68 @@ def test_round2_and_moderator_transcript_are_anonymous(
     assert not any(label in round2 for label in ("Claude", "Codex", "Antigravity"))
     assert "你在第一輪的發言" not in round2
     assert all(label in transcript for label in ("參與者 A", "參與者 B", "參與者 C"))
-    assert not any(label in transcript for label in ("Claude", "Codex", "Antigravity"))
+    headers = re.findall(r"^<<<TURN participant=.*>>>$", transcript, re.MULTILINE)
+    assert headers
+    assert not any(
+        label in header
+        for header in headers
+        for label in ("Claude", "Codex", "Antigravity")
+    )
+
+
+def test_moderator_transcript_preserves_participant_text_verbatim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specs = [
+        ParticipantSpec("claude", "Claude", "claude"),
+        ParticipantSpec("codex", "Codex", "codex"),
+    ]
+    answer = (
+        "Claude 的 200K context 比 Codex 大，但 Codex 在重構上更穩。"
+        "建議用 Claude Code 寫測試。"
+    )
+    runner = FakeRunner(
+        lambda adapter_id, round_index: answer
+        if round_index == 1
+        else f"{adapter_id}-r{round_index}"
+    )
+    bridge, adapters = _bridge_with_adapters(("claude", "codex"))
+    _install_runner(monkeypatch, runner)
+
+    bridge.start("問題", specs, moderator_id="claude")
+    _wait_terminal(bridge)
+
+    transcript = adapters["claude"].prompts[2]
+    assert "participant='參與者 A' round=1 status=DONE>>>\n" + answer in transcript
+    assert "participant='參與者 B' round=1 status=DONE>>>\n" + answer in transcript
+
+
+def test_moderator_transcript_hides_turn_error_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specs = [
+        ParticipantSpec("claude", "Claude", "claude"),
+        ParticipantSpec("codex", "Codex", "codex"),
+        ParticipantSpec("agy", "Antigravity", "agy"),
+    ]
+    error = "claude: command not found: /private/tmp/secret"
+
+    def outcome(adapter_id: str, round_index: int) -> str | Exception:
+        if adapter_id == "claude" and round_index == 1:
+            return RuntimeError(error)
+        return f"{adapter_id}-r{round_index}"
+
+    bridge, adapters = _bridge_with_adapters(("claude", "codex", "agy"))
+    _install_runner(monkeypatch, FakeRunner(outcome))
+
+    bridge.start("問題", specs, moderator_id="codex")
+    _wait_terminal(bridge)
+
+    transcript = adapters["codex"].prompts[2]
+    assert "[此發言未完成]" in transcript
+    assert error not in transcript
+    assert "claude:" not in transcript
+    assert "/private/tmp/secret" not in transcript
 
 
 def test_anonymous_labels_keep_original_order_after_round1_failure(
@@ -512,7 +573,13 @@ def test_anonymous_labels_keep_original_order_after_round1_failure(
     assert "label='參與者 A'>>>\ncodex-r1" not in round2_prompt
     assert "participant='參與者 B' round=1 status=DONE" in transcript
     assert "participant='參與者 C' round=2 status=DONE" in transcript
-    assert not any(label in transcript for label in ("Claude", "Codex", "Antigravity"))
+    headers = re.findall(r"^<<<TURN participant=.*>>>$", transcript, re.MULTILINE)
+    assert headers
+    assert not any(
+        label in header
+        for header in headers
+        for label in ("Claude", "Codex", "Antigravity")
+    )
 
 
 @pytest.mark.parametrize(

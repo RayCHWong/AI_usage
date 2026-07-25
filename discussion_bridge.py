@@ -1042,18 +1042,13 @@ def _build_transcript(
     anonymous_labels: Mapping[str, str],
 ) -> str:
     snapshot = session.snapshot()
-    real_labels = {
-        str(participant["label"]): anonymous_labels[str(participant["id"])]
-        for participant in snapshot["participants"]
-    }
     sections: list[str] = []
     for turn in snapshot["turns"]:
         participant_id = str(turn["participant_id"])
         error = turn["error"]
-        body = _replace_labels(str(turn["text"]), real_labels)
+        body = str(turn["text"])
         if error:
-            safe_error = _replace_labels(str(error), real_labels)
-            body = f"{body}\n[失敗：{safe_error}]" if body else f"[失敗：{safe_error}]"
+            body = f"{body}\n[此發言未完成]" if body else "[此發言未完成]"
         sections.append(
             f"<<<TURN participant={anonymous_labels.get(participant_id, participant_id)!r} "
             f"round={turn['round_index']} status={turn['status']}>>>\n"
@@ -1071,20 +1066,19 @@ def _restore_participant_labels(
         anonymous_labels[participant.id]: participant.label
         for participant in session.participants
     }
-    return _replace_labels(text, labels, protect_anonymous_suffix=True)
+    return _replace_labels(text, labels)
 
 
 def _replace_labels(
     text: str,
     replacements: Mapping[str, str],
-    *,
-    protect_anonymous_suffix: bool = False,
 ) -> str:
     labels = sorted((label for label in replacements if label), key=len, reverse=True)
     if not labels:
         return text
-    suffix = r"(?![A-Za-z0-9])" if protect_anonymous_suffix else ""
-    pattern = re.compile(f"(?:{'|'.join(re.escape(label) for label in labels)}){suffix}")
+    pattern = re.compile(
+        f"(?:{'|'.join(re.escape(label) for label in labels)})(?![A-Za-z0-9])"
+    )
     return pattern.sub(lambda match: replacements[match.group(0)], text)
 
 
