@@ -254,7 +254,7 @@
 
     .participant-head {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto auto;
+      grid-template-columns: auto minmax(0, 1fr) auto auto auto;
       gap: 10px;
       align-items: center;
       min-width: 0;
@@ -497,7 +497,8 @@
       display: none;
     }
 
-    .participant-model {
+    .participant-model,
+    .participant-persona {
       width: 128px;
       height: 30px;
       padding: 0 32px 0 10px;
@@ -516,7 +517,8 @@
       appearance: none;
     }
 
-    .participant-model:focus {
+    .participant-model:focus,
+    .participant-persona:focus {
       border-color: var(--accent);
       box-shadow: 0 0 0 3px var(--accent-soft);
     }
@@ -1218,9 +1220,11 @@
       ],
     };
     const selectedModels = { claude: null, codex: null, agy: null };
+    const selectedPersonas = { claude: null, codex: null, agy: null };
 
     let currentLanguage = "en";
     let detection = [];
+    let personas = [];
     let selected = new Set();
     let selectionInitialized = false;
     let state = {};
@@ -1381,6 +1385,32 @@
       return select;
     }
 
+    function createPersonaSelect(id) {
+      const select = document.createElement("select");
+      select.className = "participant-persona";
+      select.dataset.participant = id;
+      select.setAttribute("aria-label", t("discussion_persona"));
+      const neutral = document.createElement("option");
+      neutral.value = "";
+      neutral.textContent = t("discussion_persona_neutral");
+      select.append(neutral);
+      personas.forEach((persona) => {
+        const option = document.createElement("option");
+        option.value = `${persona.id || ""}`;
+        option.textContent = persona.persona_name
+          ? `${persona.name || ""} · ${persona.persona_name}`
+          : `${persona.name || ""}`;
+        select.append(option);
+      });
+      select.value = selectedPersonas[id] || "";
+      select.disabled = isRunning();
+      select.addEventListener("change", () => {
+        selectedPersonas[id] = select.value || null;
+        renderEstimate();
+      });
+      return select;
+    }
+
     function initializeSelection() {
       if (!selectionInitialized && detection.length) {
         selected = new Set(detection.filter((item) => item.available).map((item) => item.adapter_id));
@@ -1451,12 +1481,21 @@
 
         const modelSelect = createModelSelect(id);
         modelSelect.disabled = !available || isRunning();
+        const personaSelect = createPersonaSelect(id);
+        personaSelect.disabled = !available || isRunning();
 
         const head = document.createElement("div");
         head.className = "participant-head";
-        head.append(createParticipantBadge(id), infoColumn, modelSelect, moderator);
+        head.append(
+          createParticipantBadge(id),
+          infoColumn,
+          modelSelect,
+          personaSelect,
+          moderator,
+        );
         head.addEventListener("click", (event) => {
           if (event.target.closest(".participant-model")) return;
+          if (event.target.closest(".participant-persona")) return;
           if (event.target.closest(".moderator-toggle")) return;
           if (!available || isRunning() || checkbox.disabled) return;
           checkbox.checked = !checkbox.checked;
@@ -1489,6 +1528,13 @@
     const AVG_TURN_TOKENS = 600;
     const TOPIC_TOKENS = 100;
 
+    function selectedPersonaTokens() {
+      return [...selected].reduce((total, id) => {
+        const persona = personas.find((item) => item.id === selectedPersonas[id]);
+        return total + (persona ? `${persona.system_prompt || ""}`.length / 4 : 0);
+      }, 0);
+    }
+
     function estimateTokens(count, roundsOverride) {
       const rounds = roundsOverride ?? Number(totalRoundsEl.value);
       const withSummary = includeSummaryEl.checked;
@@ -1496,6 +1542,7 @@
       for (let r = 1; r <= rounds; r += 1) {
         input += count * (TOPIC_TOKENS + (r - 1) * count * AVG_TURN_TOKENS);
       }
+      input += rounds * selectedPersonaTokens();
       if (withSummary) input += TOPIC_TOKENS + rounds * count * AVG_TURN_TOKENS;
       const output = (rounds * count + (withSummary ? 1 : 0)) * AVG_TURN_TOKENS;
       return input + output;
@@ -2020,6 +2067,15 @@
       render();
     };
 
+    window.discussionApplyPersonas = (items) => {
+      personas = Array.isArray(items) ? items : [];
+      const validIds = new Set(personas.map((item) => item.id));
+      PARTICIPANT_IDS.forEach((id) => {
+        if (!validIds.has(selectedPersonas[id])) selectedPersonas[id] = null;
+      });
+      render();
+    };
+
     window.discussionApplyWorkingDir = (path) => {
       workingDirectory = typeof path === "string" && path.length > 0 ? path : null;
       renderWorkingDirectory();
@@ -2144,6 +2200,7 @@
         totalRounds: Number(totalRoundsEl.value),
         includeSummary: includeSummaryEl.checked,
         models: { ...selectedModels },
+        personas: { ...selectedPersonas },
       });
     });
     stopEl.addEventListener("click", () => send("discussion_stop"));

@@ -33,7 +33,7 @@ from discussion_bridge import DiscussionBridge, ParticipantSpec
 from discussion_cli import DetectionResult
 from i18n import _load_i18n_bundle, _t, packaged_resource_path
 from panels.payload import _data_uri
-from talent_market_bridge import pick_folder, pick_image_file
+from talent_market_bridge import list_personas, pick_folder, pick_image_file
 from usage_lang import detect_lang
 
 ATTACHMENTS_DIR = Path(os.path.expanduser("~/.usage/discussion_attachments"))
@@ -263,6 +263,7 @@ class DiscussionAction:
     total_rounds: int = 2
     include_summary: bool = True
     models: Mapping[str, str | None] = field(default_factory=dict)
+    personas: Mapping[str, str | None] = field(default_factory=dict)
     attachment_path: str | None = None
     attachment_data: str | None = None
     attachment_name: str | None = None
@@ -356,6 +357,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
     if moderator_id is not None and moderator_id not in participants:
         raise ValueError("discussion_start moderatorId must be selected")
     models = _parse_discussion_models(payload.get("models"))
+    personas = _parse_discussion_personas(payload.get("personas"))
     return DiscussionAction(
         cast(ActionName, action),
         topic=topic,
@@ -366,6 +368,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         total_rounds=min(5, max(1, rounds_value)),
         include_summary=include_summary_value,
         models=models,
+        personas=personas,
     )
 
 
@@ -388,6 +391,25 @@ def _parse_discussion_models(raw: object) -> dict[str, str | None]:
         else:
             raise ValueError("discussion_start models values must be strings or null")
     return models
+
+
+def _parse_discussion_personas(raw: object) -> dict[str, str | None]:
+    """Validate the optional per-participant persona map; absent means neutral."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError("discussion_start personas must be an object")
+    personas: dict[str, str | None] = {}
+    for key, value in raw.items():
+        if key not in BUILTIN_PARTICIPANTS:
+            raise ValueError("discussion_start personas has an unknown participant")
+        if value is None or value == "":
+            personas[key] = None
+        elif isinstance(value, str):
+            personas[key] = value
+        else:
+            raise ValueError("discussion_start personas values must be strings or null")
+    return personas
 
 
 def estimate_cli_calls(
@@ -539,6 +561,7 @@ class DiscussionWindowController:
             else None
         )
         self._attachments: list[dict[str, str]] = []
+        self._personas: list[dict[str, str]] = []
         if sys.platform == "darwin":
             self._dispatcher = _MainThreadDispatcher.alloc().initWithController_(self)
 
@@ -731,15 +754,29 @@ class DiscussionWindowController:
                     self._apply_snapshot()
             else:
                 assert action.topic is not None
-                specs = [
-                    ParticipantSpec(
-                        id=participant_id,
-                        label=PARTICIPANT_LABELS[participant_id],
-                        adapter_id=participant_id,
-                        model=action.models.get(participant_id),
+                personas_by_id = {
+                    persona["id"]: persona for persona in self._personas
+                }
+                specs: list[ParticipantSpec] = []
+                for participant_id in action.participants:
+                    persona_id = action.personas.get(participant_id)
+                    persona = (
+                        personas_by_id.get(persona_id)
+                        if persona_id is not None
+                        else None
                     )
-                    for participant_id in action.participants
-                ]
+                    specs.append(
+                        ParticipantSpec(
+                            id=participant_id,
+                            label=PARTICIPANT_LABELS[participant_id],
+                            adapter_id=participant_id,
+                            model=action.models.get(participant_id),
+                            persona_prompt=(
+                                persona["system_prompt"] if persona else None
+                            ),
+                            persona_label=persona["name"] if persona else None,
+                        )
+                    )
                 self.bridge.start(
                     action.topic,
                     specs,
@@ -766,6 +803,7 @@ class DiscussionWindowController:
         self._apply_snapshot()
         self._apply_working_directory()
         self._apply_detection()
+        self._apply_personas()
         self._apply_attachments()
 
     def _apply_snapshot(self) -> None:
@@ -777,6 +815,10 @@ class DiscussionWindowController:
             "discussionApplyDetection",
             [asdict(detection) for detection in detections],
         )
+
+    def _apply_personas(self) -> None:
+        self._personas = list_personas(self._language)
+        self._evaluate("discussionApplyPersonas", self._personas)
 
     def _apply_working_directory(self) -> None:
         self._evaluate("discussionApplyWorkingDir", self._working_directory)

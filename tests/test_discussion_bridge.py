@@ -284,6 +284,48 @@ def test_round2_is_anonymous_but_moderator_transcript_uses_real_labels(
     assert all(label in transcript for label in ("Claude", "Codex", "Antigravity"))
 
 
+def test_each_participant_receives_only_its_own_persona(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specs = [
+        ParticipantSpec(
+            "claude",
+            "Claude",
+            "claude",
+            persona_prompt="法律角色提示",
+            persona_label="合約審閱",
+        ),
+        ParticipantSpec(
+            "codex",
+            "Codex",
+            "codex",
+            persona_prompt="工程角色提示",
+            persona_label="架構審查",
+        ),
+    ]
+    bridge, adapters = _bridge_with_adapters(("claude", "codex"))
+    _install_runner(monkeypatch, FakeRunner())
+
+    bridge.start("問題", specs, include_summary=False)
+    snapshot = _wait_terminal(bridge)
+
+    assert all("法律角色提示" in prompt for prompt in adapters["claude"].prompts)
+    assert all("工程角色提示" not in prompt for prompt in adapters["claude"].prompts)
+    assert all("工程角色提示" in prompt for prompt in adapters["codex"].prompts)
+    assert all("法律角色提示" not in prompt for prompt in adapters["codex"].prompts)
+    assert not any(
+        label in prompt
+        for adapter in adapters.values()
+        for prompt in adapter.prompts
+        for label in ("合約審閱", "架構審查")
+    )
+    participants = cast(list[dict[str, Any]], snapshot["participants"])
+    assert [participant["persona_label"] for participant in participants] == [
+        "合約審閱",
+        "架構審查",
+    ]
+
+
 def test_nonzero_exit_retries_once_then_completes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

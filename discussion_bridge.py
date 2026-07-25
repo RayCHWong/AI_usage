@@ -83,6 +83,8 @@ class ParticipantSpec:
     env_overrides: Mapping[str, str] = field(default_factory=dict)
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     supports_token_stream: bool = False
+    persona_prompt: str | None = None
+    persona_label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -280,6 +282,7 @@ class DiscussionBridge:
                 adapter_id=spec.adapter_id,
                 model=spec.model,
                 is_moderator=spec.id == moderator_id,
+                persona_label=spec.persona_label,
             )
             for spec in specs
         ]
@@ -410,12 +413,14 @@ class DiscussionBridge:
             if cancel_event.is_set():
                 return
             self._transition(session, cancel_event, SessionStatus.ROUND1_RUNNING)
-            round1_prompt = build_round1_prompt(effective_topic)
             round1 = self._run_round(
                 session,
                 resolved,
                 1,
-                lambda participant: round1_prompt,
+                lambda participant: build_round1_prompt(
+                    effective_topic,
+                    persona=participant.spec.persona_prompt,
+                ),
                 cancel_event,
             )
             if cancel_event.is_set():
@@ -452,9 +457,11 @@ class DiscussionBridge:
                     answers: list[tuple[str, str]] = answers,
                     prior_round: int = round_index - 1,
                 ) -> str:
-                    del participant
                     return build_round2_prompt(
-                        effective_topic, answers, prior_round=prior_round
+                        effective_topic,
+                        answers,
+                        prior_round=prior_round,
+                        persona=participant.spec.persona_prompt,
                     )
 
                 survivors = [

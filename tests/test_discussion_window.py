@@ -166,6 +166,44 @@ def test_parse_start_action_models_optional_defaults_empty() -> None:
         )
     )
     assert action.models == {}
+    assert action.personas == {}
+
+
+def test_parse_start_action_personas_accept_strings_and_null() -> None:
+    action = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "x",
+                "participants": ["claude", "codex"],
+                "personas": {"claude": "contract-review", "codex": None},
+            }
+        )
+    )
+
+    assert action.personas == {"claude": "contract-review", "codex": None}
+
+
+@pytest.mark.parametrize(
+    "personas",
+    [
+        [],
+        {"other": "contract-review"},
+        {"claude": 1},
+    ],
+)
+def test_parse_start_action_rejects_invalid_personas(personas: object) -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(
+            json.dumps(
+                {
+                    "action": "discussion_start",
+                    "topic": "x",
+                    "participants": ["claude"],
+                    "personas": personas,
+                }
+            )
+        )
 
 
 def test_parse_start_action_rejects_unknown_model_value() -> None:
@@ -444,6 +482,7 @@ def test_html_uses_isolated_handler_and_safe_dynamic_dom() -> None:
     assert "window.discussionApplyEvents" in html
     assert "window.discussionApplySnapshot" in html
     assert "window.discussionApplyDetection" in html
+    assert "window.discussionApplyPersonas" in html
     assert "window.discussionApplyWorkingDir" in html
     assert "window.discussionApplyError" in html
     assert ".innerHTML" not in html
@@ -476,7 +515,7 @@ def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
     assert "border-radius: 12px" in html
     assert "--surface-raised" in html
     assert "--brand-claude-soft" in html
-    assert "grid-template-columns: auto minmax(0, 1fr) auto" in html
+    assert "grid-template-columns: auto minmax(0, 1fr) auto auto auto" in html
     assert "flex-wrap: wrap" in html
     assert "const PARTICIPANT_ICON_URIS" in html
     assert '"{{CLAUDE_ICON}}"' in html
@@ -488,7 +527,8 @@ def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
     assert 'badge.alt = ""' in html
     assert 'document.createElementNS("http://www.w3.org/2000/svg", "svg")' in html
     assert 'badge.setAttribute("aria-hidden", "true")' in html
-    assert "head.append(createParticipantBadge(id), infoColumn, modelSelect, moderator)" in html
+    assert "createPersonaSelect(id)" in html
+    assert "personaSelect," in html
     assert "chip.append(checkbox, head)" in html
     assert "url(http" not in html
 
@@ -616,6 +656,8 @@ def test_html_visible_static_elements_use_i18n_keys() -> None:
         "discussion_attachment_hint",
         "discussion_participants",
         "discussion_moderator",
+        "discussion_persona",
+        "discussion_persona_neutral",
         "discussion_working_directory",
         "discussion_pick_folder",
         "discussion_clear_folder",

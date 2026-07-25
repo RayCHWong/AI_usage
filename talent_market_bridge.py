@@ -106,6 +106,50 @@ def list_state(lang: str | None = None) -> dict[str, Any]:
     return _run(args)
 
 
+def list_personas(lang: str | None = None) -> list[dict[str, str]]:
+    """Return every available role as a flat, discussion-friendly record."""
+    try:
+        state = list_state(lang)
+    except Exception:
+        return []
+    packs = state.get("packs")
+    if not isinstance(packs, list):
+        return []
+    personas: list[dict[str, str]] = []
+    for pack in packs:
+        if not isinstance(pack, dict):
+            continue
+        roles = pack.get("roles")
+        if not isinstance(roles, list):
+            continue
+        for role in roles:
+            if not isinstance(role, dict):
+                continue
+            role_id = role.get("id")
+            name = role.get("name")
+            persona_name = role.get("personaName")
+            description = role.get("description")
+            system_prompt = role.get("systemPrompt")
+            if (
+                not isinstance(role_id, str)
+                or not isinstance(name, str)
+                or not isinstance(persona_name, str)
+                or not isinstance(description, str)
+                or not isinstance(system_prompt, str)
+            ):
+                continue
+            personas.append(
+                {
+                    "id": role_id,
+                    "name": name,
+                    "persona_name": persona_name,
+                    "description": description,
+                    "system_prompt": system_prompt,
+                }
+            )
+    return personas
+
+
 def install_role(role_id: str) -> dict[str, Any]:
     return _run(["install", role_id])
 
