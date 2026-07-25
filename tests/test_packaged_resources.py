@@ -122,7 +122,10 @@ def _is_declared(resource: str, resources: set[str]) -> bool:
 
 
 def test_parse_setup_app_resources() -> None:
-    assert "i18n.json" in parse_setup_app_resources()
+    resources = parse_setup_app_resources()
+
+    assert "i18n.json" in resources
+    assert "assets/windows" in resources
 
 
 def test_local_data_files_are_declared_as_py2app_resources() -> None:

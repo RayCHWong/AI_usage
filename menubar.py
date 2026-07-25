@@ -703,6 +703,7 @@ class AppDelegate(NSObject):
     _quota_notifier = objc.ivar()
     _switch_menu_action_taken = objc.ivar()
     _pre_talent_panel_id = objc.ivar()
+    _discussion_window_controller = objc.ivar()
     critter_timer = objc.ivar()
     critter_frame = objc.ivar()
     critter_interval = objc.ivar()
@@ -748,6 +749,7 @@ class AppDelegate(NSObject):
         self._history_load_error_key = None
         self._switch_menu_action_taken = False
         self._pre_talent_panel_id = None
+        self._discussion_window_controller = None
         self.critter_timer = None
         self.critter_frame = 0
         self.critter_interval = 0.0
@@ -881,6 +883,8 @@ class AppDelegate(NSObject):
         flush_history_cache()
         codex_loader.flush_caches_on_terminate()
         agy_loader.flush_caches_on_terminate()
+        if self._discussion_window_controller is not None:
+            self._discussion_window_controller.shutdown()
         if hasattr(self, "popover_controller") and self.popover_controller is not None:
             self.popover_controller.teardown()
 
@@ -897,6 +901,11 @@ class AppDelegate(NSObject):
         talent_market_item.setRepresentedObject_("talent_market")
         talent_market_item.setState_(1 if self.active_panel.id == "talent_market" else 0)
         menu.addItem_(talent_market_item)
+        discussion_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            _t(self.language, "discussion_window_title"), "toggleDiscussion:", ""
+        )
+        discussion_item.setTarget_(self)
+        menu.addItem_(discussion_item)
         ai_daily_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
             _t(self.language, "panel_ai_daily"), "toggleAiDaily:", ""
         )
@@ -1031,6 +1040,16 @@ class AppDelegate(NSObject):
         self._mark_switch_menu_action()
         self._close_popover_after_menu()
         webbrowser.open("https://aqua5230.github.io/ai-updates/")
+
+    def toggleDiscussion_(self, sender: Any) -> None:
+        from discussion_window import DiscussionWindowController
+
+        self._mark_switch_menu_action()
+        if self._discussion_window_controller is None:
+            self._discussion_window_controller = DiscussionWindowController()
+        self._discussion_window_controller.show(
+            close_popover=self._close_popover_after_menu,
+        )
 
     def toggleLaunchAtLogin_(self, sender: Any) -> None:
         self._mark_switch_menu_action()

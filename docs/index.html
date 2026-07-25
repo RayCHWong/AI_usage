@@ -479,6 +479,11 @@ footer .kofi:hover { background: #ff7572; }
         <h3 data-i18n="card12_h">Hide Sections</h3>
         <p data-i18n="card12_p">Only use one tool? Hide the Claude Code or Codex section from the menu bar and panels completely with a single click.</p>
       </div>
+      <div class="card">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h9a2 2 0 0 1 2 2V12a2 2 0 0 1-2 2H10l-3 2.5V14H6a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2z"/><path d="M17 9h1a2 2 0 0 1 2 2v3.5a2 2 0 0 1-2 2h-.5v2l-2.2-2H13"/></svg></span>
+        <h3 data-i18n="card13_h">AI Council</h3>
+        <p data-i18n="card13_p">Run a multi-round discussion between Claude Code, Codex, and Antigravity on one topic. Pick who joins, which model each one uses, and how many rounds — with a token estimate shown before you start.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -609,6 +614,8 @@ const T = {
     card11_p: 'Love the terminal? Run the rich TUI dashboard with <code>python3 main.py --tui</code>, or generate deep analytics with <code>python3 usage_cli.py report</code>.',
     card12_h: 'Hide Sections',
     card12_p: 'Only use one tool? Hide the Claude Code or Codex section from the menu bar and panels completely with a single click.',
+    card13_h: 'AI Council',
+    card13_p: 'Run a multi-round discussion between Claude Code, Codex, and Antigravity on one topic. Pick who joins, which model each one uses, and how many rounds — with a token estimate shown before you start.',
     resume_label: 'PROGRESS CONCIERGE',
     resume_h2: 'Now your CLI picks up where you left off',
     resume_lead: "The web and desktop apps keep your history — close them, reopen, it's all there. The CLI didn't. Resume hands that power to the CLI: open a new session and it picks up where you left off automatically, no re-explaining. It now also runs a daily health check on your logs — when it spots token waste, the handoff adds a one-line heads-up; say \"show me\" for the findings and fixes. Reads local files only — never connects to any API.",
@@ -681,6 +688,8 @@ const T = {
     card11_p: '終端機派也照顧到。用 <code>python3 main.py --tui</code> 跑 rich TUI 儀表板，或用 <code>python3 usage_cli.py report</code> 產出深度分析報告。',
     card12_h: '隱藏區塊',
     card12_p: '只用其中一個工具？一鍵把 Claude Code 或 Codex 區塊從選單列和面板完全藏掉。',
+    card13_h: 'AI 圓桌討論',
+    card13_p: '讓 Claude Code、Codex、Antigravity 針對同一個題目進行多輪討論。自選誰加入、各自用哪個模型、討論幾輪——開始前就看得到大約會花多少 token。',
     resume_label: '進度管家',
     resume_h2: '讓你的 CLI 也接得回上次',
     resume_lead: '網頁版、桌面 App 關掉再打開，對話都還在；只有 CLI 關掉就沒了。進度管家把這個能力補給 CLI——開新對話時自動接回你上次做到哪，不用再重講一次。現在還會每天對本機紀錄做一次健檢，發現 token 浪費時，開場白會多一行提醒；說「看」，AI 就會解釋發現了什麼、該怎麼改。只讀本機紀錄，不連到服務端。',
@@ -753,6 +762,8 @@ const T = {
     card11_p: '终端党也照顾到了。用 <code>python3 main.py --tui</code> 跑 rich TUI 仪表盘，或用 <code>python3 usage_cli.py report</code> 生成深度分析报告。',
     card12_h: '隐藏区块',
     card12_p: '只用其中一个工具？一键把 Claude Code 或 Codex 区块从菜单栏和面板里完全藏掉。',
+    card13_h: 'AI 圆桌讨论',
+    card13_p: '让 Claude Code、Codex、Antigravity 针对同一个题目进行多轮讨论。自选谁加入、各自用哪个模型、讨论几轮——开始前就能看到大约会花多少 token。',
     resume_label: '进度管家',
     resume_h2: '让你的 CLI 也接得回上次',
     resume_lead: '网页版、桌面 App 关掉再打开，对话都还在；只有 CLI 关掉就没了。进度管家把这个能力补给 CLI——开新对话时自动接回你上次做到哪，不用再重讲一次。现在还会每天对本机记录做一次健检，发现 token 浪费时，开场白会多一行提醒；说「看」，AI 就会解释发现了什么、该怎么改。只读本机记录，不连到服务端。',
@@ -825,6 +836,8 @@ const T = {
     card11_p: 'ターミナル派にも対応。<code>python3 main.py --tui</code> で rich TUI ダッシュボードを起動し、<code>python3 usage_cli.py report</code> で詳細レポートを生成できます。',
     card12_h: 'セクションを隠す',
     card12_p: '片方のツールだけ使う？ クリック一つで Claude Code または Codex のセクションをメニューバーとパネルから完全に隠せます。',
+    card13_h: 'AI円卓会議',
+    card13_p: 'Claude Code、Codex、Antigravityに同じトピックで複数ラウンドの議論をさせます。参加者、使うモデル、ラウンド数を自分で選べ、開始前にtoken見積もりが表示されます。',
     resume_label: '続きから',
     resume_h2: 'CLI でも前回の続きから',
     resume_lead: 'ウェブ版もデスクトップアプリも、閉じて開き直せば会話履歴はそのまま。でも CLI は閉じたら終わり。その機能を CLI に。新しいセッションを開くと前回の続きを自動で引き継ぎ、説明し直す必要はありません。さらに毎日ローカルのログをヘルスチェックし、トークンの無駄を見つけると引き継ぎに一行のお知らせを追加。「見せて」と言えば、AI が内容と改善策を説明します。ローカルの記録だけを読み、サーバーには接続しません。',
@@ -897,6 +910,8 @@ const T = {
     card11_p: '터미널파도 챙겼습니다. <code>python3 main.py --tui</code> 로 rich TUI 대시보드를 띄우고, <code>python3 usage_cli.py report</code> 로 심층 분석 보고서를 만들 수 있어요.',
     card12_h: '섹션 숨기기',
     card12_p: '한 도구만 쓰나요? 클릭 한 번으로 Claude Code 또는 Codex 섹션을 메뉴 바와 패널에서 완전히 숨길 수 있어요.',
+    card13_h: 'AI 원탁 토론',
+    card13_p: 'Claude Code, Codex, Antigravity가 같은 주제로 여러 라운드에 걸쳐 토론하게 합니다. 참여자, 사용할 모델, 라운드 수를 직접 선택할 수 있으며 시작 전에 token 예상치가 표시됩니다.',
     resume_label: '이어서 계속',
     resume_h2: '이제 CLI도 이어서',
     resume_lead: '웹과 데스크톱 앱은 닫았다 열어도 대화 기록이 그대로 남아요. CLI만 닫으면 끝이었죠. 그 기능을 CLI에도. 새 세션을 열면 지난 작업을 자동으로 불러와 다시 설명할 필요가 없어요. 이제 매일 로컬 로그를 헬스 체크해서 토큰 낭비를 발견하면 인계 메시지에 한 줄 알림을 붙여요. "보여줘"라고 하면 AI가 내용과 개선 방법을 설명해 줘요. 로컬 기록만 읽고 서버에 연결하지 않아요.',

@@ -5,6 +5,13 @@
 All notable changes to usage are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.0] - 2026-07-25
+
+### Added
+- **AI Council**: a new menu-bar window that runs a multi-round discussion between Claude Code, Codex, and Antigravity (agy) on a topic you give it. Pick which CLIs join and which model each one uses (Opus / Sonnet / Haiku for Claude, Terra / Luna / Sol for Codex, a choice of Gemini models for Antigravity), set 1–5 rounds, and optionally have one participant write a closing summary as moderator. The setup panel collapses into a status bar once a discussion starts, so the transcript and summary panes get the full window height.
+- **Council cost stays visible before you commit to it**: the estimate shown before starting now includes a token total, not just a CLI-call count, and turns amber with a plain multiple-of-two-rounds comparison once 3+ rounds are selected — every extra round costs more than the last, since each participant re-reads the whole transcript so far.
+- **Council supports image attachments and an optional read-only project folder**: drag-and-drop or paste (Cmd+V) images into the topic box, and each participating CLI gets read access to them; a working directory can be attached so participants can reference real project files without write access.
+
 ## [0.28.21] - 2026-07-24
 
 ### Added

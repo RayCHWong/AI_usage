@@ -1,0 +1,959 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 lollapalooza <https://github.com/aqua5230>
+#
+# Part of "usage". Free software licensed under the GNU Affero General Public
+# License v3.0 only; see the LICENSE file for full terms and the warranty disclaimer.
+
+from __future__ import annotations
+
+import base64
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from html.parser import HTMLParser
+from pathlib import Path
+from typing import Any, cast
+
+import pytest
+
+import discussion_window
+
+HTML_PATH = Path(__file__).resolve().parents[1] / "assets" / "windows" / "discussion.html"
+
+
+class FakeWebView:
+    def __init__(self) -> None:
+        self.scripts: list[str] = []
+
+    def evaluateJavaScript_completionHandler_(
+        self,
+        script: str,
+        completion: object,
+    ) -> None:
+        self.scripts.append(script)
+
+
+class FakeBridge:
+    def __init__(self, working_directory: str | None = None) -> None:
+        self.started: tuple[str, list[object], str | None, str | None] | None = None
+        self.stop_count = 0
+        self.clear_count = 0
+        self.clear_status: dict[str, str] = {"status": "ok"}
+        self.working_directory = working_directory
+        self.attachments: object = None
+
+    def start(
+        self,
+        topic: str,
+        participants: list[object],
+        moderator_id: str | None,
+        working_directory: str | None = None,
+        attachments: object = None,
+        total_rounds: int = 2,
+        include_summary: bool = True,
+    ) -> str:
+        self.started = (topic, participants, moderator_id, working_directory)
+        self.working_directory = working_directory
+        self.attachments = attachments
+        return "session"
+
+    def stop(self) -> None:
+        self.stop_count += 1
+
+    def clear(self) -> dict[str, str]:
+        self.clear_count += 1
+        return self.clear_status
+
+    def snapshot(self) -> dict[str, object]:
+        return {
+            "session_id": "session",
+            "status": "PREPARING",
+            "working_directory": self.working_directory,
+        }
+
+    def detect_participants(self) -> list[object]:
+        return []
+
+    def set_event_listener(self, callback: object) -> None:
+        return None
+
+
+class VisibleMarkupTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.hidden_depth = 0
+        self.text: list[str] = []
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        if tag in {"script", "style"}:
+            self.hidden_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"script", "style"}:
+            self.hidden_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self.hidden_depth == 0 and data.strip():
+            self.text.append(data.strip())
+
+
+@pytest.mark.parametrize(
+    ("raw", "action"),
+    [
+        ('{"action":"discussion_attach"}', "discussion_attach"),
+        ('{"action":"discussion_detect"}', "discussion_detect"),
+        ('{"action":"discussion_pick_folder"}', "discussion_pick_folder"),
+        ('{"action":"discussion_clear_folder"}', "discussion_clear_folder"),
+        ('{"action":"discussion_clear"}', "discussion_clear"),
+        ('{"action":"discussion_stop"}', "discussion_stop"),
+    ],
+)
+def test_parse_simple_actions(raw: str, action: str) -> None:
+    assert discussion_window.parse_discussion_action(raw).action == action
+
+
+def test_parse_start_action_validates_and_normalizes_fields() -> None:
+    action = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "問題",
+                "participants": ["claude", "codex"],
+                "moderatorId": "codex",
+                "workingDir": "/tmp/project",
+            }
+        )
+    )
+
+    assert action.topic == "問題"
+    assert action.participants == ("claude", "codex")
+    assert action.moderator_id == "codex"
+    assert action.working_directory == "/tmp/project"
+
+
+def test_parse_start_action_clamps_total_rounds() -> None:
+    action = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "問題",
+                "participants": ["claude"],
+                "totalRounds": 99,
+                "includeSummary": False,
+            }
+        )
+    )
+
+    assert action.total_rounds == 5
+    assert action.include_summary is False
+
+
+def test_parse_start_action_models_optional_defaults_empty() -> None:
+    action = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "x",
+                "participants": ["claude"],
+            }
+        )
+    )
+    assert action.models == {}
+
+
+def test_parse_start_action_rejects_unknown_model_value() -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(
+            json.dumps(
+                {
+                    "action": "discussion_start",
+                    "topic": "x",
+                    "participants": ["claude"],
+                    "models": {"claude": "gpt-5.6-sol"},
+                }
+            )
+        )
+
+
+def test_parse_start_action_rejects_unknown_model_participant() -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(
+            json.dumps(
+                {
+                    "action": "discussion_start",
+                    "topic": "x",
+                    "participants": ["claude"],
+                    "models": {"other": "opus"},
+                }
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"action": "unknown"},
+        {"action": "discussion_start", "topic": 1, "participants": ["claude"]},
+        {"action": "discussion_start", "topic": "x", "participants": []},
+        {"action": "discussion_start", "topic": "x", "participants": ["other"]},
+        {
+            "action": "discussion_start",
+            "topic": "x",
+            "participants": ["claude", "claude"],
+        },
+        {
+            "action": "discussion_start",
+            "topic": "x",
+            "participants": ["claude"],
+            "moderatorId": "codex",
+        },
+        {
+            "action": "discussion_start",
+            "topic": "x",
+            "participants": ["claude"],
+            "workingDir": 1,
+        },
+    ],
+)
+def test_parse_action_rejects_bad_parameters(payload: object) -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(json.dumps(payload))
+
+
+@pytest.mark.parametrize(
+    ("participant_count", "expected"),
+    [(-1, 0), (0, 0), (1, 3), (2, 5), (3, 7), (5, 11)],
+)
+def test_estimate_cli_calls(participant_count: int, expected: int) -> None:
+    assert discussion_window.estimate_cli_calls(participant_count) == expected
+
+
+def test_javascript_serialization_keeps_untrusted_text_as_json_data() -> None:
+    payload = {"text": '"; alert(1); //\n</script>'}
+
+    script = discussion_window.serialize_javascript_call("discussionApplyError", payload)
+    encoded = script.removeprefix("window.discussionApplyError(").removesuffix(")")
+
+    assert json.loads(encoded) == payload
+    assert script.startswith("window.discussionApplyError(")
+
+
+def test_event_batch_adds_snapshot_streaming_metadata_without_mutation() -> None:
+    events = [
+        {
+            "session_id": "session",
+            "event_seq": 1,
+            "kind": "turn_started",
+            "participant_id": "codex",
+            "turn_id": "turn",
+            "payload": {"round_index": 1},
+        }
+    ]
+    snapshot = {
+        "turns": [
+            {
+                "id": "turn",
+                "supports_token_stream": False,
+            }
+        ]
+    }
+
+    script = discussion_window.serialize_event_batch(events, snapshot)
+    encoded = script.removeprefix("window.discussionApplyEvents(").removesuffix(")")
+    result = json.loads(encoded)
+
+    assert result[0]["payload"]["supports_token_stream"] is False
+    assert events[0]["payload"] == {"round_index": 1}
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_dispatches_start_and_stop_actions() -> None:
+    bridge = FakeBridge()
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._receive_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "問題",
+                "participants": ["claude", "codex"],
+                "moderatorId": "codex",
+                "workingDir": "/tmp/project",
+            }
+        )
+    )
+    controller._receive_action('{"action":"discussion_stop"}')
+
+    assert bridge.started is not None
+    assert bridge.started[0] == "問題"
+    assert [cast(Any, participant).id for participant in bridge.started[1]] == [
+        "claude",
+        "codex",
+    ]
+    assert bridge.started[2] == "codex"
+    assert bridge.started[3] == "/tmp/project"
+    assert bridge.stop_count == 1
+    assert any(script.startswith("window.discussionApplySnapshot(") for script in webview.scripts)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_start_carries_whitelisted_model_into_spec() -> None:
+    bridge = FakeBridge()
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._receive_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "x",
+                "participants": ["claude", "codex"],
+                "models": {"claude": "opus", "codex": None},
+            }
+        )
+    )
+
+    assert bridge.started is not None
+    specs = bridge.started[1]
+    assert [cast(Any, spec).id for spec in specs] == ["claude", "codex"]
+    assert cast(Any, specs[0]).model == "opus"
+    assert cast(Any, specs[1]).model is None
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_dispatches_clear_action() -> None:
+    bridge = FakeBridge()
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._receive_action('{"action":"discussion_clear"}')
+
+    assert bridge.clear_count == 1
+    assert any(
+        script.startswith("window.discussionApplySnapshot(") for script in webview.scripts
+    )
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_clear_busy_applies_error_message() -> None:
+    bridge = FakeBridge()
+    bridge.clear_status = {"status": "busy"}
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._receive_action('{"action":"discussion_clear"}')
+
+    assert bridge.clear_count == 1
+    assert any(
+        script.startswith("window.discussionApplyError(") for script in webview.scripts
+    )
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_converts_bad_action_to_javascript_error() -> None:
+    controller = discussion_window.DiscussionWindowController(
+        bridge=cast(Any, FakeBridge()),
+    )
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._receive_action('{"action":"discussion_start","topic":3}')
+
+    assert len(webview.scripts) == 1
+    assert webview.scripts[0].startswith("window.discussionApplyError(")
+    assert "requires a string topic" in webview.scripts[0]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_picks_and_clears_working_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    selected = str(tmp_path / "project")
+    monkeypatch.setattr(discussion_window, "pick_folder", lambda: selected)
+    controller = discussion_window.DiscussionWindowController(
+        bridge=cast(Any, FakeBridge()),
+    )
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._receive_action('{"action":"discussion_pick_folder"}')
+    script_count = len(webview.scripts)
+    monkeypatch.setattr(discussion_window, "pick_folder", lambda: None)
+    controller._receive_action('{"action":"discussion_pick_folder"}')
+    assert len(webview.scripts) == script_count
+    controller._receive_action('{"action":"discussion_clear_folder"}')
+
+    assert webview.scripts[-2:] == [
+        discussion_window.serialize_javascript_call(
+            "discussionApplyWorkingDir", selected
+        ),
+        discussion_window.serialize_javascript_call(
+            "discussionApplyWorkingDir", None
+        ),
+    ]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_restores_working_directory_on_attach(tmp_path: Path) -> None:
+    selected = str(tmp_path / "project")
+    controller = discussion_window.DiscussionWindowController(
+        bridge=cast(Any, FakeBridge(selected)),
+    )
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+
+    controller._apply_full_state()
+
+    assert discussion_window.serialize_javascript_call(
+        "discussionApplyWorkingDir", selected
+    ) in webview.scripts
+
+
+def test_html_uses_isolated_handler_and_safe_dynamic_dom() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert 'const HANDLER = "usageDiscussion"' in html
+    assert "window.discussionApplyEvents" in html
+    assert "window.discussionApplySnapshot" in html
+    assert "window.discussionApplyDetection" in html
+    assert "window.discussionApplyWorkingDir" in html
+    assert "window.discussionApplyError" in html
+    assert ".innerHTML" not in html
+    assert "createElement" in html
+    assert "textContent" in html
+    assert "prefers-color-scheme" in html
+    assert "event.session_id !== currentSessionId" in html
+    assert "sequence <= latestEventSeq" in html
+    assert "workingDirectoryPathEl.textContent" in html
+    assert "workingDir: workingDirectory" in html
+
+
+def test_failed_turn_error_is_collapsed_with_first_line_summary() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert 'document.createElement("details")' in html
+    assert 'document.createElement("summary")' in html
+    assert "fullError.split(/\\r?\\n/, 1)[0]" in html
+    assert "summaryText.textContent = firstLine" in html
+    assert "summaryText.title = firstLine" in html
+    assert "error.textContent = fullError" in html
+    assert "details.open" not in html
+    assert ".turn-error-summary-text" in html
+    assert "text-overflow: ellipsis" in html
+
+
+def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert "border-radius: 12px" in html
+    assert "--surface-raised" in html
+    assert "--brand-claude-soft" in html
+    assert "grid-template-columns: auto minmax(0, 1fr) auto" in html
+    assert "flex-wrap: wrap" in html
+    assert "const PARTICIPANT_ICON_URIS" in html
+    assert '"{{CLAUDE_ICON}}"' in html
+    assert '"{{CODEX_ICON}}"' in html
+    assert "const AGY_BADGE" in html
+    assert "const DEFAULT_PARTICIPANT_BADGE" in html
+    assert 'document.createElement("img")' in html
+    assert 'badge.className = "participant-badge"' in html
+    assert 'badge.alt = ""' in html
+    assert 'document.createElementNS("http://www.w3.org/2000/svg", "svg")' in html
+    assert 'badge.setAttribute("aria-hidden", "true")' in html
+    assert "head.append(createParticipantBadge(id), infoColumn, modelSelect, moderator)" in html
+    assert "chip.append(checkbox, head)" in html
+    assert "url(http" not in html
+
+
+def test_discussion_html_injects_existing_project_icon_data_uris(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        discussion_window,
+        "_data_uri",
+        lambda name: f"data:image/webp;base64,{name}",
+    )
+
+    html = discussion_window._load_discussion_html("en")
+
+    assert "{{CLAUDE_ICON}}" not in html
+    assert "{{CODEX_ICON}}" not in html
+    assert "data:image/webp;base64,claude.webp" in html
+    assert "data:image/webp;base64,codex.webp" in html
+
+
+@pytest.mark.parametrize(
+    ("topic", "participant_count", "status", "expected"),
+    [
+        ("", 1, "IDLE", False),
+        (" \n\t", 1, "COMPLETED", False),
+        ("question", 0, "IDLE", False),
+        ("question", 1, "IDLE", True),
+        ("question", 2, "COMPLETED", True),
+        ("question", 1, "PREPARING", False),
+        ("question", 1, "ROUND1_RUNNING", False),
+        ("question", 1, "ROUND2_RUNNING", False),
+        ("question", 1, "SUMMARIZING", False),
+        ("question", 1, "CANCELLING", False),
+        ("question", 1, "FAILED", True),
+    ],
+)
+def test_start_button_logic(
+    topic: str,
+    participant_count: int,
+    status: str,
+    expected: bool,
+) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to evaluate the pure browser control function")
+    html = HTML_PATH.read_text(encoding="utf-8")
+    statuses = re.search(
+        r"    const RUNNING_STATUSES = new Set\(\[.*?^    \]\);",
+        html,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    function = re.search(
+        r"    function canStartDiscussion\(.*?^    \}",
+        html,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert statuses is not None
+    assert function is not None
+    invocation = (
+        f"{statuses.group(0)}\n{function.group(0)}\n"
+        "process.stdout.write(JSON.stringify(canStartDiscussion("
+        f"{json.dumps(topic)}, {participant_count}, {json.dumps(status)})));"
+    )
+
+    result = subprocess.run(
+        [node, "-e", invocation],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(result.stdout) is expected
+
+
+def test_html_controls_and_history_follow_use_reviewed_logic() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert "function canStartDiscussion(topic, participantCount, status)" in html
+    assert "startEl.disabled = !canStartDiscussion(" in html
+    assert "stopEl.disabled = !running" in html
+    assert "PARTICIPANT_IDS.filter((id) => selected.has(id))" in html
+    assert "function isHistoryNearBottom()" in html
+    assert "return distance < 80" in html
+    assert "if (wasNearBottom && shouldFollow)" in html
+    assert "scrollHistoryToBottom()" in html
+    assert "historyEl.scrollTop = previousScrollTop" in html
+
+
+def test_moderator_chip_keeps_existing_start_payload_and_rejects_unavailable() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert "moderatorId: moderatorId || null" in html
+    assert "moderator.disabled = !available || !selected.has(id) || isRunning();" in html
+    assert "if (!available || !selected.has(id) || isRunning()) return;" in html
+
+
+def test_html_colors_are_tokenized_with_light_mode_overrides() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+    styles = html.split("<style>", 1)[1].split("</style>", 1)[0]
+
+    assert "@media (prefers-color-scheme: light)" in styles
+    assert "@media (prefers-color-scheme: dark)" not in styles
+    assert "color: white" not in styles
+    assert "background: transparent" not in styles
+
+
+def test_copy_feedback_uses_i18n_and_four_section_plain_text() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert "function summaryForClipboard()" in html
+    assert "SUMMARY_HEADINGS.map" in html
+    assert 't("discussion_copied")' in html
+    assert 't("discussion_copy_failed")' in html
+    assert "JSON.stringify(summaryText)" not in html
+
+
+def test_html_visible_static_elements_use_i18n_keys() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    for key in (
+        "discussion_topic_label",
+        "discussion_topic_placeholder",
+        "discussion_attach_image",
+        "discussion_attachment_hint",
+        "discussion_participants",
+        "discussion_moderator",
+        "discussion_working_directory",
+        "discussion_pick_folder",
+        "discussion_clear_folder",
+        "discussion_working_directory_none",
+        "discussion_working_directory_warning",
+        "discussion_start",
+        "discussion_stop",
+        "discussion_history",
+        "discussion_summary",
+        "discussion_copy",
+    ):
+        assert f'"{key}"' in html
+    parser = VisibleMarkupTextParser()
+    parser.feed(html)
+    assert parser.text == []
+
+
+def test_window_source_keeps_bridge_logic_out_and_main_thread_drain_batched() -> None:
+    source = Path(discussion_window.__file__).read_text(encoding="utf-8")
+
+    assert "class _DiscussionWindow(NSWindow)" in source
+    assert "def canBecomeMainWindow" in source
+    assert "def canBecomeKeyWindow" in source
+    assert "drain_events(50)" in source
+    assert "evaluateJavaScript_completionHandler_" in source
+    assert "run_streaming" not in source
+    assert "subprocess" not in source
+    assert "build_round1_prompt" not in source
+
+
+def test_build_attachment_name_uses_timestamp_and_index() -> None:
+    assert (
+        discussion_window.build_attachment_name("20260724-185530", 1, ".png")
+        == "20260724-185530-1.png"
+    )
+    assert (
+        discussion_window.build_attachment_name("20260724-185530", 12, ".jpg")
+        == "20260724-185530-12.jpg"
+    )
+
+
+def test_prune_attachments_keeps_newest_fifty(tmp_path: Path) -> None:
+    directory = tmp_path / "attachments"
+    directory.mkdir()
+    for index in range(55):
+        entry = directory / f"2026010{index // 10}-00000{index % 10}-{index}.png"
+        entry.write_bytes(b"x")
+        stat = entry.stat()
+        os.utime(entry, (stat.st_atime, 1_000_000 + index))
+
+    discussion_window.prune_attachments(directory=directory, keep=50)
+
+    remaining = sorted(directory.iterdir(), key=lambda path: path.name)
+    assert len(remaining) == 50
+    remaining_indexes = {
+        int(path.name.rsplit("-", 1)[1].split(".", 1)[0]) for path in remaining
+    }
+    assert remaining_indexes == set(range(5, 55))
+
+
+def test_save_attachment_bytes_writes_timestamped_names_and_prunes(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "attachments"
+    first = discussion_window.save_attachment_bytes(b"data", ".png", directory=directory)
+    second = discussion_window.save_attachment_bytes(b"data", ".png", directory=directory)
+
+    assert first.is_file() and second.is_file()
+    assert first.parent == directory
+    assert re.fullmatch(r"\d{8}-\d{6}-\d+\.png", first.name)
+    assert second != first
+
+
+def test_import_attachment_file_copies_supported_rejects_others(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "attachments"
+    src = tmp_path / "screen.png"
+    src.write_bytes(b"png")
+    unsupported = tmp_path / "notes.txt"
+    unsupported.write_bytes(b"text")
+
+    copied = discussion_window.import_attachment_file(str(src), directory=directory)
+    assert copied is not None
+    assert copied.is_file()
+    assert copied.parent == directory
+    assert copied.read_bytes() == b"png"
+
+    assert (
+        discussion_window.import_attachment_file(str(unsupported), directory=directory)
+        is None
+    )
+    assert (
+        discussion_window.import_attachment_file(
+            str(tmp_path / "missing.png"), directory=directory
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"action":"discussion_paste_image"}',
+        '{"action":"discussion_pick_image"}',
+    ],
+)
+def test_parse_simple_attachment_actions(raw: str) -> None:
+    assert (
+        discussion_window.parse_discussion_action(raw).action
+        == json.loads(raw)["action"]
+    )
+
+
+def test_parse_remove_attachment_requires_string_path() -> None:
+    parsed = discussion_window.parse_discussion_action(
+        json.dumps(
+            {"action": "discussion_remove_attachment", "path": "/tmp/x.png"}
+        )
+    )
+    assert parsed.action == "discussion_remove_attachment"
+    assert parsed.attachment_path == "/tmp/x.png"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"action": "discussion_remove_attachment"},
+        {"action": "discussion_remove_attachment", "path": ""},
+        {"action": "discussion_remove_attachment", "path": 3},
+    ],
+)
+def test_parse_remove_attachment_rejects_bad_path(payload: object) -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(json.dumps(payload))
+
+
+def test_parse_start_action_carries_attachments() -> None:
+    parsed = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "問題",
+                "participants": ["claude"],
+                "attachments": ["/tmp/a.png", "/tmp/b.jpg"],
+            }
+        )
+    )
+    assert parsed.attachments == ("/tmp/a.png", "/tmp/b.jpg")
+
+
+def test_parse_start_rejects_non_string_attachments() -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(
+            json.dumps(
+                {
+                    "action": "discussion_start",
+                    "topic": "x",
+                    "participants": ["claude"],
+                    "attachments": ["/tmp/a.png", 3],
+                }
+            )
+        )
+
+
+def _attachments_controller(bridge: object) -> Any:
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    webview = FakeWebView()
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = webview
+    return controller
+
+
+def _last_attachment_payload(scripts: list[str]) -> dict[str, object]:
+    matches = [
+        script
+        for script in scripts
+        if script.startswith("window.discussionApplyAttachments(")
+    ]
+    assert matches
+    encoded = matches[-1].removeprefix("window.discussionApplyAttachments(").removesuffix(")")
+    return cast(dict[str, object], json.loads(encoded))
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_paste_image_saves_attachment_and_applies(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    saved = tmp_path / "20260724-185530-1.png"
+    monkeypatch.setattr(
+        discussion_window, "read_pasteboard_image", lambda: (b"png", ".png")
+    )
+    monkeypatch.setattr(
+        discussion_window,
+        "save_attachment_bytes",
+        lambda data, suffix, directory=discussion_window.ATTACHMENTS_DIR: saved,
+    )
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action('{"action":"discussion_paste_image"}')
+
+    assert controller._attachments == [{"name": saved.name, "path": str(saved)}]
+    payload = _last_attachment_payload(controller.webview.scripts)
+    assert payload["attachments"] == [{"name": saved.name, "path": str(saved)}]
+    assert payload["hint"] is None
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_paste_without_image_reports_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(discussion_window, "read_pasteboard_image", lambda: None)
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action('{"action":"discussion_paste_image"}')
+
+    assert controller._attachments == []
+    payload = _last_attachment_payload(controller.webview.scripts)
+    assert payload["hint"]
+
+
+def test_parse_drop_image_carries_data_and_name() -> None:
+    parsed = discussion_window.parse_discussion_action(
+        json.dumps(
+            {"action": "discussion_drop_image", "data": "cG5n", "name": "x.png"}
+        )
+    )
+    assert parsed.action == "discussion_drop_image"
+    assert parsed.attachment_data == "cG5n"
+    assert parsed.attachment_name == "x.png"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"action": "discussion_drop_image", "name": "x.png"},
+        {"action": "discussion_drop_image", "data": "cG5n"},
+        {"action": "discussion_drop_image", "data": "", "name": "x.png"},
+        {"action": "discussion_drop_image", "data": "cG5n", "name": " "},
+        {"action": "discussion_drop_image", "data": 3, "name": "x.png"},
+        {"action": "discussion_drop_image", "data": "cG5n", "name": None},
+    ],
+)
+def test_parse_drop_image_rejects_bad_fields(payload: object) -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(json.dumps(payload))
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_drop_image_decodes_and_saves_attachment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    saved = tmp_path / "20260724-185530-1.png"
+    captured: dict[str, object] = {}
+
+    def fake_save(
+        data: bytes,
+        suffix: str,
+        directory: Path = discussion_window.ATTACHMENTS_DIR,
+    ) -> Path:
+        captured["data"] = data
+        captured["suffix"] = suffix
+        return saved
+
+    monkeypatch.setattr(discussion_window, "save_attachment_bytes", fake_save)
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action(
+        json.dumps(
+            {
+                "action": "discussion_drop_image",
+                "data": base64.b64encode(b"png").decode(),
+                "name": "screen.png",
+            }
+        )
+    )
+
+    assert captured == {"data": b"png", "suffix": ".png"}
+    assert controller._attachments == [{"name": saved.name, "path": str(saved)}]
+    payload = _last_attachment_payload(controller.webview.scripts)
+    assert payload["attachments"] == [{"name": saved.name, "path": str(saved)}]
+    assert payload["hint"] is None
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_drop_non_image_suffix_reports_hint() -> None:
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action(
+        json.dumps(
+            {
+                "action": "discussion_drop_image",
+                "data": base64.b64encode(b"text").decode(),
+                "name": "notes.txt",
+            }
+        )
+    )
+
+    assert controller._attachments == []
+    payload = _last_attachment_payload(controller.webview.scripts)
+    assert payload["hint"]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_pick_image_imports_attachment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    src = tmp_path / "source.png"
+    src.write_bytes(b"png")
+    copied = tmp_path / "attachments" / "20260724-185530-1.png"
+    copied.parent.mkdir()
+    monkeypatch.setattr(discussion_window, "pick_image_file", lambda: str(src))
+    monkeypatch.setattr(
+        discussion_window,
+        "import_attachment_file",
+        lambda path, directory=discussion_window.ATTACHMENTS_DIR: copied,
+    )
+    controller = _attachments_controller(FakeBridge())
+
+    controller._receive_action('{"action":"discussion_pick_image"}')
+
+    assert controller._attachments == [{"name": copied.name, "path": str(copied)}]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_remove_attachment_deletes_file(tmp_path: Path) -> None:
+    target = tmp_path / "20260724-185530-1.png"
+    target.write_bytes(b"png")
+    controller = _attachments_controller(FakeBridge())
+    controller._attachments = [{"name": target.name, "path": str(target)}]
+
+    controller._receive_action(
+        json.dumps({"action": "discussion_remove_attachment", "path": str(target)})
+    )
+
+    assert controller._attachments == []
+    assert not target.exists()

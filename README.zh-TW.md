@@ -61,6 +61,7 @@ brew install --cask aqua5230/usage/usage
 - **10 款視覺面板：** 可在 Classic、Matrix、Windows 95、Newspaper、Cloud Observation、Midnight Aquarium、Prism Arcade、Black Hole、World Cup 2026 與 Lepidoptera（藍曬圖）之間切換。
 - **拖曳排序：** 按住任何一張額度卡上下拖曳就能交換順序，排法在所有主題間共用、重開也會記住。
 - **AI 人才市場：** 將整個 AI 團隊帶進 Claude Code。瀏覽並一鍵將精選 subagent persona 安裝到 `~/.claude/agents/`，全程透過內建 CLI 在本機完成。
+- **AI 圓桌討論：** 開一個獨立視窗，讓 Claude Code、Codex、Antigravity 針對你給的題目進行多輪討論——自選誰加入、各自用哪個模型、討論幾輪，開始前就看得到大約會花多少 token。支援圖片附件與唯讀的專案資料夾，讓參與者能參考真實檔案。
 - **AI 更新日報：** 點下這個選單項目，會用預設瀏覽器開啟公開[網頁](https://aqua5230.github.io/ai-updates/)。網頁每天自動更新、涵蓋 Claude Code、Codex、Antigravity 三套工具、保留完整歷史；已審核的更新顯示五語白話版，未審核的顯示官方原文。
 - **神獸夥伴：** 百分比旁常駐一隻小型白色動畫神獸（Claude 是鳳凰，Codex 是飛龍，Antigravity 是獅子），各自跟著自家工具的 token 燃燒率動態加速。
 - **自動多語言 (i18n)：** 介面支援繁中、簡中、英、日、韓，自動跟隨系統語言設定。
@@ -154,6 +155,7 @@ Windows 的差異：面板開在工作區右下角，而非貼齊系統匣圖示
 | Claude Code 與 Codex 服務狀態警示 | ✅ | — | — |
 | HTML 深度報告與 UI 面板 | ✅ | ✅ | — |
 | AI 人才市場 | ✅ | — | — |
+| AI 圓桌討論 | ✅ | — | — |
 | AI 更新日報 | ✅ | — | — |
 | 進度管家與省 token 模式 | ✅ | — | — |
 | Token 浪費健檢 | ✅ | — | — |

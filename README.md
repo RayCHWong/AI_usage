@@ -61,6 +61,7 @@ It lands in your Applications folder automatically. Right-click **Open** once to
 - **10 Visual Themes:** Switch between panel styles including Classic, Matrix, Windows 95, Newspaper, Cloud Observation, Midnight Aquarium, Prism Arcade, Black Hole, World Cup 2026, and Lepidoptera (blueprint).
 - **Drag to Reorder:** Grab any quota card and drag it up or down to swap the order — the arrangement is shared across every theme and survives restarts.
 - **AI Talent Market:** Bring a ready-made AI team into Claude Code. Browse and install curated subagent personas into `~/.claude/agents/` instantly. Runs fully locally via the bundled CLI.
+- **AI Council:** Open a dedicated window and run a multi-round discussion between Claude Code, Codex, and Antigravity on a topic you give it — pick who joins, which model each one uses, and how many rounds, with a token estimate shown before you start. Supports image attachments and an optional read-only project folder so participants can reference real files.
 - **AI Update Daily:** Clicking this menu item opens the public [web page](https://aqua5230.github.io/ai-updates/) in your default browser. The page auto-updates every day, covers Claude Code, Codex, and Antigravity, and keeps the full history; reviewed updates show a plain-language summary in all five languages, while unreviewed ones show the official source text.
 - **Spirit Companions:** A small animated white silhouette lives beside your usage percentages — a phoenix for Claude, a dragon for Codex, a lion for Antigravity. Each accelerates dynamically as its own tool's token burn rate climbs.
 - **Automatic Localization:** UI text is available in Traditional Chinese, Simplified Chinese, English, Japanese, and Korean, automatically matching your system settings.
@@ -154,6 +155,7 @@ If the menu bar shows `--`, it's usually not broken — there's just no local da
 | Claude Code & Codex service-status alerts | ✅ | — | — |
 | HTML deep reports & UI | ✅ | ✅ | — |
 | AI Talent Market | ✅ | — | — |
+| AI Council | ✅ | — | — |
 | AI Update Daily | ✅ | — | — |
 | Progress Concierge & Token Saver | ✅ | — | — |
 | Token-waste Health Check | ✅ | — | — |

@@ -59,6 +59,7 @@ if __name__ == "__main__":
             "assets/agy_color_menubar.png",
             "assets/critters",
             "assets/panels",
+            "assets/windows",
             "i18n.json",
             "pyproject.toml",
             "usage_statusline.py",
@@ -90,6 +91,13 @@ if __name__ == "__main__":
             "i18n",
             "usage_cli",
             "talent_market_bridge",
+            # discussion_window is lazy-imported inside menubar.toggleDiscussion_,
+            # so py2app's dependency graph can't reach it (or the three core
+            # modules it pulls in) from main.py — list them explicitly.
+            "discussion_session",
+            "discussion_cli",
+            "discussion_bridge",
+            "discussion_window",
             "rich",
             "rich.align",
             "rich.console",
