@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from collections import Counter
@@ -363,7 +364,7 @@ def test_completed_session_is_archived_as_json_and_markdown(
     _wait_terminal(bridge)
 
     assert (archive_dir / f"{session_id}.json").is_file()
-    markdown = (archive_dir / f"{session_id}.md").read_text()
+    markdown = (archive_dir / f"{session_id}.md").read_text(encoding="utf-8")
     assert "存檔主題" in markdown
     assert "## 主持人總結" in markdown
 
@@ -973,6 +974,9 @@ def test_participants_are_redetected_for_every_start(
     assert adapters["solo"].detect_count == 2
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="login_shell source hardcodes the POSIX /bin/zsh shell"
+)
 def test_custom_argv_and_login_shell_sources_build_safe_invocations(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

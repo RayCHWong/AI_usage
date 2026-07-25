@@ -31,6 +31,11 @@ from discussion_cli import (
 )
 from discussion_usage import TurnUsage
 
+# A syntactically absolute CLI path these tests use as a stand-in wherever they
+# only need `Path(...).is_absolute()` to hold and never actually execute the
+# file — "/bin/echo" is not absolute under Windows' pathlib semantics.
+FAKE_CLI_PATH = "C:\\fake\\echo.exe" if sys.platform == "win32" else "/bin/echo"
+
 
 class FakeProcess:
     def __init__(
@@ -174,14 +179,17 @@ def test_detection_order_user_configured_then_which_then_candidate(
     assert result.source == "candidate_dir"
     assert result.path == str(candidate)
 
-    candidate.chmod(0o644)
-    assert adapter.detect().source == "not_found"
+    if sys.platform != "win32":
+        # Windows has no executable-bit concept; os.access(X_OK) stays True
+        # for any existing file there regardless of chmod.
+        candidate.chmod(0o644)
+        assert adapter.detect().source == "not_found"
 
 
 def test_invalid_configured_path_does_not_silently_fall_back(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(shutil, "which", lambda name: "/bin/echo")
+    monkeypatch.setattr(shutil, "which", lambda name: FAKE_CLI_PATH)
     result = ClaudeAdapter("relative/claude").detect()
 
     assert result.available is False
@@ -193,9 +201,9 @@ def test_invalid_configured_path_does_not_silently_fall_back(
     ("adapter", "expected"),
     [
         (
-            ClaudeAdapter("/bin/echo"),
+            ClaudeAdapter(FAKE_CLI_PATH),
             (
-                "/bin/echo",
+                FAKE_CLI_PATH,
                 "-p",
                 "--safe-mode",
                 "--setting-sources",
@@ -208,9 +216,9 @@ def test_invalid_configured_path_does_not_silently_fall_back(
             ),
         ),
         (
-            CodexAdapter("/bin/echo"),
+            CodexAdapter(FAKE_CLI_PATH),
             (
-                "/bin/echo",
+                FAKE_CLI_PATH,
                 "exec",
                 "--skip-git-repo-check",
                 "--ignore-user-config",
@@ -219,8 +227,8 @@ def test_invalid_configured_path_does_not_silently_fall_back(
             ),
         ),
         (
-            AgyAdapter("/bin/echo"),
-            ("/bin/echo", "--output-format", "stream-json", "-p", "問題"),
+            AgyAdapter(FAKE_CLI_PATH),
+            (FAKE_CLI_PATH, "--output-format", "stream-json", "-p", "問題"),
         ),
     ],
 )
@@ -235,7 +243,7 @@ def test_builtin_invocation_argv_is_exact(
 
 
 def test_codex_invocation_never_bypasses_approvals_or_sandbox() -> None:
-    invocation = CodexAdapter("/bin/echo").build_invocation("問題", None)
+    invocation = CodexAdapter(FAKE_CLI_PATH).build_invocation("問題", None)
 
     assert "--skip-git-repo-check" in invocation.argv
     assert "--ignore-user-config" in invocation.argv
@@ -243,7 +251,7 @@ def test_codex_invocation_never_bypasses_approvals_or_sandbox() -> None:
 
 
 def test_claude_invocation_uses_safe_mode_without_bare() -> None:
-    invocation = ClaudeAdapter("/bin/echo").build_invocation("問題", None)
+    invocation = ClaudeAdapter(FAKE_CLI_PATH).build_invocation("問題", None)
 
     assert "--safe-mode" in invocation.argv
     assert "--setting-sources" in invocation.argv
@@ -285,7 +293,7 @@ def test_neutral_working_directory_wraps_creation_failure(
 
 def test_explicit_cwd_bypasses_default_neutral_directory(tmp_path: Path) -> None:
     explicit = tmp_path / "project"
-    invocation = ClaudeAdapter("/bin/echo", cwd=str(explicit)).build_invocation("問題", None)
+    invocation = ClaudeAdapter(FAKE_CLI_PATH, cwd=str(explicit)).build_invocation("問題", None)
 
     assert invocation.cwd == str(explicit)
 
@@ -322,7 +330,7 @@ def test_builtin_project_invocation_is_read_only(
     project = tmp_path / "project"
     project.mkdir()
     invocation = adapter(
-        "/bin/echo",
+        FAKE_CLI_PATH,
         cwd=str(project),
         read_only=True,
     ).build_invocation("問題", None)
@@ -335,7 +343,7 @@ def test_claude_read_only_tools_flag_does_not_swallow_prompt(tmp_path: Path) -> 
     project = tmp_path / "project"
     project.mkdir()
     invocation = ClaudeAdapter(
-        "/bin/echo",
+        FAKE_CLI_PATH,
         cwd=str(project),
         read_only=True,
     ).build_invocation("問題", None)
@@ -352,14 +360,14 @@ def test_agy_project_invocation_only_changes_cwd(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
     invocation = AgyAdapter(
-        "/bin/echo",
+        FAKE_CLI_PATH,
         cwd=str(project),
         read_only=True,
     ).build_invocation("問題", None)
 
     assert invocation.cwd == str(project.resolve())
     assert invocation.argv == (
-        "/bin/echo",
+        FAKE_CLI_PATH,
         "--output-format",
         "stream-json",
         "-p",
@@ -378,7 +386,7 @@ def test_extra_read_dirs_emits_add_dir_per_existing_folder(
     target = tmp_path / "shots"
     target.mkdir()
     invocation = adapter(
-        "/bin/echo",
+        FAKE_CLI_PATH,
         extra_read_dirs=[str(target), str(tmp_path / "missing")],
     ).build_invocation("問題", None)
 
@@ -396,7 +404,7 @@ def test_extra_read_dirs_emits_add_dir_per_existing_folder(
 def test_extra_read_dirs_omitted_when_empty(
     adapter: type[ClaudeAdapter] | type[CodexAdapter] | type[AgyAdapter],
 ) -> None:
-    invocation = adapter("/bin/echo").build_invocation("問題", None)
+    invocation = adapter(FAKE_CLI_PATH).build_invocation("問題", None)
 
     assert "--add-dir" not in invocation.argv
 
@@ -409,7 +417,7 @@ def test_claude_read_only_with_extra_read_dirs_keeps_prompt_last(
     shots = tmp_path / "shots"
     shots.mkdir()
     invocation = ClaudeAdapter(
-        "/bin/echo",
+        FAKE_CLI_PATH,
         cwd=str(project),
         read_only=True,
         extra_read_dirs=[str(shots)],
@@ -445,7 +453,7 @@ def test_project_invocations_never_enable_writes(
     project = tmp_path / "project"
     project.mkdir()
     invocations = [
-        adapter("/bin/echo", cwd=str(project), read_only=True).build_invocation(
+        adapter(FAKE_CLI_PATH, cwd=str(project), read_only=True).build_invocation(
             "問題", None
         )
         for adapter in (ClaudeAdapter, CodexAdapter, AgyAdapter)
@@ -466,7 +474,7 @@ def test_project_invocation_rejects_invalid_working_directory(
 
     with pytest.raises(ValueError, match="working directory"):
         ClaudeAdapter(
-            "/bin/echo",
+            FAKE_CLI_PATH,
             cwd=value,
             read_only=True,
         ).build_invocation("問題", None)
