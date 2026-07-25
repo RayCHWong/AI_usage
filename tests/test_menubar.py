@@ -1146,22 +1146,28 @@ def test_popover_size_deducts_one_missing_codex_row(
     assert menubar._popover_size(state, panel).height == full_height - 64.0
 
 
-def test_popover_size_adds_status_wrap_height_only_for_classic(
+def test_popover_size_adds_status_wrap_height_only_where_meta_wraps(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Panels lay the rate and status pills side by side, so a long status string
+    # wraps and needs the extra height back. The 12px-font panels (aquarium and
+    # friends) still fit on one line at 364pt wide, so they get nothing.
     monkeypatch.setattr(menubar, "_load_preferences", lambda: {})
     monkeypatch.setattr(menubar_agy, "find_agy", lambda: None)
     state = menubar._empty_state()
     classic = panels.get_panel("classic")
     matrix = panels.get_panel("matrix")
+    aquarium = panels.get_panel("aquarium")
 
     state.status_long = False
     classic_short = menubar._popover_size(state, classic).height
     matrix_short = menubar._popover_size(state, matrix).height
+    aquarium_short = menubar._popover_size(state, aquarium).height
     state.status_long = True
 
     assert menubar._popover_size(state, classic).height == classic_short + 30.0
-    assert menubar._popover_size(state, matrix).height == matrix_short
+    assert menubar._popover_size(state, matrix).height == matrix_short + 32.0
+    assert menubar._popover_size(state, aquarium).height == aquarium_short
 
 
 def test_empty_state_keeps_agy_card_visible_during_initial_probe(
