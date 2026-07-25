@@ -23,6 +23,7 @@ import discussion_window
 from discussion_session import DebateStyle
 
 HTML_PATH = Path(__file__).resolve().parents[1] / "assets" / "windows" / "discussion.html"
+I18N_PATH = Path(__file__).resolve().parents[1] / "i18n.json"
 
 
 class FakeWebView:
@@ -45,6 +46,7 @@ class FakeBridge:
         self.clear_status: dict[str, str] = {"status": "ok"}
         self.working_directory = working_directory
         self.attachments: object = None
+        self.end_on_consensus = False
 
     def start(
         self,
@@ -55,11 +57,13 @@ class FakeBridge:
         attachments: object = None,
         total_rounds: int = 2,
         include_summary: bool = True,
+        end_on_consensus: bool = False,
         debate_style: DebateStyle = DebateStyle.CONSTRUCTIVE,
     ) -> str:
         self.started = (topic, participants, moderator_id, working_directory)
         self.working_directory = working_directory
         self.attachments = attachments
+        self.end_on_consensus = end_on_consensus
         return "session"
 
     def stop(self) -> None:
@@ -155,7 +159,37 @@ def test_parse_start_action_clamps_total_rounds() -> None:
 
     assert action.total_rounds == 5
     assert action.include_summary is False
+    assert action.end_on_consensus is False
     assert action.debate_style is DebateStyle.CONSTRUCTIVE
+
+
+def test_parse_start_action_accepts_end_on_consensus() -> None:
+    action = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "問題",
+                "participants": ["claude", "codex"],
+                "endOnConsensus": True,
+            }
+        )
+    )
+
+    assert action.end_on_consensus is True
+
+
+def test_parse_start_action_rejects_non_boolean_end_on_consensus() -> None:
+    with pytest.raises(ValueError, match="endOnConsensus"):
+        discussion_window.parse_discussion_action(
+            json.dumps(
+                {
+                    "action": "discussion_start",
+                    "topic": "問題",
+                    "participants": ["claude", "codex"],
+                    "endOnConsensus": 1,
+                }
+            )
+        )
 
 
 @pytest.mark.parametrize("style", list(DebateStyle))
@@ -527,6 +561,7 @@ def test_html_uses_isolated_handler_and_safe_dynamic_dom() -> None:
     assert "sequence <= latestEventSeq" in html
     assert "workingDirectoryPathEl.textContent" in html
     assert "workingDir: workingDirectory" in html
+    assert "endOnConsensus: endOnConsensusEl.checked" in html
 
 
 def test_failed_turn_error_is_collapsed_with_first_line_summary() -> None:
@@ -830,6 +865,8 @@ def test_html_visible_static_elements_use_i18n_keys() -> None:
         "discussion_persona_other",
         "discussion_debate_style",
         "discussion_consensus_count_summary",
+        "discussion_end_on_consensus",
+        "discussion_consensus_early_exit",
         "discussion_working_directory",
         "discussion_pick_folder",
         "discussion_clear_folder",
@@ -845,6 +882,23 @@ def test_html_visible_static_elements_use_i18n_keys() -> None:
     parser = VisibleMarkupTextParser()
     parser.feed(html)
     assert parser.text == []
+
+
+def test_consensus_controls_and_usage_caps_are_translated_in_all_languages() -> None:
+    bundle = json.loads(I18N_PATH.read_text(encoding="utf-8"))
+    cap_markers = {
+        "zh-TW": "最多",
+        "zh-CN": "最多",
+        "en": "up to",
+        "ja": "最大",
+        "ko": "최대",
+    }
+
+    for language, marker in cap_markers.items():
+        translations = bundle[language]
+        assert translations["discussion_end_on_consensus"]
+        assert "{round}" in translations["discussion_consensus_early_exit"]
+        assert marker in translations["discussion_estimate_tokens"]
 
 
 def test_window_source_keeps_bridge_logic_out_and_main_thread_drain_batched() -> None:

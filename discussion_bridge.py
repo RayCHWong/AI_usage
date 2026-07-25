@@ -39,6 +39,7 @@ from discussion_cli import (
     validate_project_working_directory,
 )
 from discussion_session import (
+    ConsensusCount,
     DebateStyle,
     DiscussionEvent,
     DiscussionSession,
@@ -252,6 +253,7 @@ class DiscussionBridge:
         attachments: Sequence[str] | None = None,
         total_rounds: int = 2,
         include_summary: bool = True,
+        end_on_consensus: bool = False,
         debate_style: DebateStyle = DebateStyle.CONSTRUCTIVE,
     ) -> str:
         normalized_topic = topic.strip()
@@ -318,6 +320,7 @@ class DiscussionBridge:
                     effective_topic,
                     rounds,
                     include_summary,
+                    end_on_consensus,
                     debate_style,
                     cancel_event,
                 ),
@@ -410,6 +413,7 @@ class DiscussionBridge:
         effective_topic: str,
         total_rounds: int,
         include_summary: bool,
+        end_on_consensus: bool,
         debate_style: DebateStyle,
         cancel_event: threading.Event,
     ) -> None:
@@ -484,13 +488,19 @@ class DiscussionBridge:
                     round_prompt,
                     cancel_event,
                 )
-                if round_index >= 2:
-                    self._publish_consensus_count(session, cancel_event)
+                consensus = self._publish_consensus_count(session, cancel_event)
                 survivors = [
                     result
                     for result in round_results
                     if result.success
                 ]
+                if end_on_consensus and _is_unanimous_consensus(consensus):
+                    self._mark_consensus_reached(
+                        session,
+                        round_index,
+                        cancel_event,
+                    )
+                    break
                 if cancel_event.is_set() or not survivors:
                     break
             if cancel_event.is_set() or not survivors or not include_summary:
@@ -857,11 +867,24 @@ class DiscussionBridge:
         self,
         session: DiscussionSession,
         cancel_event: threading.Event,
+    ) -> ConsensusCount:
+        with self._event_order_lock:
+            if cancel_event.is_set():
+                return ConsensusCount()
+            event = session.count_consensus()
+            self._enqueue_event_locked(event)
+            return ConsensusCount(**event.payload)
+
+    def _mark_consensus_reached(
+        self,
+        session: DiscussionSession,
+        round_index: int,
+        cancel_event: threading.Event,
     ) -> bool:
         with self._event_order_lock:
             if cancel_event.is_set():
                 return False
-            self._enqueue_event_locked(session.count_consensus())
+            self._enqueue_event_locked(session.mark_consensus_reached(round_index))
             return True
 
     def _transition(
@@ -974,6 +997,15 @@ def _turn_text(session: DiscussionSession, turn_id: str) -> str:
 def _anonymous_participant_label(index: int) -> str:
     """Return a stable A, B, … label for a zero-based participant index."""
     return f"參與者 {chr(ord('A') + index)}" if index < 26 else f"參與者 {index + 1}"
+
+
+def _is_unanimous_consensus(consensus: ConsensusCount) -> bool:
+    return (
+        consensus.agree >= 2
+        and consensus.disagree == 0
+        and consensus.alternative == 0
+        and consensus.unparsed == 0
+    )
 
 
 def _render_discussion_markdown(snapshot: dict[str, object]) -> str:

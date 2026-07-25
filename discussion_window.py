@@ -263,6 +263,7 @@ class DiscussionAction:
     attachments: tuple[str, ...] = ()
     total_rounds: int = 2
     include_summary: bool = True
+    end_on_consensus: bool = False
     models: Mapping[str, str | None] = field(default_factory=dict)
     personas: Mapping[str, str | None] = field(default_factory=dict)
     debate_style: DebateStyle = DebateStyle.CONSTRUCTIVE
@@ -343,11 +344,14 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
     attachments_value = payload.get("attachments")
     rounds_value = payload.get("totalRounds", 2)
     include_summary_value = payload.get("includeSummary", True)
+    end_on_consensus_value = payload.get("endOnConsensus", False)
     debate_style_value = payload.get("debateStyle", DebateStyle.CONSTRUCTIVE.value)
     if not isinstance(rounds_value, int) or isinstance(rounds_value, bool):
         raise ValueError("discussion_start totalRounds must be an integer")
     if not isinstance(include_summary_value, bool):
         raise ValueError("discussion_start includeSummary must be a boolean")
+    if not isinstance(end_on_consensus_value, bool):
+        raise ValueError("discussion_start endOnConsensus must be a boolean")
     if not isinstance(debate_style_value, str):
         raise ValueError("discussion_start debateStyle must be a string")
     try:
@@ -376,6 +380,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         attachments=attachments,
         total_rounds=min(5, max(1, rounds_value)),
         include_summary=include_summary_value,
+        end_on_consensus=end_on_consensus_value,
         models=models,
         personas=personas,
         debate_style=debate_style,
@@ -795,6 +800,7 @@ class DiscussionWindowController:
                     attachments=action.attachments,
                     total_rounds=action.total_rounds,
                     include_summary=action.include_summary,
+                    end_on_consensus=action.end_on_consensus,
                     debate_style=action.debate_style,
                 )
                 snapshot = self.bridge.snapshot()

@@ -1026,6 +1026,12 @@
       line-height: 1.4;
     }
 
+    .consensus-early-exit {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
     .turn-text,
     .turn-error,
     .summary-text {
@@ -1222,6 +1228,11 @@
                 <span class="switch" aria-hidden="true"></span>
                 <span data-i18n="discussion_include_summary"></span>
               </label>
+              <label class="summary-toggle" for="end-on-consensus">
+                <input id="end-on-consensus" type="checkbox">
+                <span class="switch" aria-hidden="true"></span>
+                <span data-i18n="discussion_end_on_consensus"></span>
+              </label>
               <label class="field debate-style-field">
                 <span class="label" data-i18n="discussion_debate_style"></span>
                 <select id="debate-style"></select>
@@ -1380,6 +1391,7 @@
     const totalRoundsEl = document.getElementById("total-rounds");
     const roundsSegmentedEl = document.getElementById("rounds-segmented");
     const includeSummaryEl = document.getElementById("include-summary");
+    const endOnConsensusEl = document.getElementById("end-on-consensus");
     const debateStyleEl = document.getElementById("debate-style");
 
     function t(key, params) {
@@ -1963,6 +1975,7 @@
       totalRoundsEl.disabled = running;
       syncRoundsSegmented();
       includeSummaryEl.disabled = running;
+      endOnConsensusEl.disabled = running;
       debateStyleEl.disabled = running;
       detectEl.disabled = running || detecting;
       pickFolderEl.disabled = running;
@@ -2185,6 +2198,16 @@
         : "";
       copyEl.disabled = !summaryText;
 
+      const consensusRound = Number(state.consensus_reached_round);
+      if (Number.isInteger(consensusRound) && consensusRound >= 2) {
+        const reason = document.createElement("div");
+        reason.className = "consensus-early-exit";
+        reason.textContent = t("discussion_consensus_early_exit", {
+          round: consensusRound,
+        });
+        summaryEl.append(reason);
+      }
+
       const consensus = state.consensus_count;
       if (consensus && typeof consensus === "object") {
         const count = document.createElement("div");
@@ -2355,6 +2378,8 @@
           alternative: Number(payload.alternative) || 0,
           unparsed: Number(payload.unparsed) || 0,
         };
+      } else if (event.kind === "consensus_reached") {
+        state.consensus_reached_round = Number(payload.round_index) || null;
       } else if (event.kind === "session_done") {
         state.status = `${payload.status || "COMPLETED"}`;
       } else if (event.kind === "session_failed") {
@@ -2502,6 +2527,7 @@
       renderEstimate();
       renderControls();
     });
+    endOnConsensusEl.addEventListener("change", renderControls);
     debateStyleEl.addEventListener("change", renderControls);
     topicEl.addEventListener("paste", (event) => {
       const clipboard = event.clipboardData;
@@ -2540,6 +2566,7 @@
         attachments: attachments.map((item) => item.path).filter(Boolean),
         totalRounds: Number(totalRoundsEl.value),
         includeSummary: includeSummaryEl.checked,
+        endOnConsensus: endOnConsensusEl.checked,
         models: { ...selectedModels },
         personas: { ...selectedPersonas },
         debateStyle: debateStyleEl.value,

@@ -289,6 +289,7 @@ class DiscussionSession:
         self.total_rounds = min(5, max(1, total_rounds))
         self._turns: dict[str, Turn] = {}
         self._consensus_count: ConsensusCount | None = None
+        self._consensus_reached_round: int | None = None
         self._next_event_seq = 0
         self._lock = threading.Lock()
 
@@ -498,6 +499,14 @@ class DiscussionSession:
                 payload=asdict(self._consensus_count),
             )
 
+    def mark_consensus_reached(self, round_index: int) -> DiscussionEvent:
+        with self._lock:
+            self._consensus_reached_round = round_index
+            return self._emit_locked(
+                "consensus_reached",
+                payload={"round_index": round_index},
+            )
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             participants = [asdict(participant) for participant in self.participants]
@@ -531,6 +540,7 @@ class DiscussionSession:
                     if self._consensus_count is not None
                     else None
                 ),
+                "consensus_reached_round": self._consensus_reached_round,
                 "event_seq": self._next_event_seq - 1,
             }
 
