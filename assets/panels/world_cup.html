@@ -518,8 +518,16 @@
     }
 
     [data-footer="service-alerts"] {
+      grid-column: 1 / -1;
       display: grid;
       gap: 4px;
+    }
+
+    /* The footer is a two-column grid, so an empty alert box would still claim
+       a cell and push .meta into the right column. `display: grid` above beats
+       the `hidden` attribute's UA `display: none`, so restore it explicitly. */
+    [data-footer="service-alerts"][hidden] {
+      display: none;
     }
 
     .meta {
