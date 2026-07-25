@@ -5,6 +5,14 @@
 All notable changes to usage are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.3] - 2026-07-25
+
+### Fixed
+- **The menu bar critters no longer cost a third of a CPU core**: the phoenix, dragon and lion each drove their own timer, and every single frame re-sent the whole status item title to AppKit — which re-typesets the entire string through CoreText and re-measures the item's width, asking the system for its preferred languages along the way. With all three animating at full speed that came to 60 full relayouts a second, measured at 30–33% of a core with the popover closed; the cost arrived precisely when you were busiest, since the critters only animate while you are burning tokens. They now share a single timer, the fastest frame interval widens from 0.05s to 0.10s (indistinguishable on an 18px sprite), and a tick where no critter advances skips the redraw entirely. The burn-rate lookup that used to sit on the animation path — stat-ing 2,858 history files on the main thread every time its 30-second cache expired — moved to the background refresh, and the menu bar's text and sprite fragments are now cached instead of rebuilt per frame. Same animation, measured 4.2–5.9%.
+
+### Changed
+- **A service alert the provider forgot to clear no longer sticks around**: a status page can leave a component marked as degraded long after the incident is over, and the panel had no way to tell that apart from a live problem. Two rules now retire such an alert, both limited to the mildest *degraded performance* level so a partial or major outage is never hidden. First, if every unresolved incident on the page has sat in *monitoring* — the provider's own word for "the fix is in, we are watching it" — for more than four hours, the alert is suppressed until something changes. Second, a status observed unchanged for more than 24 hours is treated as residue. The second rule times what usage itself has seen rather than trusting the page's own timestamps: on OpenAI's page all 25 components, the operational ones included, share one timestamp from over two weeks earlier, so that field records when a component was defined, not when its status last moved.
+
 ## [0.29.2] - 2026-07-25
 
 ### Fixed
