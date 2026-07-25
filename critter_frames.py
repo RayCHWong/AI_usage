@@ -12,8 +12,8 @@ LION_FRAMES = tuple(f"critters/lion/{index}.png" for index in range(1, 6))
 
 IDLE_INTERVAL_SECONDS = 0.0
 NORMAL_INTERVAL_SECONDS = 0.18
-ACTIVE_INTERVAL_SECONDS = 0.10
-HEAVY_INTERVAL_SECONDS = 0.05
+ACTIVE_INTERVAL_SECONDS = 0.14
+HEAVY_INTERVAL_SECONDS = 0.10
 
 
 def group_to_interval(group: int) -> float:

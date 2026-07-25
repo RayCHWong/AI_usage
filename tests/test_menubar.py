@@ -1701,8 +1701,6 @@ def test_set_button_title_updates_for_animation_frame(
     delegate.status_item = FakeStatusItem(button)
     delegate.codex_5h_pct = 12
     monkeypatch.setattr(delegate, "_menubar_attributed_title", lambda current: object())
-    monkeypatch.setattr(delegate, "_sync_critter_timer", lambda: None)
-    monkeypatch.setattr(delegate, "_sync_dragon_timer", lambda: None)
 
     delegate._set_button_title(state)
     delegate.dragon_frame += 1

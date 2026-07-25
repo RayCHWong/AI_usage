@@ -25,6 +25,6 @@ def test_group_to_interval_boundaries() -> None:
     assert critter_frames.group_to_interval(-1) == 0.0
     assert critter_frames.group_to_interval(0) == 0.0
     assert critter_frames.group_to_interval(1) == 0.18
-    assert critter_frames.group_to_interval(2) == 0.10
-    assert critter_frames.group_to_interval(3) == 0.05
-    assert critter_frames.group_to_interval(99) == 0.05
+    assert critter_frames.group_to_interval(2) == 0.14
+    assert critter_frames.group_to_interval(3) == 0.10
+    assert critter_frames.group_to_interval(99) == 0.10
