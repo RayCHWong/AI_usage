@@ -9,6 +9,7 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -33,7 +34,11 @@ class FakeResponse:
 @pytest.fixture(autouse=True)
 def isolated_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     monkeypatch.setattr(service_status, "_last_failure_at", {})
-    yield tmp_path / ".usage"
+    cache_dir = tmp_path / ".usage"
+    monkeypatch.setattr(
+        service_status, "ALERT_STATE_PATH", cache_dir / "service_alert_state.json"
+    )
+    yield cache_dir
 
 
 def _config(
@@ -62,6 +67,29 @@ def _claude_payload(
         ],
         "incidents": incidents or [],
     }
+
+
+def _codex_payload(
+    status: str = "degraded_performance",
+    *,
+    incidents: list[dict[str, str]] | None = None,
+) -> dict[str, object]:
+    return {
+        "components": [{"name": "Codex API", "status": status}],
+        "incidents": incidents or [],
+    }
+
+
+def _incident(status: str, *, hours_ago: int) -> dict[str, str]:
+    updated_at = datetime.now(UTC) - timedelta(hours=hours_ago)
+    return {"name": "Elevated error rates", "status": status, "updated_at": updated_at.isoformat()}
+
+
+def _write_alert_state(cache_dir: Path, state: dict[str, object]) -> Path:
+    path = cache_dir / "service_alert_state.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state), encoding="utf-8")
+    return path
 
 
 def _mock_response(
@@ -193,3 +221,150 @@ def test_codex_api_outage_reports_abnormal(
 
     assert result.is_abnormal is True
     assert result.status == "partial_outage"
+
+
+def test_settled_monitoring_incident_suppresses_degraded_status(
+    isolated_cache: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(service_status.CODEX_STATUS, isolated_cache)
+    _mock_response(
+        monkeypatch,
+        config,
+        _codex_payload(incidents=[_incident("monitoring", hours_ago=5)]),
+    )
+
+    result = service_status.get_service_status(config)
+
+    assert result.is_abnormal is False
+    assert result.status == "degraded_performance"
+    assert "monitoring" in result.description
+
+
+def test_recent_monitoring_incident_keeps_degraded_status_abnormal(
+    isolated_cache: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(service_status.CODEX_STATUS, isolated_cache)
+    _mock_response(
+        monkeypatch,
+        config,
+        _codex_payload(incidents=[_incident("monitoring", hours_ago=1)]),
+    )
+
+    result = service_status.get_service_status(config)
+
+    assert result.is_abnormal is True
+    assert result.status == "degraded_performance"
+
+
+def test_investigating_incident_prevents_degraded_status_suppression(
+    isolated_cache: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(service_status.CODEX_STATUS, isolated_cache)
+    _mock_response(
+        monkeypatch,
+        config,
+        _codex_payload(
+            incidents=[
+                _incident("monitoring", hours_ago=5),
+                _incident("investigating", hours_ago=1),
+            ]
+        ),
+    )
+
+    result = service_status.get_service_status(config)
+
+    assert result.is_abnormal is True
+    assert result.status == "degraded_performance"
+
+
+def test_settled_monitoring_incident_does_not_suppress_major_outage(
+    isolated_cache: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(service_status.CODEX_STATUS, isolated_cache)
+    _mock_response(
+        monkeypatch,
+        config,
+        _codex_payload(
+            "major_outage",
+            incidents=[_incident("monitoring", hours_ago=5)],
+        ),
+    )
+
+    result = service_status.get_service_status(config)
+
+    assert result.is_abnormal is True
+    assert result.status == "major_outage"
+
+
+def test_long_observed_degraded_status_is_suppressed_without_incidents(
+    isolated_cache: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = 2_000_000.0
+    monkeypatch.setattr(time, "time", lambda: now)
+    _write_alert_state(
+        isolated_cache,
+        {
+            "Codex": {
+                "status": "degraded_performance",
+                "first_seen_at": now - 25 * 3600,
+            }
+        },
+    )
+    config = _config(service_status.CODEX_STATUS, isolated_cache)
+    _mock_response(monkeypatch, config, _codex_payload())
+
+    result = service_status.get_service_status(config)
+
+    assert result.is_abnormal is False
+    assert result.status == "degraded_performance"
+    assert "observed unchanged" in result.description
+
+
+def test_changed_status_resets_observation_time_without_suppression(
+    isolated_cache: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = 2_000_000.0
+    monkeypatch.setattr(time, "time", lambda: now)
+    state_path = _write_alert_state(
+        isolated_cache,
+        {"Codex": {"status": "operational", "first_seen_at": now - 25 * 3600}},
+    )
+    config = _config(service_status.CODEX_STATUS, isolated_cache)
+    _mock_response(monkeypatch, config, _codex_payload())
+
+    result = service_status.get_service_status(config)
+
+    assert result.is_abnormal is True
+    assert json.loads(state_path.read_text(encoding="utf-8"))["Codex"] == {
+        "first_seen_at": now,
+        "status": "degraded_performance",
+    }
+
+
+def test_missing_alert_state_is_treated_as_first_observation(
+    isolated_cache: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config(service_status.CODEX_STATUS, isolated_cache)
+    _mock_response(monkeypatch, config, _codex_payload())
+
+    result = service_status.get_service_status(config)
+
+    assert result.is_abnormal is True
+    assert (isolated_cache / "service_alert_state.json").is_file()
+
+
+def test_corrupt_alert_state_is_treated_as_first_observation(
+    isolated_cache: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_path = isolated_cache / "service_alert_state.json"
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text("{not json", encoding="utf-8")
+    config = _config(service_status.CODEX_STATUS, isolated_cache)
+    _mock_response(monkeypatch, config, _codex_payload())
+
+    result = service_status.get_service_status(config)
+
+    assert result.is_abnormal is True
+    assert json.loads(state_path.read_text(encoding="utf-8"))["Codex"]["status"] == (
+        "degraded_performance"
+    )

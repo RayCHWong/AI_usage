@@ -20,6 +20,7 @@ import tempfile
 import time
 import urllib.request
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -27,7 +28,11 @@ logger = logging.getLogger(__name__)
 
 CACHE_TTL_SECONDS = 300
 FAILURE_RETRY_SECONDS = 60
+MONITORING_SETTLED_SECONDS = 4 * 3600
+OBSERVED_STALE_SECONDS = 24 * 3600
+SUPPRESSIBLE_STATUSES = ("degraded_performance",)
 USER_AGENT = "usage/0.9"
+ALERT_STATE_PATH = Path(os.path.expanduser("~/.usage/service_alert_state.json"))
 
 StatusSource = Literal["fetched", "cache", "stale", "fallback"]
 _SEVERITY = {
@@ -134,12 +139,117 @@ def _build_status(
         if status != "operational"
     ]
     if not affected:
-        return ServiceStatus(
+        status = ServiceStatus(
             config.service_name, False, worst_status, "Relevant components are operational.", source
         )
-    return ServiceStatus(
-        config.service_name, True, worst_status, f"{', '.join(affected)}: {worst_status}.", source
-    )
+    else:
+        status = ServiceStatus(
+            config.service_name,
+            True,
+            worst_status,
+            f"{', '.join(affected)}: {worst_status}.",
+            source,
+        )
+    return _apply_alert_suppression(config, payload, status)
+
+
+def _apply_alert_suppression(
+    config: ServiceStatusConfig, payload: dict[str, Any], status: ServiceStatus
+) -> ServiceStatus:
+    observed_stale = _observe_status(config.service_name, status.status)
+    if not status.is_abnormal or status.status not in SUPPRESSIBLE_STATUSES:
+        return status
+
+    incidents = payload.get("incidents")
+    if isinstance(incidents, list):
+        incident_statuses = [
+            incident.get("status") for incident in incidents if isinstance(incident, dict)
+        ]
+        if any(value in {"investigating", "identified"} for value in incident_statuses):
+            return status
+
+        if incidents and len(incident_statuses) == len(incidents) and all(
+            value == "monitoring" for value in incident_statuses
+        ):
+            updated_times: list[datetime] = []
+            for incident in incidents:
+                updated_at = incident.get("updated_at")
+                if not isinstance(updated_at, str):
+                    break
+                try:
+                    updated_time = datetime.fromisoformat(updated_at)
+                except ValueError:
+                    break
+                if updated_time.tzinfo is None:
+                    break
+                updated_times.append(updated_time)
+            if len(updated_times) == len(incidents):
+                latest_update = max(updated_times)
+                age_seconds = (datetime.now(UTC) - latest_update).total_seconds()
+                if age_seconds > MONITORING_SETTLED_SECONDS:
+                    return ServiceStatus(
+                        status.service_name,
+                        False,
+                        status.status,
+                        "Alert suppressed: all incidents have remained in monitoring "
+                        "for more than 4 hours.",
+                        status.source,
+                    )
+
+    if observed_stale:
+        return ServiceStatus(
+            status.service_name,
+            False,
+            status.status,
+            "Alert suppressed: this status has been observed unchanged for more than 24 hours.",
+            status.source,
+        )
+    return status
+
+
+def _observe_status(service_name: str, status: str) -> bool:
+    state = _read_alert_state()
+    now = time.time()
+    previous = state.get(service_name)
+    if (
+        isinstance(previous, dict)
+        and previous.get("status") == status
+        and isinstance(previous.get("first_seen_at"), int | float)
+        and not isinstance(previous.get("first_seen_at"), bool)
+    ):
+        first_seen_at = float(previous["first_seen_at"])
+        return now - first_seen_at > OBSERVED_STALE_SECONDS
+
+    state[service_name] = {"status": status, "first_seen_at": now}
+    _write_alert_state(state)
+    return False
+
+
+def _read_alert_state() -> dict[str, Any]:
+    try:
+        with ALERT_STATE_PATH.open(encoding="utf-8") as file:
+            state = json.load(file)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.debug("failed to read service alert state: %s", exc)
+        return {}
+    return state if isinstance(state, dict) else {}
+
+
+def _write_alert_state(state: dict[str, Any]) -> None:
+    tmp_path: str | None = None
+    try:
+        ALERT_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=ALERT_STATE_PATH.parent, suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as file:
+            json.dump(state, file, ensure_ascii=False, indent=2, sort_keys=True)
+        os.replace(tmp_path, ALERT_STATE_PATH)
+        tmp_path = None
+    except OSError as exc:
+        logger.warning("failed to write service alert state: %s", exc)
+    finally:
+        if tmp_path is not None:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
 
 
 def _read_cache(
