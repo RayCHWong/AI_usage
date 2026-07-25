@@ -31,10 +31,12 @@ from discussion_cli import (
 )
 from discussion_usage import TurnUsage
 
-# A syntactically absolute CLI path these tests use as a stand-in wherever they
-# only need `Path(...).is_absolute()` to hold and never actually execute the
-# file — "/bin/echo" is not absolute under Windows' pathlib semantics.
-FAKE_CLI_PATH = "C:\\fake\\echo.exe" if sys.platform == "win32" else "/bin/echo"
+# An absolute path to a real, always-present executable these tests use as a
+# stand-in wherever they only need CLI detection to succeed and never actually
+# run the file — detection checks both Path.is_absolute() (which "/bin/echo"
+# fails under Windows' pathlib semantics) and Path.is_file(), so the stand-in
+# must genuinely exist on disk on each platform, not just look absolute.
+FAKE_CLI_PATH = "C:\\Windows\\System32\\cmd.exe" if sys.platform == "win32" else "/bin/echo"
 
 
 class FakeProcess:
