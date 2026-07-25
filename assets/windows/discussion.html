@@ -1426,14 +1426,36 @@
       neutral.value = "";
       neutral.textContent = t("discussion_persona_neutral");
       select.append(neutral);
+      const personaGroups = new Map();
+      const otherPersonas = [];
       personas.forEach((persona) => {
-        const option = document.createElement("option");
-        option.value = `${persona.id || ""}`;
-        option.textContent = persona.persona_name
-          ? `${persona.name || ""} · ${persona.persona_name}`
-          : `${persona.name || ""}`;
-        select.append(option);
+        const packName = `${persona.pack_name || ""}`;
+        if (!packName) {
+          otherPersonas.push(persona);
+          return;
+        }
+        if (!personaGroups.has(packName)) personaGroups.set(packName, []);
+        personaGroups.get(packName).push(persona);
       });
+      function appendPersonaGroup(label, items) {
+        const group = document.createElement("optgroup");
+        group.label = label;
+        items.forEach((persona) => {
+          const option = document.createElement("option");
+          option.value = `${persona.id || ""}`;
+          option.textContent = persona.persona_name
+            ? `${persona.name || ""} · ${persona.persona_name}`
+            : `${persona.name || ""}`;
+          group.append(option);
+        });
+        select.append(group);
+      }
+      personaGroups.forEach((items, packName) => {
+        appendPersonaGroup(packName, items);
+      });
+      if (otherPersonas.length) {
+        appendPersonaGroup(t("discussion_persona_other"), otherPersonas);
+      }
       select.value = selectedPersonas[id] || "";
       select.disabled = isRunning();
       select.addEventListener("change", () => {

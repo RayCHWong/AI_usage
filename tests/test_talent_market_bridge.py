@@ -18,6 +18,8 @@ def test_list_personas_flattens_pack_roles(monkeypatch: pytest.MonkeyPatch) -> N
         lambda lang=None: {
             "packs": [
                 {
+                    "id": "solo-law-firm",
+                    "name": "律師事務所",
                     "roles": [
                         {
                             "id": "contract-review",
@@ -29,6 +31,8 @@ def test_list_personas_flattens_pack_roles(monkeypatch: pytest.MonkeyPatch) -> N
                     ]
                 },
                 {
+                    "id": "solo-software-studio",
+                    "name": "軟體工作室",
                     "roles": [
                         {
                             "id": "architecture-review",
@@ -50,6 +54,8 @@ def test_list_personas_flattens_pack_roles(monkeypatch: pytest.MonkeyPatch) -> N
             "persona_name": "杰倫",
             "description": "審閱合約",
             "system_prompt": "專業提示",
+            "pack_id": "solo-law-firm",
+            "pack_name": "律師事務所",
         },
         {
             "id": "architecture-review",
@@ -57,8 +63,38 @@ def test_list_personas_flattens_pack_roles(monkeypatch: pytest.MonkeyPatch) -> N
             "persona_name": "亞里",
             "description": "審查架構",
             "system_prompt": "架構提示",
+            "pack_id": "solo-software-studio",
+            "pack_name": "軟體工作室",
         },
     ]
+
+
+def test_list_personas_keeps_roles_when_pack_identity_is_incomplete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    role = {
+        "id": "contract-review",
+        "name": "合約審閱",
+        "personaName": "杰倫",
+        "description": "審閱合約",
+        "systemPrompt": "專業提示",
+    }
+    monkeypatch.setattr(
+        talent_market_bridge,
+        "list_state",
+        lambda lang=None: {
+            "packs": [
+                {"name": "律師事務所", "roles": [role]},
+                {"id": "solo-law-firm", "roles": [role]},
+            ]
+        },
+    )
+
+    personas = talent_market_bridge.list_personas()
+
+    assert len(personas) == 2
+    assert all(persona["pack_id"] == "" for persona in personas)
+    assert all(persona["pack_name"] == "" for persona in personas)
 
 
 @pytest.mark.parametrize("state", [{}, {"packs": None}, {"packs": [{"roles": [None]}]}])

@@ -638,6 +638,93 @@ def test_start_button_logic(
     assert json.loads(result.stdout) is expected
 
 
+def test_persona_select_groups_packs_in_source_order_and_puts_other_last() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to evaluate persona select grouping")
+    html = HTML_PATH.read_text(encoding="utf-8")
+    function = re.search(
+        r"    function createPersonaSelect\(id\) \{.*?^    \}",
+        html,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert function is not None
+    personas = [
+        {"id": "a1", "name": "A1", "persona_name": "One", "pack_name": "Alpha"},
+        {"id": "other", "name": "Other role", "persona_name": "", "pack_name": ""},
+        {"id": "b1", "name": "B1", "persona_name": "", "pack_name": "Beta"},
+        {"id": "a2", "name": "A2", "persona_name": "Two", "pack_name": "Alpha"},
+    ]
+    invocation = f"""
+class Element {{
+  constructor(tagName) {{
+    this.tagName = tagName;
+    this.children = [];
+    this.dataset = {{}};
+    this.attributes = {{}};
+    this.value = "";
+  }}
+  append(...children) {{ this.children.push(...children); }}
+  setAttribute(name, value) {{ this.attributes[name] = value; }}
+  addEventListener() {{}}
+}}
+const document = {{ createElement: (tagName) => new Element(tagName) }};
+const personas = {json.dumps(personas)};
+const selectedPersonas = {{}};
+const t = (key) => ({{
+  discussion_persona: "Role",
+  discussion_persona_neutral: "Neutral",
+  discussion_persona_other: "Other",
+}})[key];
+const isRunning = () => false;
+const renderEstimate = () => {{}};
+{function.group(0)}
+const select = createPersonaSelect("claude");
+process.stdout.write(JSON.stringify(select.children.map((child) => ({{
+  tagName: child.tagName,
+  label: child.label || "",
+  options: child.children.map((option) => [option.value, option.textContent]),
+  value: child.value,
+  text: child.textContent,
+}}))));
+"""
+
+    result = subprocess.run(
+        [node, "-e", invocation],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(result.stdout) == [
+        {
+            "tagName": "option",
+            "label": "",
+            "options": [],
+            "value": "",
+            "text": "Neutral",
+        },
+        {
+            "tagName": "optgroup",
+            "label": "Alpha",
+            "options": [["a1", "A1 · One"], ["a2", "A2 · Two"]],
+            "value": "",
+        },
+        {
+            "tagName": "optgroup",
+            "label": "Beta",
+            "options": [["b1", "B1"]],
+            "value": "",
+        },
+        {
+            "tagName": "optgroup",
+            "label": "Other",
+            "options": [["other", "Other role"]],
+            "value": "",
+        },
+    ]
+
+
 def test_html_controls_and_history_follow_use_reviewed_logic() -> None:
     html = HTML_PATH.read_text(encoding="utf-8")
 
@@ -692,6 +779,7 @@ def test_html_visible_static_elements_use_i18n_keys() -> None:
         "discussion_moderator",
         "discussion_persona",
         "discussion_persona_neutral",
+        "discussion_persona_other",
         "discussion_debate_style",
         "discussion_consensus_count_summary",
         "discussion_working_directory",

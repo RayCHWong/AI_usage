@@ -119,6 +119,11 @@ def list_personas(lang: str | None = None) -> list[dict[str, str]]:
     for pack in packs:
         if not isinstance(pack, dict):
             continue
+        pack_id = pack.get("id")
+        pack_name = pack.get("name")
+        if not isinstance(pack_id, str) or not isinstance(pack_name, str):
+            pack_id = ""
+            pack_name = ""
         roles = pack.get("roles")
         if not isinstance(roles, list):
             continue
@@ -145,6 +150,8 @@ def list_personas(lang: str | None = None) -> list[dict[str, str]]:
                     "persona_name": persona_name,
                     "description": description,
                     "system_prompt": system_prompt,
+                    "pack_id": pack_id,
+                    "pack_name": pack_name,
                 }
             )
     return personas
