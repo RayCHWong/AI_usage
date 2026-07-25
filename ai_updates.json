@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-24",
+  "generated_at": "2026-07-25",
   "tools": [
     {
       "id": "claude_code",
@@ -819,6 +819,114 @@
       "name": "Antigravity",
       "versions": [
         {
+          "version": "1.1.7",
+          "period": "2026-07-25",
+          "items": [
+            {
+              "title": {
+                "zh-TW": "一行串好幾個指令，權限提示不再只給你看一半",
+                "zh-CN": "一行串好几个命令，权限提示不再只给你看一半",
+                "en": "Permission prompts now show the whole compound command",
+                "ja": "複数のコマンドをつなげても、許可プロンプトに全文が出る",
+                "ko": "여러 명령을 이어 붙여도 권한 창에 전체가 보인다"
+              },
+              "body": {
+                "zh-TW": "整理一批檔案時，你常會把好幾個動作串成一行指令送出去。以前只要其中一小段需要你點頭，跳出來的權限提示（動手前先問過你的確認視窗）就只顯示那一段，前後做了什麼全藏著不給看——等於在一份只掀開其中一條的合約上簽名。現在只要整串裡有任何一段需要核准，提示會把即將執行的完整指令原封不動攤開，你看得到它前面先做了什麼、後面接著做什麼，再決定要不要放行。",
+                "zh-CN": "整理一批文件时，你常会把好几个动作串成一行命令发出去。以前只要其中一小段需要你点头，弹出来的权限提示（动手前先问过你的确认窗口）就只显示那一段，前后做了什么全藏着不给看——等于在一份只掀开其中一条的合同上签名。现在只要整串里有任何一段需要批准，提示会把即将执行的完整命令原封不动摊开，你看得到它前面先做了什么、后面接着做什么，再决定要不要放行。",
+                "en": "When you clean up a batch of files, you tend to chain several actions into one shell command. Until now, if a single fragment of that chain needed approval, the permission prompt showed you only that fragment and hid everything around it — rather like being asked to sign a contract with one clause uncovered and the rest under a sheet of paper. Now, whenever any part of a compound command needs approval, the prompt lays out the full command exactly as it will run, so you can see what comes before and after before letting it through.",
+                "ja": "ファイルをまとめて片づけるとき、複数の動作を一行のコマンドにつなげることは多い。これまでは、そのうちの一部だけが承認を必要とする場合、許可プロンプトにはその断片しか出ず、前後は隠れたままだった。一条だけをめくった契約書に署名を求められるようなものだ。今は、つなげたコマンドのどこか一部でも承認が要るなら、実行される全文がそのまま提示される。前で何をして後ろで何をするのかを見てから、通すかどうかを決められる。",
+                "ko": "파일을 한꺼번에 정리할 때는 여러 동작을 한 줄 명령으로 이어 붙이는 일이 많다. 지금까지는 그중 한 조각만 승인이 필요해도 권한 창에는 그 조각만 보이고 앞뒤는 가려져 있었다. 한 조항만 펼쳐 놓은 계약서에 서명하라는 것과 다르지 않다. 이제는 이어 붙인 명령 중 어느 하나라도 승인이 필요하면 실행될 전체 명령이 그대로 펼쳐진다. 앞에서 무엇을 하고 뒤에서 무엇을 하는지 보고 나서 통과시킬지 정할 수 있다."
+              },
+              "original": "Improved permission prompts for compound shell commands so the full command is shown when any part of it needs approval."
+            },
+            {
+              "title": {
+                "zh-TW": "沒人盯著的自動模式，補上用量明細與資格把關",
+                "zh-CN": "没人盯着的自动模式，补上用量明细与资格把关",
+                "en": "Print mode gains cache accounting and a real eligibility gate",
+                "ja": "画面のない実行モードに、使用量の内訳と資格チェックが入った",
+                "ko": "화면 없는 실행 모드에 사용량 내역과 자격 검사가 붙었다"
+              },
+              "body": {
+                "zh-TW": "排程在半夜自己跑，沒有人在旁邊看畫面，出了事常常是隔天才發現。這版替 headless print mode（不開視窗、直接把答案輸出的執行方式）補上兩道缺口。一是 `json` 與 `stream-json` 的用量報表多了 `cache_read_tokens` 這個欄位，程式自己就算得出這次有多少文字單位是直接讀暫存拿到的，不必再靠猜。二是用 `-p` 送出提示時，以前不等帳號資格檢查跑完就先發車，讓不符資格的帳號繞過互動介面本來會擋的那道關，現在會等檢查完成才送出。像無人商店，正因為沒有店員在場，收據要印得更清楚，門口的驗證更不能省。",
+                "zh-CN": "排程在半夜自己跑，没有人在旁边看画面，出了事常常是隔天才发现。这版替 headless print mode（不开窗口、直接把答案输出的执行方式）补上两道缺口。一是 `json` 与 `stream-json` 的用量报表多了 `cache_read_tokens` 这个字段，程序自己就算得出这次有多少文字单位是直接读暂存拿到的，不必再靠猜。二是用 `-p` 发出提示时，以前不等账号资格检查跑完就先发车，让不符资格的账号绕过交互界面本来会拦的那道关，现在会等检查完成才发出。像无人商店，正因为没有店员在场，收据要印得更清楚，门口的验证更不能省。",
+                "en": "When you wire the AI into an automated pipeline, nobody is watching the screen, so problems surface only afterwards. This release closes two gaps in headless print mode. First, the `json` and `stream-json` usage output now carries a `cache_read_tokens` field, so a non-interactive consumer can work out how much of the prompt was served from cache and attribute those hits itself. Second, running with `-p` used to send the prompt before the account-eligibility check had finished, which let ineligible accounts slip past the gate the interactive UI enforces; it now waits for the check. An unstaffed shop is exactly the place where the receipt has to be itemised and the door check cannot be skipped.",
+                "ja": "AI を自動処理の流れに組み込むと、画面を見ている人がいないので、問題は後になって表に出る。今回は headless print mode（ウィンドウを開かず答えをそのまま出力する実行方式）の穴を二つふさいだ。一つは `json` と `stream-json` の使用量出力に `cache_read_tokens` が加わったこと。どれだけの文字単位をキャッシュから読んだのかをプログラム側で計算でき、節約分をそのまま説明できる。もう一つは `-p` の挙動で、以前はアカウントの資格確認が終わる前にプロンプトを送っていたため、対話画面なら止められる相手が通り抜けていた。今は確認を待ってから送る。無人の店だからこそ、レシートは細かく、入口の確認は省けない。",
+                "ko": "AI를 자동 처리 흐름에 넣으면 화면을 보는 사람이 없어서 문제는 늘 나중에 드러난다. 이번 판에서는 headless print mode(창을 열지 않고 답을 그대로 출력하는 실행 방식)의 구멍 두 개를 막았다. 하나는 `json`과 `stream-json`의 사용량 출력에 `cache_read_tokens` 항목이 생긴 것이다. 이번에 몇 개의 문자 단위를 캐시에서 바로 읽었는지 프로그램이 스스로 계산해 아낀 몫을 설명할 수 있다. 다른 하나는 `-p`로 보낼 때다. 예전에는 계정 자격 확인이 끝나기 전에 프롬프트를 보내서, 대화 화면이라면 막혔을 계정이 그대로 통과했다. 이제는 확인을 기다린 뒤에 보낸다. 사람이 없는 가게일수록 영수증은 자세해야 하고 입구 확인은 건너뛸 수 없다."
+              },
+              "original": "Improved headless print mode by adding a `cache_read_tokens` field to the `json` and `stream-json` usage output, so non-interactive consumers can attribute prompt-cache hits.\nFixed print mode (`-p`) sending a prompt before the account-eligibility check finished, which let ineligible accounts bypass the check the interactive UI enforces."
+            },
+            {
+              "title": {
+                "zh-TW": "外掛關掉了，它的掛鉤還在背後動作",
+                "zh-CN": "插件关掉了，它的钩子还在背后动作",
+                "en": "Disabled plugins no longer keep running their hooks",
+                "ja": "無効にしたプラグインのフックが動かなくなった",
+                "ko": "비활성화한 플러그인의 훅이 더는 돌지 않는다"
+              },
+              "body": {
+                "zh-TW": "把一個外掛停用，理當它就該完全安靜下來。以前並不是——它的 hook（掛鉤，特定事件一發生就被自動觸發的小程式）照樣在背景執行，它帶進來的其他自訂設定也繼續生效。最難纏的情況是那個掛鉤本身已經壞了：它會一路卡住編輯檔案的工具，而你早就把外掛關了，根本不會回頭懷疑它，只能對著改不動的檔案發呆。現在停用就是真的停用，掛鉤和它夾帶的自訂設定一起下線。像員工離職卻沒繳回門禁卡，人不在了，卡還刷得開門，這次是連卡一起收回來。",
+                "zh-CN": "把一个插件停用，理当它就该完全安静下来。以前并不是——它的 hook（钩子，特定事件一发生就被自动触发的小程序）照样在后台执行，它带进来的其他自定义设置也继续生效。最难缠的情况是那个钩子本身已经坏了：它会一路卡住编辑文件的工具，而你早就把插件关了，根本不会回头怀疑它，只能对着改不动的文件发呆。现在停用就是真的停用，钩子和它夹带的自定义设置一起下线。像员工离职却没交回门禁卡，人不在了，卡还刷得开门，这次是连卡一起收回来。",
+                "en": "Turn a plugin off and you would expect it to fall silent. It did not. Its hooks kept firing in the background, and the other customizations it brought along stayed in effect. The nastiest version of this was a hook that was already broken: it would jam the file-editing tools, and since you had disabled the plugin long ago, it never occurred to you to suspect it — you just sat there wondering why nothing would save. Disabling now really disables: the hooks and everything else the plugin contributed go quiet together. An employee leaves but keeps the door badge; the person is gone and the badge still opens the door. This time the badge comes back too.",
+                "ja": "プラグインを無効にしたら、それきり静かになるはずだ。実際はそうではなかった。フック（特定の出来事が起きると自動的に呼び出される小さなプログラム）は裏で動き続け、そのプラグインが持ち込んだ他の設定も効いたままだった。厄介なのは、そのフック自体が壊れている場合だ。ファイル編集のツールを詰まらせるのに、とっくに無効にしたプラグインを疑う人はいない。保存できない画面をただ眺めることになる。今は無効にすれば本当に無効で、フックも持ち込まれた設定も一緒に止まる。退職した社員の入館証を回収し忘れるのと同じで、本人がいなくても扉は開く。今回は証も回収した。",
+                "ko": "플러그인을 끄면 그것으로 조용해지는 것이 당연하다. 실제로는 그렇지 않았다. 훅(특정 사건이 일어나면 자동으로 불려 나오는 작은 프로그램)은 뒤에서 계속 돌았고, 그 플러그인이 함께 들여온 다른 설정도 그대로 살아 있었다. 고약한 경우는 그 훅 자체가 이미 망가져 있을 때다. 파일 편집 도구를 막아 버리는데, 진작에 꺼 둔 플러그인을 의심하는 사람은 없다. 저장되지 않는 화면만 바라보게 된다. 이제는 끄면 정말로 꺼져서 훅도 함께 들어온 설정도 같이 멈춘다. 퇴사한 직원의 출입증을 걷지 않은 것과 같다. 사람은 없는데 문은 열린다. 이번에는 증도 함께 걷었다."
+              },
+              "original": "Fixed disabled plugins still running their hooks and contributing other customizations, which could keep a broken hook active and break file-editing tools even after the plugin was turned off."
+            },
+            {
+              "title": {
+                "zh-TW": "接 Salesforce、Atlassian 的授權不再卡在規格差異",
+                "zh-CN": "接 Salesforce、Atlassian 的授权不再卡在规格差异",
+                "en": "MCP OAuth now works with providers that bend the spec",
+                "ja": "Salesforce や Atlassian との MCP 認証が通るようになった",
+                "ko": "Salesforce와 Atlassian의 MCP 인증이 통과한다"
+              },
+              "body": {
+                "zh-TW": "公司拿 Salesforce 管客戶、拿 Atlassian 那套管專案，你想讓 AI 直接讀得到裡面的資料，卻總是卡在授權那一步。問題出在 MCP（Model Context Protocol，讓 AI 接上外部工具的協定）走的 OAuth 授權流程：這兩家的實作沒有完全照規範走，發行方資訊對不上，驗證就直接判失敗。現在比對發行方的條件放寬了，也把 `refresh_token` 這種續期方式一併帶上，授權到期時能自己換一張新的，不用你重登一次。像出國帶轉接頭，各國插座本來就不完全一樣，與其要求對方改插座，不如自己帶一個接得上的頭。",
+                "zh-CN": "公司拿 Salesforce 管客户、拿 Atlassian 那套管项目，你想让 AI 直接读到里面的数据，却总是卡在授权那一步。问题出在 MCP（Model Context Protocol，让 AI 接上外部工具的协议）走的 OAuth 授权流程：这两家的实现没有完全照规范走，发行方信息对不上，验证就直接判失败。现在比对发行方的条件放宽了，也把 `refresh_token` 这种续期方式一并带上，授权到期时能自己换一张新的，不用你重新登录一次。像出国带转接头，各国插座本来就不完全一样，与其要求对方改插座，不如自己带一个接得上的头。",
+                "en": "Your company runs customers through Salesforce and projects through Atlassian, you want the AI to read from them directly, and you get stuck at authorization. The culprit is the OAuth flow behind MCP, the protocol that connects the AI to external tools: neither provider follows the spec to the letter, the issuer details fail to line up, and validation rejects the whole thing. Issuer validation is now relaxed, and the `refresh_token` grant is included, so an expiring authorization renews itself instead of sending you back to the login screen. It is the travel adapter approach: sockets genuinely differ between countries, and bringing a plug that fits beats demanding the country rewire.",
+                "ja": "会社では顧客を Salesforce、案件を Atlassian で管理していて、その中身を AI に直接読ませたいのに、認可の一歩手前で止まる。原因は MCP（AI を外部ツールにつなぐための取り決め）が使う OAuth の流れにある。この二社の実装は仕様どおりではなく、発行元の情報が噛み合わないだけで検証が落ちていた。今は発行元の照合をゆるめ、`refresh_token` による更新も一緒に扱うようにした。期限が切れても自分で取り直すので、ログインし直す必要がない。海外用の変換プラグと同じ発想だ。国ごとに差込口が違うのは前提で、相手に工事を求めるより、合う頭を持っていくほうが早い。",
+                "ko": "회사에서는 고객을 Salesforce로, 프로젝트를 Atlassian으로 관리하는데, 그 안의 자료를 AI에게 바로 읽히려고 하면 인가 단계에서 막힌다. 원인은 MCP(AI를 외부 도구에 연결하는 약속)가 쓰는 OAuth 흐름에 있다. 이 두 곳의 구현이 규격을 그대로 따르지 않아 발급자 정보가 맞지 않는다는 이유만으로 검증이 떨어졌다. 이제 발급자 확인 조건을 느슨하게 하고 `refresh_token` 방식의 갱신도 함께 처리한다. 기한이 지나도 알아서 새로 받으니 다시 로그인할 일이 없다. 해외용 변환 플러그와 같은 발상이다. 나라마다 콘센트가 다른 것은 전제이고, 상대에게 공사를 요구하기보다 맞는 머리를 챙겨 가는 편이 빠르다."
+              },
+              "original": "Fixed MCP OAuth against providers that do not strictly follow the spec (such as Salesforce and Atlassian) by relaxing issuer validation and including the `refresh_token` grant."
+            },
+            {
+              "title": {
+                "zh-TW": "新對話第一句就打 `/btw`，不再說找不到上一則",
+                "zh-CN": "新对话第一句就打 `/btw`，不再说找不到上一条",
+                "en": "`/btw` works as the very first action in a fresh session",
+                "ja": "新しいセッションの最初の一手でも `/btw` が使える",
+                "ko": "새 세션의 첫 동작에서도 `/btw`가 된다"
+              },
+              "body": {
+                "zh-TW": "開一個全新的工作階段，什麼都還沒問，直接打 `/btw` 想先補一句題外話——以前這會當場失敗，丟回一句「找不到父對話」（parent conversation，指這句題外話原本該掛上去的那一則）。這種錯最讓人愣住：明明什麼都還沒做錯，第一個動作就撞牆，而且訊息講的是一個你根本沒聽過的東西。現在把它當開場第一個動作用，也能正常運作了。像剛拆封的筆記本，你想在第一頁就貼張便利貼，總不能因為前面沒有頁面而不讓你貼。",
+                "zh-CN": "开一个全新的会话，什么都还没问，直接打 `/btw` 想先补一句题外话——以前这会当场失败，丢回一句「找不到父对话」（parent conversation，指这句题外话原本该挂上去的那一条）。这种错最让人发愣：明明什么都还没做错，第一个动作就撞墙，而且消息讲的是一个你根本没听过的东西。现在把它当开场第一个动作用，也能正常运作了。像刚拆封的笔记本，你想在第一页就贴张便利贴，总不能因为前面没有页面而不让你贴。",
+                "en": "You open a fresh session, ask nothing yet, and type `/btw` to drop in an aside first — and it used to fail on the spot with \"parent conversation not found\", the parent being the turn the aside was meant to hang off. Errors like this are the most disorienting kind: you have done nothing wrong, the very first thing you try hits a wall, and the message names something you have never heard of. Using it as the opening action now works. You have just unwrapped a notebook and want a sticky note on page one; the absence of earlier pages is no reason to refuse.",
+                "ja": "新しいセッションを開き、まだ何も尋ねないうちに `/btw` で一言添えようとする。以前はその場で失敗し、「親となる会話が見つからない」と返ってきた。親とは、その一言をぶら下げるはずの会話のことだ。この種のエラーがいちばん面食らう。何も間違えていないのに最初の一手で壁に当たり、しかも聞いたこともない名前を告げられる。今は開幕の一手として使っても通る。開封したばかりのノートの一ページ目に付箋を貼りたいだけで、前のページがないことは断る理由にならない。",
+                "ko": "새 세션을 열고 아직 아무것도 묻지 않은 채 `/btw`로 한마디 덧붙이려 한다. 예전에는 그 자리에서 실패하며 \"상위 대화를 찾을 수 없다\"고 돌려주었다. 상위란 그 한마디를 매달 대상이 되는 대화를 말한다. 이런 오류가 가장 당황스럽다. 잘못한 것이 없는데 첫 동작에서 벽에 부딪히고, 들어 본 적도 없는 이름까지 듣는다. 이제는 첫 동작으로 써도 통한다. 막 뜯은 공책의 첫 장에 붙임쪽지를 붙이려는 것뿐인데, 앞 장이 없다는 것이 거절할 이유가 되지는 않는다."
+              },
+              "original": "Fixed `/btw` failing with a \"parent conversation not found\" error when used as the very first action in a fresh session."
+            },
+            {
+              "title": {
+                "zh-TW": "Windows 上複製中日韓文字不再變亂碼",
+                "zh-CN": "Windows 上复制中日韩文字不再变乱码",
+                "en": "Copying CJK text on Windows no longer corrupts it",
+                "ja": "Windows でコピーしても日本語が文字化けしない",
+                "ko": "Windows에서 복사해도 한글이 깨지지 않는다"
+              },
+              "body": {
+                "zh-TW": "在 Windows 上複製一段中文、日文或韓文，貼出來變成一排問號和方框——這件事以前真的會發生。毛病出在送進剪貼簿的那一刻：ASCII（大致只涵蓋英文字母、數字與常見符號的老字碼表）以外的字元沒有被正確編碼，字在搬運途中就已經碎了，貼到哪裡都拼不回來。你想把一段錯誤訊息複製給同事看，對方收到的是一團看不懂的符號，只好請你截圖重來。這版把編碼修好了，複製什麼就貼出什麼。像影印機明明吃得下這張紙，印出來卻缺了半篇字，這次換掉的是機器本身。",
+                "zh-CN": "在 Windows 上复制一段中文、日文或韩文，粘贴出来变成一排问号和方框——这件事以前真的会发生。毛病出在送进剪贴板的那一刻：ASCII（大致只涵盖英文字母、数字与常见符号的老字码表）以外的字符没有被正确编码，字在搬运途中就已经碎了，粘到哪里都拼不回来。你想把一段错误消息复制给同事看，对方收到的是一团看不懂的符号，只好请你截图重来。这版把编码修好了，复制什么就粘出什么。像复印机明明吃得下这张纸，印出来却缺了半篇字，这次换掉的是机器本身。",
+                "en": "Copy a line of Chinese, Japanese or Korean on Windows and paste out a row of question marks and empty boxes — that really did happen. The damage occurred at the moment the text entered the clipboard: non-ASCII characters were not encoded correctly, so the characters were already broken in transit and no destination could reassemble them. You copy an error message to show a colleague, they receive a blob of symbols, and you end up sending a screenshot instead. The encoding is fixed: what you copy is what you paste. A photocopier that accepts the page but prints half the characters as noise does not need better paper; it needs a new machine.",
+                "ja": "Windows で日本語や中国語、韓国語の一節をコピーすると、貼り付けた先が疑問符と白い四角の列になる。実際に起きていた。壊れるのはクリップボードに入る瞬間で、ASCII（英字と数字、よく使う記号がおおむねの範囲という古い文字コード表）の外にある文字が正しく符号化されず、運ばれる途中ですでに崩れている。どこに貼っても組み直せない。エラーの一文を同僚に見せようとコピーしても、届くのは意味の取れない記号の塊で、結局スクリーンショットを送り直すことになる。今回そこを直したので、コピーしたものがそのまま貼られる。紙は通るのに文字が半分潰れて出てくるコピー機は、紙を替えても直らない。機械のほうを替える話だった。",
+                "ko": "Windows에서 한국어나 중국어, 일본어 한 줄을 복사하면 붙여 넣은 자리가 물음표와 빈 네모의 행렬이 된다. 실제로 벌어지던 일이다. 망가지는 지점은 클립보드에 들어가는 순간으로, ASCII(영문자와 숫자, 자주 쓰는 기호가 대체로 전부인 오래된 문자 코드표) 바깥의 글자가 제대로 부호화되지 않아 옮겨지는 도중에 이미 부서진다. 어디에 붙여도 다시 맞출 수 없다. 오류 한 줄을 동료에게 보이려고 복사해도 상대가 받는 것은 알아볼 수 없는 기호 덩어리여서, 결국 화면을 찍어 다시 보내게 된다. 이번에 그 부분을 고쳐서 복사한 그대로 붙는다. 종이는 들어가는데 글자가 절반쯤 뭉개져 나오는 복사기는 종이를 바꿔서 해결되지 않는다. 기계를 바꿀 일이었다."
+              },
+              "original": "Fixed clipboard corruption of CJK and other non-ASCII text when copying on Windows."
+            }
+          ]
+        },
+        {
           "version": "1.1.6",
           "period": "2026-07-24",
           "items": [
@@ -1048,97 +1156,6 @@
                 "ko": "계획을 세운 뒤 곧바로 흠을 찾아 달라고 하고 싶다면 한 입력에 `/plan /grill-me <prompt>`를 나란히 쓸 수 있다. 앞쪽 슬래시 명령은 입력한 순서대로 해석되고 켜지며 표시된다. `subagent: false`를 분명히 적은 custom agent도 호출 가능한 하위 에이전트 목록에 섞이지 않는다. `-p`나 `--print`로 하는 헤드리스 모드(터미널 창이나 시각 화면 없이 실행하는 방식)도 저장된 `settings.json` 정책을 따른다. 권한, 파일 접근, sandbox mode(프로그램을 안전한 범위에 가두는 실행 방식), 자동 실행, 결과물 검토가 포함된다. `/btw` 곁가지 질문도 부모 제목을 단 중복 대화를 만들지 않는다. 역의 환승 안내판과 같다."
               },
               "original": "Added support for stacking multiple leading slash commands in a single prompt, so a chain like `/plan /grill-me <prompt>` parses, activates, and renders every command in the order you typed them.\nFixed custom agents that declare `subagent: false` still appearing in the available-subagents list and being invocable as subagents.\nFixed headless (`-p` / `--print`) runs so they now honor persisted `settings.json` policies, including `permissions`, file access, sandbox mode, auto-execution, and artifact review.\nFixed `/btw` side-questions leaking into the conversation list as duplicate entries that carried the parent conversation's title."
-            }
-          ]
-        },
-        {
-          "version": "1.1.3",
-          "period": "2026-07-16",
-          "items": [
-            {
-              "title": {
-                "zh-TW": "找程式碼有專屬指令，排版錯亂與報錯畫面一次修好",
-                "zh-CN": "找代码有专属指令，排版错乱与报错画面一次修好",
-                "en": "A dedicated code search command, plus fixes for garbled formatting and intrusive errors",
-                "ja": "専用のコード検索コマンドが登場し、レイアウト崩れやエラー画面も改善",
-                "ko": "전용 코드 검색 명령어가 생기고, 깨진 화면과 오류 표시가 깔끔해져."
-              },
-              "body": {
-                "zh-TW": "你能用全新的 `/codesearch`（或 `/cs`）指令快速翻找整個專案的程式碼了。它預設支援正規表達式（regex，一種用符號匹配字串的進階語法），你也能加上 `-F` 進行字字精準的比對，甚至用 `f:` 來過濾特定檔案。在介面體驗上，系統排版變聰明了：它會明確畫出一條線，告訴你先前的對話在哪裡被壓縮過（context-compaction，把舊記憶摺疊起來省空間的功能）；行內程式碼周圍多餘的空白被移除了；含有錢字號的終端機指令，也不會再被 Markdown 解析器誤認成數學公式而變成亂碼。此外，遇到 eligibility error（資格驗證錯誤）時，錯誤訊息和驗證網址現在會乖乖安插在輸入框裡，不會再把你的畫面往上頂。就像你買了一個新書櫃，不只附贈了超強的檢索系統幫你精準找書，還順手把原本會爆出櫃子的通知單好好夾在書頁裡、撫平書本間的折頁。",
-                "zh-CN": "你能用全新的 `/codesearch`（或 `/cs`）命令快速翻找整个项目的代码了。它默认支持正则表达式（regex，一种用符号匹配字符串的进阶语法），你也能加上 `-F` 进行字字精准的比对，甚至用 `f:` 来过滤特定文件。在界面体验上，系统排版变聪明了：它会明确画出一条线，告诉你先前的对话在哪里被压缩过（context-compaction，把旧记忆折叠起来省空间的功能）；行内代码周围多余的空白被移除了；含有美元符号的终端机命令，也不会再被 Markdown 解析器误认成数学公式而变成乱码。此外，遇到 eligibility error（资格验证错误）时，错误信息和验证网址现在会乖乖安插在输入框里，不会再把你的画面往上顶。就像你买了一个新书柜，不只赠送了超强的检索系统帮你精准找书，还顺手把原本会爆出柜子的通知单好好夹在书页里、抚平书本间的折页。",
-                "en": "You can now quickly dig through your entire project's code using the new `/codesearch` (or `/cs`) command. It interprets your queries as regular expressions (regex, an advanced syntax for pattern matching) by default, but you can use `-F` for strictly literal matches and filter specific files using `f:` globs. Visually, the interface has grown smarter: it now draws a clear indicator line to show exactly where earlier conversation history was squeezed down (context-compaction, the feature that folds old memories to save space); extra padding spaces around inline code have been stripped away; and shell commands containing dollar signs will no longer be mistaken for math formulas. Also, when an eligibility error occurs, the message and verification URL now sit politely inline in your input loop, rather than pushing your whole screen upwards. It's like getting a new bookshelf that comes with a powerful cataloging system to pinpoint any book, neatly tucks annoying notification slips into the pages, and smooths out the awkward gaps between the books.",
-                "ja": "まったく新しい `/codesearch`（または `/cs`）コマンドを使って、プロジェクト全体のコードを素早く探し回れるようになった。デフォルトで正規表現（regex、記号を使って文字列のパターンに一致させる高度な構文）に対応しており、`-F` で完全一致検索ができ、`f:` を使って特定のファイルを絞り込むこともできる。また画面の見た目も賢くなった。以前の会話がどこで圧縮されたか（context-compaction、古い記憶を折りたたんで容量を節約する機能）を示す境界線が引かれ、インラインコード周りの余分な空白も削られた。さらに、ドル記号を含むシェルコマンドが数式と勘違いされ文字化けする不具合も直っている。加えて、eligibility error（資格検証エラー）が起きた際、エラーと検証用 URL が入力欄の中に収まり、画面全体を上へ押し上げることはなくなった。新しい本棚を買ったら、強力な検索システムが付いてきただけでなく、はみ出しがちだった通知の紙切れを本の間にきちんと挟んでくれて、本と本の隙間まで綺麗に伸ばしてくれたようなものである。",
-                "ko": "완전히 새로운 `/codesearch`(또는 `/cs`) 명령어로 프로젝트 전체의 코드를 빠르게 뒤져볼 수 있게 되었다. 기본적으로 정규 표현식(regex, 기호를 써서 문자열 패턴을 찾는 고급 문법)을 지원하며, `-F`를 붙여 정확히 일치하는 내용만 찾거나 `f:`를 써서 특정 파일만 걸러낼 수도 있다. 화면 인터페이스도 한결 똑똑해졌다. 예전 대화가 어디서 압축되었는지(context-compaction, 오래된 기억을 접어서 공간을 아끼는 기능) 알려주는 선이 그어지고, 줄 안의 코드 주변 빈칸도 지워졌다. 또한 달러 기호가 들어간 터미널 명령어를 수학 공식으로 착각해 깨져 보이던 일도 없어졌다. 게다가 eligibility error(자격 검증 오류)가 발생했을 때, 오류 메시지와 검증용 URL이 화면을 위로 밀어내지 않고 입력창 안에 얌전히 자리 잡는다. 새 책장에 원하는 책을 콕 집어주는 강력한 검색 시스템이 딸려 온 데다, 밖으로 튀어나오던 성가신 안내장을 책갈피 사이에 고이 꽂아주고 책 사이의 벌어진 틈까지 반듯하게 펴 준 것과 같다."
-              },
-              "original": "Added a `/codesearch` command (aliases `/cs` and `/search`) to interactively search code across your workspace, interpreting queries as regex by default with `-F`/`--literal` for exact matching and `f:`/`file:` globs to include or exclude paths.\nAdded an indicator at each context-compaction boundary so you can see where earlier compaction happened.\nImproved eligibility error handling by showing errors with a verification URL inline in the input loop instead of stacking them above the screen.\nRemoved the padding spaces around inline code for tighter rendering.\nFixed code-block corruption where `$..$` math expansion desynced from the Markdown parser and mangled fenced shell snippets such as `git fetch \"$GIT_REMOTE\"` by detecting fenced code blocks line-by-line."
-            },
-            {
-              "title": {
-                "zh-TW": "啟動與載入效能大躍進，不再繞遠路讀檔案",
-                "zh-CN": "启动与加载效能大跃进，不再绕远路读文件",
-                "en": "Startup and discovery speeds skyrocket, cutting out redundant file reads",
-                "ja": "起動と読み込みが劇的に速くなり、無駄なファイル探索をカット",
-                "ko": "켜고 읽는 속도가 훌쩍 빨라져, 헛돌며 파일을 뒤지지 않는다."
-              },
-              "body": {
-                "zh-TW": "現在你打開 Antigravity（Google 的終端機 AI 助手）時，不用再枯等它暖機了。以前在啟動階段，系統會為了尋找技能（skills，提供額外能力的設定）而卡死在漫長的檔案掃描上；現在它改成非同步載入（asynchronously loading，讓主程式先跑，背景慢慢找），大幅縮短了啟動時間。不只如此，當系統在找技能、規則（rules）、代理或掛鉤（hooks）這類客製化設定時，現在懂得把所有路線整合起來並快取（caching，把查過的結果暫存起來直接用）尋找紀錄，砍掉了多餘的磁碟讀寫。同時，它也修好了一個小蟲：如果你的規則資料夾是用符號連結（symlink，指向另一個位置的檔案）連過去的，系統不會再笨笨地把它載入兩次。就像你開車出門，以前每次都要全車地毯式安檢，現在只要一發動就能上路，而且導航系統會記住去過的地方，不用每次都在同一個路口找路。",
-                "zh-CN": "现在你打开 Antigravity（Google 的终端机 AI 助手）时，不用再枯等它暖机了。以前在启动阶段，系统会为了寻找技能（skills，提供额外能力的配置）而卡死在漫长的文件扫描上；现在它改成异步加载（asynchronously loading，让主程序先跑，背景慢慢找），大幅缩短了启动时间。不仅如此，当系统在找技能、规则（rules）、代理或挂钩（hooks）这类自定义设置时，现在懂得把所有路线整合起来并缓存（caching，把查过的结果暂存起来直接用）寻找记录，砍掉了多余的磁盘读写。同时，它也修好了一个小虫：如果你的规则文件夹是用符号链接（symlink，指向另一个位置的文件）连过去的，系统不会再笨笨地把它加载两次。就像你开车出门，以前每次都要全车地毯式安检，现在只要一发动就能上路，而且导航系统会记住去过的地方，不用每次都在同一个路口找路。",
-                "en": "You no longer have to stare at a stalling screen while Antigravity (Google's terminal AI assistant) warms up. Previously, during bring-up, the CLI would completely block your interactive startup while it laboriously scanned your file system to discover skills (settings providing extra capabilities); it now loads them asynchronously (letting the main interface start instantly while loading happens in the background), drastically cutting down startup latency. Moreover, when the system hunts for customizations like skills, rules, agents, or hooks, it now consolidates these directory walks and caches (temporarily saving results for instant reuse) its filesystem lookups, eliminating redundant I/O reads. It also fixed a minor hiccup where customization rules were loaded twice if the directory was reached via a symlink (a file pointing to another location). It's like driving your car: instead of a full-body security sweep every time you turn the key, you can just start the engine and go, and your GPS remembers the routes so it doesn't have to recalculate at every intersection.",
-                "ja": "Antigravity（Google の端末 AI アシスタント）を起動する際、暖機運転で待たされることがなくなった。以前は立ち上げ時にスキル（skills、追加機能を提供する設定）を探すため、時間のかかるファイル走査に掛かりきりになり画面がフリーズしていたが、今は非同期ロード（asynchronously loading、メイン画面を先に動かし、裏で徐々に読み込む方式）に変更され、起動の待ち時間が劇的に短縮されている。それだけでなく、システムがスキル、ルール（rules）、エージェント、フック（hooks）などの独自設定を探す際、今は探索経路を一本化し、検索結果をキャッシュ（caching、調べた結果を一時保存して使い回す仕組み）することで、無駄なディスクの読み書きを削ぎ落とした。同時に、ルールのフォルダがシンボリックリンク（symlink、別の場所を指し示すファイル）経由で繋がっていた場合、システムが二重に読み込んでしまう不具合も直っている。車で出かける際、以前は毎回車内をくまなく保安検査されていたのが、今はエンジンをかければすぐ出発でき、ナビゲーションシステムが一度行った場所を記憶して同じ交差点で迷わなくなったようなものである。",
-                "ko": "이제 Antigravity(Google의 터미널 AI 비서)를 켤 때 준비가 끝날 때까지 멍하니 기다릴 필요가 없다. 예전엔 켜지는 동안 스킬(skills, 추가 기능을 제공하는 설정)을 찾느라 무거운 파일 스캔 작업에 매달려 화면이 멈춰 있었지만, 이제는 비동기 로딩(asynchronously loading, 메인 화면을 먼저 띄우고 배경에서 천천히 불러오는 방식)으로 바꿔 켜지는 시간을 크게 줄였다. 그뿐만 아니라, 시스템이 스킬이나 규칙(rules), 에이전트, 훅(hooks) 같은 사용자 지정 설정을 찾을 때 이제는 탐색 경로를 하나로 합치고 파일 시스템 조회 결과를 캐싱(caching, 찾은 결과를 임시로 저장해 바로 꺼내 쓰는 것)하여 쓸데없는 디스크 읽기를 덜어냈다. 또한, 규칙 폴더가 심볼릭 링크(symlink, 다른 위치를 가리키는 파일)로 연결되어 있을 때 시스템이 두 번씩 불러오던 문제도 고쳤다. 마치 차를 몰고 나갈 때, 예전엔 매번 샅샅이 보안 검사를 해야 했다면 이제는 시동만 걸면 바로 출발할 수 있고, 내비게이션이 한 번 간 길을 기억해 같은 교차로에서 다시 길을 찾을 필요가 없게 된 것과 같다."
-              },
-              "original": "Improved interactive startup latency by loading skills asynchronously so the CLI no longer blocks on a synchronous, filesystem-heavy skill-discovery pass during bring-up.\nImproved customization loading latency for skills, rules, agents, and hooks by consolidating directory walks and caching filesystem lookups to cut redundant I/O during discovery.\nFixed customization rules being loaded twice when a rules directory is reachable through a symlink."
-            },
-            {
-              "title": {
-                "zh-TW": "畫面不再耗能死當，長對話與滑鼠複製更順手",
-                "zh-CN": "画面不再耗能死机，长对话与鼠标复制更顺手",
-                "en": "No more CPU spikes on huge chats, and mouse copying works smoothly",
-                "ja": "巨大な会話でも CPU を食わず、マウスでのコピーが快適に",
-                "ko": "긴 대화에서도 CPU가 치솟지 않고, 마우스 복사가 부드러워져."
-              },
-              "body": {
-                "zh-TW": "在使用不閃爍模式（no-flickering mode，讓終端機畫面更新時不會一直閃爍的顯示模式）時，你的電腦不會再因為超長對話而卡死了。以前對話累積太多，每次更新畫面都會重新把對話索引（index）越長越大，導致 CPU 狂飆；現在重建索引改成了冪等（idempotent，不管跑幾次結果都一樣，不會無限疊加），讓負載穩定下來。此模式下的行數計算也修好了，狀態列不再跑出視窗外；關閉獨立文件預覽（artifact，系統生成的獨立文件預覽）詳細畫面後，也不會再有幽靈留言殘留在螢幕上。現在更支援了選取即複製（copy-on-select）：滑鼠拖曳反白，放開就能把純文字（不含 ANSI 顏色代碼）複製到剪貼簿，且虛擬卷軸會自動隱藏不礙事。就像畫超長的清明上河圖，以前每畫一筆書僮都要從頭數到尾，現在他只看最新變化；當你想臨摹其中一段，一框起來就印好給你，畫軸也會自動閃避。",
-                "zh-CN": "在使用不闪烁模式（no-flickering mode，让终端画面更新时不会一直闪烁的显示模式）时，你的电脑不会再因为超长对话而卡死了。以前对话积累太多，每次更新画面都会重新把对话索引（index）越长越大，导致 CPU 狂飙；现在重建索引改成了幂等（idempotent，不管跑几次结果都一样，不会无限叠加），让负载稳定下来。此模式下的行数计算也修好了，状态栏不再跑出窗口外；关闭独立文档预览（artifact，系统生成的独立文件预览）详细画面后，也不会再有幽灵留言残留在屏幕上。现在更支持了选取即复制（copy-on-select）：鼠标拖曳反白，放开就能把纯文本（不含 ANSI 颜色代码）拷贝到剪贴板，且虚拟卷轴会自动隐藏不碍事。就像画超长的清明上河图，以前每画一笔书童都要从头数到尾，现在他只看最新变化；当你想临摹其中一段，一框起来就印好给你，画轴也会自动闪避。",
-                "en": "Your computer will no longer choke on massive conversations when using no-flickering mode (a display mode that prevents the terminal screen from flashing on every update). Previously, as the chat grew, every single screen refresh would rebuild the conversation index (the internal map of the chat) larger and larger, causing high CPU usage and unbounded rendering costs. This index rebuild is now idempotent (meaning it converges to a stable state no matter how many times it runs), keeping system load stable. Row math in this mode was also corrected so the status line stays neatly inside your viewport, and dismissing an artifact (a standalone document preview generated by the system) detail view will no longer leave ghost comments on the screen. Even better, it now supports copy-on-select: dragging to highlight text and simply releasing the mouse instantly copies the clean text (stripped of ANSI terminal color codes) to your clipboard, hiding the virtual scrollbar so it doesn't interfere. It's like working on a mile-long scroll — previously, your assistant would recount the entire scroll every time you added a stroke; now, they only process what's needed. And when you want to trace a section, circling it instantly gives you a clean photocopy, while the scroll handles tuck themselves away.",
-                "ja": "ちらつき防止モード（no-flickering mode、画面更新時に端末がチカチカするのを防ぐ表示モード）を使っている際、長すぎる会話のせいでパソコンがフリーズすることはなくなった。以前は会話が蓄積すると、画面が更新されるたびに会話のインデックス（index、チャットの内部目次）が雪だるま式に肥大化して CPU を食らい尽くしていたが、今は再構築処理を冪等（idempotent、何度実行しても結果が同じになり、無限に膨らまない性質）にし、負荷を安定させた。このモードでの行数計算も直り、ステータス行がはみ出すことはなくなり、アーティファクト（artifact、システムが生成する独立した文書プレビュー）詳細画面を閉じた後に幽霊のようなコメントが画面に残る不具合も消えた。さらに、選択即コピー（copy-on-select）に対応。ドラッグして左ボタンを離すだけで、ANSI カラーコードを剥ぎ取った純粋なテキストがコピーされ、その際スクロールバーが自動で隠れる。果てしなく長い絵巻物を描く際、以前は一筆ごとに助手が巻物を最初から最後まで数え直していたのが、今は必要な部分だけ処理するようになったようなものである。写し取りたい部分を囲むだけで綺麗なコピーが手に入り、邪魔だった巻物の芯も自動的に引っ込んでくれる。",
-                "ko": "깜빡임 방지 모드(no-flickering mode, 화면 갱신 시 터미널 번쩍거림을 막는 모드)를 쓸 때 긴 대화 때문에 컴퓨터가 뻗어버리는 일이 없어졌다. 예전엔 대화가 쌓이면 화면을 새로 그릴 때마다 대화 인덱스(index, 채팅의 내부 목차)를 부풀리며 만들어 CPU를 마구 갉아먹었지만, 이제는 인덱스 재구축 과정을 멱등성(idempotent, 여러 번 실행해도 결과가 같아 무한히 겹치지 않는 성질) 있게 만들어 부하를 안정시켰다. 이 모드에서 줄 수 계산 방식도 고쳐져 상태 표시줄이 밀려나지 않고, 아티팩트(artifact, 시스템이 만든 문서 미리보기) 화면을 닫은 뒤 유령 댓글이 남아 있던 문제도 지워졌다. 더 멋진 점은 선택 즉시 복사(copy-on-select)를 지원한다는 것이다. 마우스로 선택하고 버튼을 놓기만 하면 ANSI 색상 코드를 뺀 깔끔한 텍스트가 복사되며, 가상 스크롤바가 알아서 숨는다. 끝도 없이 긴 두루마리에 그림을 그릴 때, 예전엔 조수가 처음부터 끝까지 다시 셌다면 이제는 필요한 부분만 처리하는 것과 같다. 베껴 쓰고 싶은 부분을 동그라미 치면 곧바로 복사본을 주고, 거추장스럽던 두루마리 막대도 알아서 비켜준다."
-              },
-              "original": "Added copy-on-select in no-flickering mode so dragging highlights text and releasing the mouse copies the ANSI-stripped selection to the clipboard, and hides the virtual scrollbar so it no longer interferes with copying multi-line output.\nFixed high CPU and unbounded render cost on large conversations in no-flickering mode by making index rebuilds idempotent so the conversation index converges instead of growing on every rebuild.\nFixed lingering artifact comments after dismissing the artifact detail view and corrected no-flickering-mode row math so the status line renders correctly within the viewport."
-            },
-            {
-              "title": {
-                "zh-TW": "權限放行不再出包，無頭模式與 Linux 登入更安分",
-                "zh-CN": "权限放行不再出错，无头模式与 Linux 登录更安分",
-                "en": "Tighter permissions for headless runs, and no more login loops on Linux",
-                "ja": "権限承認の暴走を止め、ヘッドレス実行と Linux のログインループを解消",
-                "ko": "권한 승인 오류를 바로잡고, 헤드리스 실행과 Linux 로그인 무한 반복을 해결."
-              },
-              "body": {
-                "zh-TW": "當你把系統放在背景自動跑任務時，它不會再自作主張開後門。以前在無頭模式（headless runs，無終端機視窗的執行模式）下，遇到需確認權限的工具時不是卡死就是自動同意；現在會溫和拒絕並提示需設定哪條白名單（allow-rule）。在「一律同意（always-proceed）」模式下，也不會再錯誤批准寫入工作區之外的檔案。Linux 使用者以前常因作業系統鑰匙圈（OS keyring，存密碼的保險箱）讀取太慢而被切斷，逼得重新登入；現在若無 D-Bus 工作階段匯流排（D-Bus session bus，用來在工作階段溝通的管道）就直接繞過鑰匙圈，超時先跳過一小時並放寬讀取時間。就像派機器人去倉庫，遇到鎖住的門它不硬闖也不傻等，只回報缺哪把鑰匙；保全動作慢，它也願意多等，不會動不動要你重簽通行證。",
-                "zh-CN": "当你让系统放在背景自动跑任务时，它不会再自作主张开后门。以前在无头模式（headless runs，无终端窗口的执行模式）下，遇到需确认权限的工具时不是卡死就是自动同意；现在会温和拒绝并提示需设置哪条白名单（allow-rule）。在「一律同意（always-proceed）」模式下，也不会再错误批准写入工作区之外的文件。Linux 用户以前常因操作系统钥匙圈（OS keyring，存密码的保险箱）读取太慢而被切断，逼得重新登录；现在若无 D-Bus 会话总线（D-Bus session bus，用来在会话沟通的管道）就直接绕过钥匙圈，超时先跳过一小时并放宽读取时间。就像派机器人去仓库，遇到锁住的门它不硬闯也不傻等，只回报缺哪把钥匙；保全动作慢，它也愿意多等，不会动不动你重签通行证。",
-                "en": "When running tasks in the background, the system no longer makes unauthorized decisions. Previously in headless runs (modes without a terminal window, like `-p`), tools requiring permission either hung or auto-approved; the CLI now soft-denies them and prints a stderr notice showing the allow-rule needed to permit them. In \"always-proceed\" mode, outside-of-workspace file writes are no longer incorrectly auto-approved. Linux users are saved from login loops caused by slow OS keyring reads; the CLI now bypasses the keyring if no D-Bus session bus is present, skips it for an hour after a timeout, and extends timeout windows. Like sending a robot to a warehouse: encountering a locked door, it reports the key it needs; if the guard is slow, it waits longer instead of triggering alarms.",
-                "ja": "バックグラウンドで自動タスクを走らせる際、システムが勝手に許可を出すことはなくなった。以前はヘッドレス実行（headless runs）時に権限確認が必要なツールがあると、フリーズするか自動承認していたが、今は拒否して必要な許可ルール（allow-rule）を提示する。「常に続行（always-proceed）」モードで作業領域外への書き込みを誤承認する不具合も修正した。またLinuxでキーリング（OS keyring）の読み込みが遅くログインループになる問題は、D-Bus セッションバス（session bus）がなければキーリングを迂回し、タイムアウト時は1時間スキップして待機時間を延ばすよう改善した。ロボットが施錠されたドアで立ち往生せず必要な鍵を報告し、警備員が遅くても待つようにしたのと同じである。",
-                "ko": "백그라운드에서 자동 작업을 실행할 때 시스템이 임의로 승인하지 않는다. 이전엔 헤드리스 실행(headless runs) 중 권한 확인이 필요한 도구를 만나면 멈추거나 자동 승인했으나, 이제는 정중히 거절하고 필요한 허용 규칙(allow-rule)을 안내한다. '항상 진행(always-proceed)' 모드에서 작업 영역 외부의 파일 쓰기를 오승인하던 점도 고쳤다. Linux의 느린 키링(OS keyring) 읽기로 인한 로그인 루프는 D-Bus 세션 버스(session bus)가 없을 때 키링을 우회하고, 초과 시 1시간 동안 건너뛰며 대기 시간을 늘려 해결했다. 로봇이 잠긴 문을 만났을 때 필요한 열쇠를 보고하고 경비원이 느려도 대기하는 것과 같다."
-              },
-              "original": "Fixed headless (`-p`) runs hanging or silently auto-approving tools that require a permission confirmation, so the CLI now soft-denies such tools and prints a stderr notice naming the allow-rule needed to permit them.\nFixed outside-of-workspace file writes being incorrectly auto-approved in always-proceed mode.\nFixed repeated sign-in prompts on Linux caused by the OS keyring: the CLI now bypasses the keyring when no D-Bus session bus is present (headless hosts and containers), skips it for an hour after a timeout, and uses longer keyring timeouts so a slow-but-successful credential read is no longer cut short and forced into a fresh login."
-            },
-            {
-              "title": {
-                "zh-TW": "外部工具連線設下停損，對話不再突然壞死",
-                "zh-CN": "外部工具连接设下停损，对话不再突然坏死",
-                "en": "Timeout limits on runaway servers save conversations from sudden death",
-                "ja": "外部ツールの無応答に期限を設け、会話の突然死を防止",
-                "ko": "외부 도구 연결에 제한 시간을 두어 대화가 갑자기 끊어지는 일을 막아."
-              },
-              "body": {
-                "zh-TW": "當你讓 AI 呼叫外部工具時，它不會再因為對方的失誤而跟著同歸於盡了。以前如果你的 MCP（Model Context Protocol，讓 AI 連結外部工具的通訊協定）伺服器沒有回應，代理（agent）就會像石化了一樣無限期死等；現在系統為連線、列出工具清單與呼叫工具的動作都設下了超時停損點（timeouts），時間一到就會果斷放棄。此外，有些特定的工具呼叫以前會弄壞對話紀錄（corrupted history），導致 AI 之後完全無法回應，整個對話直接壞死；這個嚴重的蟲現在也被抓出來修好了。就像派助理去拿資料，以前沒人他會永遠死等並弄丟聯絡簿；現在給他設了超時規定，時間一到就直接回報，也不會再搞丟聯絡簿。",
-                "zh-CN": "当你让 AI 调用外部工具时，它不会再因为对方的失误而跟着同归于尽了。以前如果你的 MCP（Model Context Protocol，让 AI 连接外部工具的通讯协定）服务器没有回应，代理（agent）就会像石化了一样无限期死等；现在系统为连接、列出工具清单与调用工具的动作都设下了超时停损点（timeouts），时间一到就会果断放弃。此外，有些特定的工具调用以前会弄坏对话记录（corrupted history），导致 AI 之后完全无法回应，整个对话直接坏死；这个严重的虫现在也被抓出来修好了。就像派助理去拿资料，以前没人他会永远死等并弄丢联系簿；现在给他设了超时规定，时间一到就直接回报，也不会再搞丢联系簿。",
-                "en": "When you ask the AI to invoke an external tool, it will no longer get dragged down by unresponsive servers. Previously, if your MCP (Model Context Protocol, a standard connecting AI to external tools) server simply never responded, the agent would freeze like a statue and hang indefinitely; the system now actively bounds connection attempts, tool-listing requests, and per-tool-call attempts with strict timeouts, allowing it to gracefully give up and move on. Furthermore, certain tool calls used to catastrophically break the conversation by corrupting the history (the underlying memory of the chat), which blocked all further responses and killed the session instantly; this fatal bug has been fully squashed. It's like sending an assistant to fetch a document — they used to stand there forever if the room was empty and lose their walkie-talkie; now you've given them a strict timeout rule, so they come back if nobody answers, and keep their radio perfectly safe.",
-                "ja": "AI に外部ツールを呼び出させる際、相手の応答なしに巻き込まれて自滅することはなくなった。以前は、MCP（Model Context Protocol、AI を外部ツールに繋ぐ通信規格）サーバーが応答を返さないと、エージェント（agent）は石化したように無限に待ち続けていた。今は接続、ツール一覧の取得、ツールごとの呼び出しにそれぞれタイムアウト（timeouts、時間切れによる打ち切り）の制限を設け、時間が来ればきっぱり諦めるようになった。さらに、特定のツール呼び出しを行うと会話の履歴が破損（corrupted history）し、AI が一切応答できなくなって会話が突然死する致命的な不具合も完全に修正された。助手に資料を取りに行かせた際、以前は誰もいなければ一生立ち尽くして連絡帳まで失くしていたのが、今は制限時間を設けて時間切れなら戻るようになり、連絡帳も絶対に失くさなくなったようなものである。",
-                "ko": "AI에게 외부 도구를 불러달라고 할 때 상대방의 실수 때문에 함께 굳어버리지 않는다. 예전엔 MCP(Model Context Protocol, AI를 외부 도구에 연결하는 통신 규약) 서버가 응답하지 않으면 에이전트(agent)가 돌처럼 굳어 끝없이 기다렸지만, 이제는 시스템이 연결, 도구 목록 조회, 개별 도구 호출 등 모든 동작에 시간 초과(timeouts) 제한을 걸어두어 단호하게 포기한다. 또한 특정 도구를 부를 때 대화 기록이 깨지면서(corrupted history) 그 뒤로 AI가 꿀먹은 벙어리가 되어 대화가 죽어버리던 치명적인 오류도 고쳤다. 조수를 보내 서류를 가져오라고 시켰을 때, 예전엔 아무도 없으면 영원히 기다리다 못해 연락 수첩까지 잃어버렸다면, 이제는 조수에게 제한 시간을 주어 응답이 없으면 바로 돌아오게 하고 수첩도 잃어버릴 일이 없게 만든 것과 같다."
-              },
-              "original": "Fixed MCP servers hanging the agent indefinitely when a server never responds by bounding connection, tool-listing, and per-tool-call attempts with timeouts.\nFixed conversations breaking after certain tool calls, which previously corrupted the conversation history and blocked all further responses."
             }
           ]
         }
