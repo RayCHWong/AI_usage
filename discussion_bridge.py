@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import threading
 import time
@@ -413,6 +414,10 @@ class DiscussionBridge:
         cancel_event: threading.Event,
     ) -> None:
         try:
+            anonymous_labels = {
+                participant.id: _anonymous_participant_label(index)
+                for index, participant in enumerate(session.participants)
+            }
             resolved = self._resolve_participants(specs)
             if cancel_event.is_set():
                 return
@@ -452,8 +457,11 @@ class DiscussionBridge:
                     round_index=round_index,
                 )
                 answers = [
-                    (_anonymous_participant_label(index), result.text)
-                    for index, result in enumerate(survivors)
+                    (
+                        anonymous_labels[result.participant.spec.id],
+                        result.text,
+                    )
+                    for result in survivors
                 ]
 
                 def round_prompt(
@@ -494,13 +502,18 @@ class DiscussionBridge:
                 self._transition(session, cancel_event, SessionStatus.COMPLETED)
                 return
             self._transition(session, cancel_event, SessionStatus.SUMMARIZING)
-            transcript = _build_transcript(session)
+            transcript = _build_transcript(session, anonymous_labels)
             self._run_turn(
                 session,
                 moderator.participant,
                 total_rounds + 1,
                 build_moderator_prompt(transcript),
                 cancel_event,
+                text_transform=lambda text: _restore_participant_labels(
+                    text,
+                    session,
+                    anonymous_labels,
+                ),
             )
             if cancel_event.is_set():
                 return
@@ -608,6 +621,7 @@ class DiscussionBridge:
         cancel_event: threading.Event,
         *,
         turn_id: str | None = None,
+        text_transform: Callable[[str], str] | None = None,
     ) -> _TurnResult:
         adapter = participant.adapter
         supports_token_stream = (
@@ -715,6 +729,14 @@ class DiscussionBridge:
             retryable = attempt_reason == StreamFailureReason.NONZERO_EXIT
             if attempt_done and attempt_error is None:
                 if produced_text.strip():
+                    if text_transform is not None:
+                        self._replace_text(
+                            session,
+                            turn_id,
+                            text_transform(produced_text),
+                            cancel_event,
+                        )
+                        accumulator = _DeltaAccumulator()
                     if final_text is not None:
                         accumulator = _DeltaAccumulator()
                     result_success = self._complete_turn(
@@ -959,6 +981,8 @@ def _render_discussion_markdown(snapshot: dict[str, object]) -> str:
     turns = snapshot["turns"]
     assert isinstance(participants, list)
     assert isinstance(turns, list)
+    total_rounds = snapshot["total_rounds"]
+    assert isinstance(total_rounds, int)
     labels = {
         str(participant["id"]): str(participant["label"])
         for participant in participants
@@ -974,32 +998,62 @@ def _render_discussion_markdown(snapshot: dict[str, object]) -> str:
             continue
         text = str(turn["text"])
         participant = labels.get(str(turn["participant_id"]), str(turn["participant_id"]))
-        if turn["round_index"] == 3:
+        if int(turn["round_index"]) > total_rounds:
             lines.extend(("## 主持人總結", text))
         else:
             lines.extend((f"## 第 {turn['round_index']} 輪 · {participant}", text))
     return "\n\n".join(lines) + "\n"
 
 
-def _build_transcript(session: DiscussionSession) -> str:
+def _build_transcript(
+    session: DiscussionSession,
+    anonymous_labels: Mapping[str, str],
+) -> str:
     snapshot = session.snapshot()
-    labels = {
-        str(participant["id"]): str(participant["label"])
+    real_labels = {
+        str(participant["label"]): anonymous_labels[str(participant["id"])]
         for participant in snapshot["participants"]
     }
     sections: list[str] = []
     for turn in snapshot["turns"]:
         participant_id = str(turn["participant_id"])
         error = turn["error"]
-        body = str(turn["text"])
+        body = _replace_labels(str(turn["text"]), real_labels)
         if error:
-            body = f"{body}\n[失敗：{error}]" if body else f"[失敗：{error}]"
+            safe_error = _replace_labels(str(error), real_labels)
+            body = f"{body}\n[失敗：{safe_error}]" if body else f"[失敗：{safe_error}]"
         sections.append(
-            f"<<<TURN participant={labels.get(participant_id, participant_id)!r} "
+            f"<<<TURN participant={anonymous_labels.get(participant_id, participant_id)!r} "
             f"round={turn['round_index']} status={turn['status']}>>>\n"
             f"{body}\n<<<TURN_END>>>"
         )
     return "\n\n".join(sections)
+
+
+def _restore_participant_labels(
+    text: str,
+    session: DiscussionSession,
+    anonymous_labels: Mapping[str, str],
+) -> str:
+    labels = {
+        anonymous_labels[participant.id]: participant.label
+        for participant in session.participants
+    }
+    return _replace_labels(text, labels, protect_anonymous_suffix=True)
+
+
+def _replace_labels(
+    text: str,
+    replacements: Mapping[str, str],
+    *,
+    protect_anonymous_suffix: bool = False,
+) -> str:
+    labels = sorted((label for label in replacements if label), key=len, reverse=True)
+    if not labels:
+        return text
+    suffix = r"(?![A-Za-z0-9])" if protect_anonymous_suffix else ""
+    pattern = re.compile(f"(?:{'|'.join(re.escape(label) for label in labels)}){suffix}")
+    return pattern.sub(lambda match: replacements[match.group(0)], text)
 
 
 def _attachment_dirs(attachments: Sequence[str]) -> tuple[str, ...]:

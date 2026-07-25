@@ -2180,7 +2180,9 @@
       const summaryTurn = [...turns].reverse().find(
         (turn) => Number(turn.round_index) > totalRounds,
       );
-      summaryText = summaryTurn ? `${summaryTurn.text || ""}` : "";
+      summaryText = summaryTurn && summaryTurn.status === "DONE"
+        ? `${summaryTurn.text || ""}`
+        : "";
       copyEl.disabled = !summaryText;
 
       const consensus = state.consensus_count;
@@ -2207,7 +2209,11 @@
         summaryEl.append(usage);
       };
 
-      if (!summaryTurn || (!summaryText && summaryTurn.status !== "FAILED")) {
+      if (
+        !summaryTurn
+        || !["DONE", "FAILED"].includes(summaryTurn.status)
+        || (!summaryText && summaryTurn.status !== "FAILED")
+      ) {
         const placeholder = document.createElement("div");
         placeholder.className = "placeholder";
         placeholder.textContent = t(

@@ -808,6 +808,13 @@ def test_copy_feedback_uses_i18n_and_four_section_plain_text() -> None:
     assert "JSON.stringify(summaryText)" not in html
 
 
+def test_running_summary_stays_hidden_until_labels_are_restored() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert 'summaryTurn.status === "DONE"' in html
+    assert '!["DONE", "FAILED"].includes(summaryTurn.status)' in html
+
+
 def test_html_visible_static_elements_use_i18n_keys() -> None:
     html = HTML_PATH.read_text(encoding="utf-8")
 

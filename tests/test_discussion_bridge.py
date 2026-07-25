@@ -353,7 +353,7 @@ def test_summary_can_be_disabled_without_preventing_completion(
     assert all(round_index != 3 for _, round_index in runner.calls)
 
 
-def test_round2_is_anonymous_but_moderator_transcript_uses_real_labels(
+def test_round2_and_moderator_transcript_are_anonymous(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     specs = [
@@ -372,7 +372,106 @@ def test_round2_is_anonymous_but_moderator_transcript_uses_real_labels(
     assert "參與者 A" in round2
     assert not any(label in round2 for label in ("Claude", "Codex", "Antigravity"))
     assert "你在第一輪的發言" not in round2
-    assert all(label in transcript for label in ("Claude", "Codex", "Antigravity"))
+    assert all(label in transcript for label in ("參與者 A", "參與者 B", "參與者 C"))
+    assert not any(label in transcript for label in ("Claude", "Codex", "Antigravity"))
+
+
+def test_anonymous_labels_keep_original_order_after_round1_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specs = [
+        ParticipantSpec("claude", "Claude", "claude"),
+        ParticipantSpec("codex", "Codex", "codex"),
+        ParticipantSpec("agy", "Antigravity", "agy"),
+    ]
+
+    def outcome(adapter_id: str, round_index: int) -> str | Exception:
+        if adapter_id == "claude" and round_index == 1:
+            return RuntimeError("round 1 failed")
+        return f"{adapter_id}-r{round_index}"
+
+    bridge, adapters = _bridge_with_adapters(("claude", "codex", "agy"))
+    _install_runner(monkeypatch, FakeRunner(outcome))
+
+    bridge.start("問題", specs, moderator_id="codex")
+    _wait_terminal(bridge)
+
+    round2_prompt = adapters["codex"].prompts[1]
+    transcript = adapters["codex"].prompts[2]
+    assert "label='參與者 B'>>>\ncodex-r1" in round2_prompt
+    assert "label='參與者 C'>>>\nagy-r1" in round2_prompt
+    assert "label='參與者 A'>>>\ncodex-r1" not in round2_prompt
+    assert "participant='參與者 B' round=1 status=DONE" in transcript
+    assert "participant='參與者 C' round=2 status=DONE" in transcript
+    assert not any(label in transcript for label in ("Claude", "Codex", "Antigravity"))
+
+
+@pytest.mark.parametrize(
+    ("summary", "expected"),
+    [
+        ("共識\n參與者 A 的方案可行", "共識\nClaude 的方案可行"),
+        ("共識\n目前方案可行", "共識\n目前方案可行"),
+        ("共識\n參與者 AA 的方案可行", "共識\n參與者 AA 的方案可行"),
+    ],
+)
+def test_summary_restores_anonymous_labels_once_after_streaming(
+    monkeypatch: pytest.MonkeyPatch,
+    summary: str,
+    expected: str,
+) -> None:
+    specs = [
+        ParticipantSpec("claude", "Claude", "claude"),
+        ParticipantSpec("codex", "Codex", "codex"),
+    ]
+    runner = FakeRunner(
+        lambda adapter_id, round_index: summary
+        if round_index == 3
+        else f"{adapter_id}-r{round_index}"
+    )
+    bridge, _ = _bridge_with_adapters(("claude", "codex"))
+    _install_runner(monkeypatch, runner)
+
+    bridge.start("問題", specs, moderator_id="claude")
+    snapshot = _wait_terminal(bridge)
+
+    summary_turn = snapshot["turns"][-1]
+    assert summary_turn["text"] == expected
+    events = cast(list[dict[str, Any]], bridge.drain_events(500))
+    replacements = [
+        event
+        for event in events
+        if event["kind"] == "text_replace"
+        and event["turn_id"] == summary_turn["id"]
+    ]
+    assert replacements[-1]["payload"]["text"] == expected
+
+
+def test_markdown_exports_the_restored_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    archive_dir = tmp_path / "archive"
+    monkeypatch.setattr(discussion_bridge, "DISCUSSIONS_DIRECTORY", archive_dir)
+    specs = [
+        ParticipantSpec("claude", "Claude", "claude"),
+        ParticipantSpec("codex", "Codex", "codex"),
+    ]
+    runner = FakeRunner(
+        lambda adapter_id, round_index: "共識\n參與者 A 支持此方案"
+        if round_index == 3
+        else f"{adapter_id}-r{round_index}"
+    )
+    bridge, _ = _bridge_with_adapters(("claude", "codex"))
+    _install_runner(monkeypatch, runner)
+
+    session_id = bridge.start("問題", specs, moderator_id="claude")
+    snapshot = _wait_terminal(bridge)
+
+    summary_text = snapshot["turns"][-1]["text"]
+    markdown = (archive_dir / f"{session_id}.md").read_text(encoding="utf-8")
+    assert summary_text == "共識\nClaude 支持此方案"
+    assert summary_text in markdown
+    assert "參與者 A 支持此方案" not in markdown
 
 
 def test_each_participant_receives_only_its_own_persona(
