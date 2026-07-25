@@ -638,13 +638,13 @@ def test_start_button_logic(
     assert json.loads(result.stdout) is expected
 
 
-def test_persona_select_groups_packs_in_source_order_and_puts_other_last() -> None:
+def test_persona_picker_groups_packs_in_source_order_and_puts_other_last() -> None:
     node = shutil.which("node")
     if node is None:
-        pytest.skip("Node.js is required to evaluate persona select grouping")
+        pytest.skip("Node.js is required to evaluate persona picker grouping")
     html = HTML_PATH.read_text(encoding="utf-8")
     function = re.search(
-        r"    function createPersonaSelect\(id\) \{.*?^    \}",
+        r"    function buildPersonaGroups\(\) \{.*?^    \}",
         html,
         flags=re.MULTILINE | re.DOTALL,
     )
@@ -656,36 +656,12 @@ def test_persona_select_groups_packs_in_source_order_and_puts_other_last() -> No
         {"id": "a2", "name": "A2", "persona_name": "Two", "pack_name": "Alpha"},
     ]
     invocation = f"""
-class Element {{
-  constructor(tagName) {{
-    this.tagName = tagName;
-    this.children = [];
-    this.dataset = {{}};
-    this.attributes = {{}};
-    this.value = "";
-  }}
-  append(...children) {{ this.children.push(...children); }}
-  setAttribute(name, value) {{ this.attributes[name] = value; }}
-  addEventListener() {{}}
-}}
-const document = {{ createElement: (tagName) => new Element(tagName) }};
 const personas = {json.dumps(personas)};
-const selectedPersonas = {{}};
-const t = (key) => ({{
-  discussion_persona: "Role",
-  discussion_persona_neutral: "Neutral",
-  discussion_persona_other: "Other",
-}})[key];
-const isRunning = () => false;
-const renderEstimate = () => {{}};
+const t = (key) => key === "discussion_persona_other" ? "Other" : key;
 {function.group(0)}
-const select = createPersonaSelect("claude");
-process.stdout.write(JSON.stringify(select.children.map((child) => ({{
-  tagName: child.tagName,
-  label: child.label || "",
-  options: child.children.map((option) => [option.value, option.textContent]),
-  value: child.value,
-  text: child.textContent,
+process.stdout.write(JSON.stringify(buildPersonaGroups().map((group) => ({{
+  label: group.label,
+  ids: group.items.map((item) => item.id),
 }}))));
 """
 
@@ -697,32 +673,97 @@ process.stdout.write(JSON.stringify(select.children.map((child) => ({{
     )
 
     assert json.loads(result.stdout) == [
-        {
-            "tagName": "option",
-            "label": "",
-            "options": [],
-            "value": "",
-            "text": "Neutral",
-        },
-        {
-            "tagName": "optgroup",
-            "label": "Alpha",
-            "options": [["a1", "A1 · One"], ["a2", "A2 · Two"]],
-            "value": "",
-        },
-        {
-            "tagName": "optgroup",
-            "label": "Beta",
-            "options": [["b1", "B1"]],
-            "value": "",
-        },
-        {
-            "tagName": "optgroup",
-            "label": "Other",
-            "options": [["other", "Other role"]],
-            "value": "",
-        },
+        {"label": "Alpha", "ids": ["a1", "a2"]},
+        {"label": "Beta", "ids": ["b1"]},
+        {"label": "Other", "ids": ["other"]},
     ]
+    assert 'neutral.textContent = t("discussion_persona_neutral")' in html
+    assert 'header.className = "persona-menu-group-toggle"' in html
+    assert 'indicator.className = "persona-menu-group-indicator"' in html
+    assert 'trigger.setAttribute("aria-label", t("discussion_persona"))' in html
+
+
+def test_persona_picker_uses_fixed_body_popup_and_closes_before_render() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+    styles = html.split("<style>", 1)[1].split("</style>", 1)[0]
+    trigger_function = re.search(
+        r"    function createPersonaSelect\(id\) \{.*?^    \}",
+        html,
+        re.MULTILINE | re.DOTALL,
+    )
+    menu_style = re.search(r"    \.persona-menu \{.*?^    \}", styles, re.MULTILINE | re.DOTALL)
+    option_style = re.search(
+        r"    \.persona-menu-option \{.*?^    \}",
+        styles,
+        re.MULTILINE | re.DOTALL,
+    )
+    group_style = re.search(
+        r"    \.persona-menu-group-toggle \{\n      justify-content:.*?^    \}",
+        styles,
+        re.MULTILINE | re.DOTALL,
+    )
+
+    assert trigger_function is not None
+    assert 'document.createElement("button")' in trigger_function.group(0)
+    assert 'document.createElement("select")' not in trigger_function.group(0)
+    assert menu_style is not None
+    assert "position: fixed" in menu_style.group(0)
+    assert "overflow-y: auto" in menu_style.group(0)
+    assert option_style is not None
+    assert "font-size: 14px" in option_style.group(0)
+    assert group_style is not None
+    assert "font-size: 12px" in group_style.group(0)
+    assert "document.body.append(menu)" in html
+    assert "availableBelow < desiredHeight" in html
+    assert 'menu.dataset.placement = openUpward ? "top" : "bottom"' in html
+    assert "function render() {\n      closePersonaMenu();" in html
+    assert 'event.key === "ArrowDown"' in html
+    assert '"ArrowUp"' in html
+    assert 'event.key === "Escape"' in html
+    assert 'event.key !== "Enter" && event.key !== " "' in html
+    assert 'document.addEventListener("pointerdown"' in html
+    assert 'neutral.className = "persona-menu-option persona-menu-neutral"' in html
+    assert "const expanded = group.items.some" in html
+    assert "focusTarget.scrollIntoView" in html
+
+
+def test_persona_picker_positions_above_when_below_space_is_insufficient() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to evaluate persona picker positioning")
+    html = HTML_PATH.read_text(encoding="utf-8")
+    function = re.search(
+        r"    function positionPersonaMenu\(trigger, menu\) \{.*?^    \}",
+        html,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert function is not None
+    invocation = f"""
+const window = {{ innerWidth: 800, innerHeight: 600 }};
+{function.group(0)}
+function place(rect) {{
+  const trigger = {{ getBoundingClientRect: () => rect }};
+  const menu = {{ scrollHeight: 300, style: {{}}, dataset: {{}} }};
+  positionPersonaMenu(trigger, menu);
+  return {{ placement: menu.dataset.placement, top: menu.style.top }};
+}}
+process.stdout.write(JSON.stringify({{
+  nearTop: place({{ top: 100, bottom: 130, right: 700, width: 128 }}),
+  nearBottom: place({{ top: 500, bottom: 530, right: 700, width: 128 }}),
+}}));
+"""
+
+    result = subprocess.run(
+        [node, "-e", invocation],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(result.stdout) == {
+        "nearTop": {"placement": "bottom", "top": "134px"},
+        "nearBottom": {"placement": "top", "top": "196px"},
+    }
 
 
 def test_html_controls_and_history_follow_use_reviewed_logic() -> None:
