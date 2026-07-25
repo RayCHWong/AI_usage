@@ -60,6 +60,7 @@ brew install --cask aqua5230/usage/usage
 - **10 个视觉主题：** 可切换面板风格，包括 Classic、Matrix、Windows 95、Newspaper、Cloud Observation、Midnight Aquarium、Prism Arcade、Black Hole、World Cup 2026 和 Lepidoptera（蓝图）。
 - **拖拽排序：** 按住任意配额卡上下拖拽即可交换顺序——这一排列在所有主题间共享，并在重启后保留。
 - **AI 人才市场：** 将现成的 AI 团队带入 Claude Code。浏览并立即将精选子代理角色安装到 `~/.claude/agents/`。通过随附 CLI 完全在本地运行。
+- **AI 圆桌讨论：** 打开一个独立窗口，让 Claude Code、Codex、Antigravity 针对你给的题目进行多轮讨论——自选谁加入、各自用哪个模型、讨论几轮，开始前就能看到大约会花多少 token。支持图片附件与只读的项目文件夹，让参与者可以参考真实文件。
 - **AI 更新日报：** 点击这个菜单项目，会用默认浏览器打开公开[网页](https://aqua5230.github.io/ai-updates/)。网页每天自动更新、涵盖 Claude Code、Codex、Antigravity 三套工具、保留完整历史；已审核的更新显示五语白话版，未审核的显示官方原文。
 - **灵伴：** 一个小型动态白色剪影会出现在使用百分比旁边：Claude 是凤凰，Codex 是龙，Antigravity 是狮子。每个伙伴都会随各自工具的 token 消耗速率上升而动态加速。
 - **自动本地化：** 界面文本提供繁体中文、简体中文、英语、日语和韩语，并自动匹配系统设置。
@@ -152,6 +153,7 @@ Windows 的差异：面板显示在工作区右下角，而不是紧贴系统托
 | Antigravity（Gemini）用量 | ✅ | — | — |
 | HTML 深度报告与界面 | ✅ | ✅ | — |
 | AI 人才市场 | ✅ | — | — |
+| AI 圆桌讨论 | ✅ | — | — |
 | AI 更新日报 | ✅ | — | — |
 | 进度管家与 Token 节省器 | ✅ | — | — |
 | Token 浪费健康检查 | ✅ | — | — |
