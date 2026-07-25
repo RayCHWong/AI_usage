@@ -620,53 +620,30 @@ def codex_rows(
             rate_limits.seven_day_window_minutes, "weekly_label", language
         )
     )
-    # Codex dropped the 5-hour window in July 2026, leaving a single weekly
-    # slot. Promote it to the first row so the card shows a real number and a
-    # real countdown; the second row goes blank and the panel drops it. This is
-    # recomputed every poll, so the moment a 5-hour window comes back the
-    # two-row layout returns on its own.
-    if session_absent and rate_limits.seven_day_pct is not None:
-        rows = (
-            _quota_row(
-                weekly_title,
-                rate_limits.seven_day_pct,
-                rate_limits.seven_day_resets_at,
-                now,
-                CODEX_COLOR,
-                language,
-                forecast_seconds=burn_rate_trackers["codex_weekly"].forecast_seconds(
-                    window_seconds=WEEKLY_FORECAST_WINDOW_SECONDS,
-                    min_span_seconds=WEEKLY_FORECAST_MIN_SPAN_SECONDS,
-                ),
-                warning_max_seconds=24 * 3600,
+    rows = (
+        _quota_row(
+            session_title,
+            rate_limits.five_hour_pct,
+            rate_limits.five_hour_resets_at,
+            now,
+            CODEX_COLOR,
+            language,
+            forecast_seconds=burn_rate_trackers["codex_session"].forecast_seconds(),
+        ),
+        _quota_row(
+            weekly_title,
+            rate_limits.seven_day_pct,
+            rate_limits.seven_day_resets_at,
+            now,
+            CODEX_COLOR,
+            language,
+            forecast_seconds=burn_rate_trackers["codex_weekly"].forecast_seconds(
+                window_seconds=WEEKLY_FORECAST_WINDOW_SECONDS,
+                min_span_seconds=WEEKLY_FORECAST_MIN_SPAN_SECONDS,
             ),
-            _missing_row("", CODEX_COLOR, language),
-        )
-    else:
-        rows = (
-            _quota_row(
-                session_title,
-                rate_limits.five_hour_pct,
-                rate_limits.five_hour_resets_at,
-                now,
-                CODEX_COLOR,
-                language,
-                forecast_seconds=burn_rate_trackers["codex_session"].forecast_seconds(),
-            ),
-            _quota_row(
-                weekly_title,
-                rate_limits.seven_day_pct,
-                rate_limits.seven_day_resets_at,
-                now,
-                CODEX_COLOR,
-                language,
-                forecast_seconds=burn_rate_trackers["codex_weekly"].forecast_seconds(
-                    window_seconds=WEEKLY_FORECAST_WINDOW_SECONDS,
-                    min_span_seconds=WEEKLY_FORECAST_MIN_SPAN_SECONDS,
-                ),
-                warning_max_seconds=24 * 3600,
-            ),
-        )
+            warning_max_seconds=24 * 3600,
+        ),
+    )
     credits: CodexCreditsState | None = (
         {
             "balance": rate_limits.credit_balance,
