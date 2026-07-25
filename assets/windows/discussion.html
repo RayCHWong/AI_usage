@@ -934,6 +934,16 @@
       font-size: 12px;
     }
 
+    .consensus-count {
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      color: var(--text);
+      background: var(--accent-soft);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
     .turn-text,
     .turn-error,
     .summary-text {
@@ -1895,6 +1905,21 @@
       summaryText = summaryTurn ? `${summaryTurn.text || ""}` : "";
       copyEl.disabled = !summaryText;
 
+      const consensus = state.consensus_count;
+      if (consensus && typeof consensus === "object") {
+        const count = document.createElement("div");
+        count.className = "consensus-count";
+        count.textContent = t("discussion_consensus_count_summary", {
+          total: ["agree", "disagree", "alternative", "unparsed"]
+            .reduce((total, key) => total + (Number(consensus[key]) || 0), 0),
+          agree: Number(consensus.agree) || 0,
+          disagree: Number(consensus.disagree) || 0,
+          alternative: Number(consensus.alternative) || 0,
+          unparsed: Number(consensus.unparsed) || 0,
+        });
+        summaryEl.append(count);
+      }
+
       const appendUsageTotal = () => {
         const usage = document.createElement("div");
         usage.className = "summary-usage";
@@ -2038,6 +2063,13 @@
       } else if (event.kind === "round_started") {
         state.current_round = Number(payload.round_index);
         state.status = Number(payload.round_index) === 1 ? "ROUND1_RUNNING" : "ROUND2_RUNNING";
+      } else if (event.kind === "consensus_counted") {
+        state.consensus_count = {
+          agree: Number(payload.agree) || 0,
+          disagree: Number(payload.disagree) || 0,
+          alternative: Number(payload.alternative) || 0,
+          unparsed: Number(payload.unparsed) || 0,
+        };
       } else if (event.kind === "session_done") {
         state.status = `${payload.status || "COMPLETED"}`;
       } else if (event.kind === "session_failed") {

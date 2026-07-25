@@ -8,7 +8,9 @@
 
 from __future__ import annotations
 
+import re
 import threading
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
 from typing import Any
@@ -85,6 +87,38 @@ class Turn:
     error: str | None = None
     supports_token_stream: bool = False
     usage: TurnUsage | None = None
+
+
+@dataclass(frozen=True)
+class ConsensusCount:
+    agree: int = 0
+    disagree: int = 0
+    alternative: int = 0
+    unparsed: int = 0
+
+
+_CONSENSUS_LABEL_RE = re.compile(
+    r"^[\s]*[\[［(（]\s*(agree|disagree|alternative)\s*[\]］)）]",
+    re.IGNORECASE,
+)
+
+
+def count_round2_consensus(turns: Iterable[Turn]) -> ConsensusCount:
+    """Count tolerant first-line stance labels from second-round turns."""
+    counts = {
+        "agree": 0,
+        "disagree": 0,
+        "alternative": 0,
+        "unparsed": 0,
+    }
+    for turn in turns:
+        if turn.round_index != 2:
+            continue
+        first_line = turn.text.lstrip().splitlines()[0] if turn.text.strip() else ""
+        match = _CONSENSUS_LABEL_RE.match(first_line)
+        key = match.group(1).lower() if match else "unparsed"
+        counts[key] += 1
+    return ConsensusCount(**counts)
 
 
 @dataclass(frozen=True)
@@ -250,6 +284,7 @@ class DiscussionSession:
         self.current_round = 0
         self.total_rounds = min(5, max(1, total_rounds))
         self._turns: dict[str, Turn] = {}
+        self._consensus_count: ConsensusCount | None = None
         self._next_event_seq = 0
         self._lock = threading.Lock()
 
@@ -451,6 +486,14 @@ class DiscussionSession:
                     )
             return events
 
+    def count_consensus(self) -> DiscussionEvent:
+        with self._lock:
+            self._consensus_count = count_round2_consensus(self._turns.values())
+            return self._emit_locked(
+                "consensus_counted",
+                payload=asdict(self._consensus_count),
+            )
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             participants = [asdict(participant) for participant in self.participants]
@@ -479,6 +522,11 @@ class DiscussionSession:
                 "participants": participants,
                 "turns": turns,
                 "usage_totals": usage_totals,
+                "consensus_count": (
+                    asdict(self._consensus_count)
+                    if self._consensus_count is not None
+                    else None
+                ),
                 "event_seq": self._next_event_seq - 1,
             }
 

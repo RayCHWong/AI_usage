@@ -13,6 +13,7 @@ import pytest
 
 import discussion_session
 from discussion_session import (
+    ConsensusCount,
     DebateStyle,
     DiscussionSession,
     InvalidSessionTransition,
@@ -20,6 +21,7 @@ from discussion_session import (
     Participant,
     SessionStatus,
     TurnStatus,
+    count_round2_consensus,
 )
 from discussion_usage import TurnUsage
 
@@ -394,6 +396,25 @@ def test_moderator_prompt_has_exact_required_sections() -> None:
         assert heading in prompt
     assert "<<<TRANSCRIPT_BEGIN>>>" in prompt
     assert "完整逐字稿" in prompt
+
+
+def test_count_round2_consensus_accepts_spacing_case_and_fullwidth_brackets() -> None:
+    turns = [
+        discussion_session.Turn("1", "a", 1, "[Disagree] 第一輪不計"),
+        discussion_session.Turn("2", "a", 2, "  [Agree] 同意  "),
+        discussion_session.Turn("3", "b", 2, "［dIsAgReE］ 不同意"),
+        discussion_session.Turn("4", "c", 2, "（Alternative）替代方案"),
+        discussion_session.Turn("5", "d", 2, "\n\t(agree) 補充"),
+        discussion_session.Turn("6", "e", 2, "沒有標籤"),
+        discussion_session.Turn("7", "f", 2, ""),
+    ]
+
+    assert count_round2_consensus(turns) == ConsensusCount(
+        agree=2,
+        disagree=1,
+        alternative=1,
+        unparsed=2,
+    )
 
 
 def test_all_prompts_include_neutral_council_context() -> None:

@@ -198,6 +198,42 @@ def test_normal_three_participant_flow_and_event_sequence(
     assert "共識" in adapters["b"].prompts[2]
 
 
+def test_second_round_emits_consensus_count_without_changing_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge, _ = _bridge_with_adapters(("a", "b", "c"))
+    runner = FakeRunner(
+        lambda adapter_id, round_index: (
+            {
+                "a": "[Agree] 同意",
+                "b": "［DISAGREE］ 不同意",
+                "c": "未依格式",
+            }[adapter_id]
+            if round_index == 2
+            else f"{adapter_id}-r{round_index}"
+        )
+    )
+    _install_runner(monkeypatch, runner)
+
+    bridge.start("問題", _specs("a", "b", "c"), include_summary=False)
+    snapshot = _wait_terminal(bridge)
+    events = bridge.drain_events(500)
+
+    assert snapshot["status"] == "COMPLETED"
+    assert snapshot["consensus_count"] == {
+        "agree": 1,
+        "disagree": 1,
+        "alternative": 0,
+        "unparsed": 1,
+    }
+    consensus_events = [
+        event for event in events if event["kind"] == "consensus_counted"
+    ]
+    assert len(consensus_events) == 1
+    assert consensus_events[0]["payload"] == snapshot["consensus_count"]
+    assert Counter(round_index for _, round_index in runner.calls) == {1: 3, 2: 3}
+
+
 def test_single_participant_skips_round2_and_moderator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -516,6 +516,7 @@ def test_html_uses_isolated_handler_and_safe_dynamic_dom() -> None:
     assert "window.discussionApplySnapshot" in html
     assert "window.discussionApplyDetection" in html
     assert "window.discussionApplyPersonas" in html
+    assert 'event.kind === "consensus_counted"' in html
     assert "window.discussionApplyWorkingDir" in html
     assert "window.discussionApplyError" in html
     assert ".innerHTML" not in html
@@ -692,6 +693,7 @@ def test_html_visible_static_elements_use_i18n_keys() -> None:
         "discussion_persona",
         "discussion_persona_neutral",
         "discussion_debate_style",
+        "discussion_consensus_count_summary",
         "discussion_working_directory",
         "discussion_pick_folder",
         "discussion_clear_folder",

@@ -469,15 +469,18 @@ class DiscussionBridge:
                         style=debate_style,
                     )
 
+                round_results = self._run_round(
+                    session,
+                    [result.participant for result in survivors],
+                    round_index,
+                    round_prompt,
+                    cancel_event,
+                )
+                if round_index == 2:
+                    self._publish_consensus_count(session, cancel_event)
                 survivors = [
                     result
-                    for result in self._run_round(
-                        session,
-                        [result.participant for result in survivors],
-                        round_index,
-                        round_prompt,
-                        cancel_event,
-                    )
+                    for result in round_results
                     if result.success
                 ]
                 if cancel_event.is_set() or not survivors:
@@ -826,6 +829,17 @@ class DiscussionBridge:
             if remaining:
                 self._enqueue_event_locked(session.append_delta(turn_id, remaining))
             self._enqueue_event_locked(session.fail_turn(turn_id, error))
+            return True
+
+    def _publish_consensus_count(
+        self,
+        session: DiscussionSession,
+        cancel_event: threading.Event,
+    ) -> bool:
+        with self._event_order_lock:
+            if cancel_event.is_set():
+                return False
+            self._enqueue_event_locked(session.count_consensus())
             return True
 
     def _transition(
