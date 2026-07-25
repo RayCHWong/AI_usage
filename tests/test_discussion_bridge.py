@@ -317,6 +317,100 @@ def test_unanimous_agreement_ends_stance_rounds_early(
     assert [turn["round_index"] for turn in snapshot["turns"]][-1] == 5
 
 
+def test_failed_stance_participant_prevents_consensus_ending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def outcome(adapter_id: str, round_index: int) -> str | Exception:
+        if round_index == 2 and adapter_id == "c":
+            return RuntimeError("round 2 failed")
+        if round_index == 2:
+            return "[Agree] 同意"
+        if round_index >= 3:
+            return "[Disagree] 不同意"
+        return f"{adapter_id}-r{round_index}"
+
+    bridge, _ = _bridge_with_adapters(("a", "b", "c"))
+    runner = FakeRunner(outcome)
+    _install_runner(monkeypatch, runner)
+
+    bridge.start(
+        "問題",
+        _specs("a", "b", "c"),
+        total_rounds=4,
+        include_summary=False,
+        end_on_consensus=True,
+    )
+    snapshot = _wait_terminal(bridge)
+
+    assert snapshot["consensus_reached_round"] is None
+    assert Counter(round_index for _, round_index in runner.calls) == {
+        1: 3,
+        2: 3,
+        3: 2,
+        4: 2,
+    }
+
+
+def test_prior_round_exit_does_not_block_remaining_unanimous_consensus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def outcome(adapter_id: str, round_index: int) -> str | Exception:
+        if round_index == 2 and adapter_id == "c":
+            return RuntimeError("round 2 failed")
+        if round_index >= 2:
+            return "[Agree] 同意"
+        return f"{adapter_id}-r{round_index}"
+
+    bridge, _ = _bridge_with_adapters(("a", "b", "c"))
+    runner = FakeRunner(outcome)
+    _install_runner(monkeypatch, runner)
+
+    bridge.start(
+        "問題",
+        _specs("a", "b", "c"),
+        total_rounds=4,
+        include_summary=False,
+        end_on_consensus=True,
+    )
+    snapshot = _wait_terminal(bridge)
+
+    assert snapshot["consensus_reached_round"] == 3
+    assert Counter(round_index for _, round_index in runner.calls) == {
+        1: 3,
+        2: 3,
+        3: 2,
+    }
+
+
+def test_unparsed_stance_prevents_consensus_ending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def outcome(adapter_id: str, round_index: int) -> str:
+        if round_index >= 2:
+            return "沒有標籤" if adapter_id == "c" else "[Agree] 同意"
+        return f"{adapter_id}-r{round_index}"
+
+    bridge, _ = _bridge_with_adapters(("a", "b", "c"))
+    runner = FakeRunner(outcome)
+    _install_runner(monkeypatch, runner)
+
+    bridge.start(
+        "問題",
+        _specs("a", "b", "c"),
+        total_rounds=3,
+        include_summary=False,
+        end_on_consensus=True,
+    )
+    snapshot = _wait_terminal(bridge)
+
+    assert snapshot["consensus_reached_round"] is None
+    assert Counter(round_index for _, round_index in runner.calls) == {
+        1: 3,
+        2: 3,
+        3: 3,
+    }
+
+
 def test_one_completed_agreement_does_not_end_for_consensus(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

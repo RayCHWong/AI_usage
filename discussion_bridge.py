@@ -494,7 +494,9 @@ class DiscussionBridge:
                     for result in round_results
                     if result.success
                 ]
-                if end_on_consensus and _is_unanimous_consensus(consensus):
+                if end_on_consensus and _is_unanimous_consensus(
+                    consensus, len(round_results)
+                ):
                     self._mark_consensus_reached(
                         session,
                         round_index,
@@ -999,8 +1001,12 @@ def _anonymous_participant_label(index: int) -> str:
     return f"參與者 {chr(ord('A') + index)}" if index < 26 else f"參與者 {index + 1}"
 
 
-def _is_unanimous_consensus(consensus: ConsensusCount) -> bool:
+def _is_unanimous_consensus(
+    consensus: ConsensusCount, expected_participants: int
+) -> bool:
     return (
+        sum(vars(consensus).values()) == expected_participants
+        and
         consensus.agree >= 2
         and consensus.disagree == 0
         and consensus.alternative == 0
