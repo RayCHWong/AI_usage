@@ -703,6 +703,10 @@
       align-items: start;
     }
 
+    .debate-style-field {
+      grid-column: 1 / -1;
+    }
+
     .segmented {
       display: inline-flex;
       align-self: flex-start;
@@ -1126,6 +1130,10 @@
                 <span class="switch" aria-hidden="true"></span>
                 <span data-i18n="discussion_include_summary"></span>
               </label>
+              <label class="field debate-style-field">
+                <span class="label" data-i18n="discussion_debate_style"></span>
+                <select id="debate-style"></select>
+              </label>
             </div>
             <div class="working-directory-row">
             <span class="label" data-i18n="discussion_working_directory"></span>
@@ -1221,6 +1229,13 @@
     };
     const selectedModels = { claude: null, codex: null, agy: null };
     const selectedPersonas = { claude: null, codex: null, agy: null };
+    const DEBATE_STYLES = [
+      "constructive",
+      "adversarial",
+      "collaborative",
+      "socratic",
+      "devils_advocate",
+    ];
 
     let currentLanguage = "en";
     let detection = [];
@@ -1272,6 +1287,7 @@
     const totalRoundsEl = document.getElementById("total-rounds");
     const roundsSegmentedEl = document.getElementById("rounds-segmented");
     const includeSummaryEl = document.getElementById("include-summary");
+    const debateStyleEl = document.getElementById("debate-style");
 
     function t(key, params) {
       const lang = I18N[currentLanguage] ? currentLanguage : "en";
@@ -1294,7 +1310,6 @@
       segment.textContent = `${round}`;
       roundsSegmentedEl.append(segment);
     }
-
     function applyStaticText() {
       document.documentElement.lang = currentLanguage === "zh-TW" ? "zh-Hant" : currentLanguage;
       document.title = t("discussion_window_title");
@@ -1307,6 +1322,13 @@
         if (key) node.placeholder = t(key);
       });
       roundsSegmentedEl.setAttribute("aria-label", t("discussion_total_rounds"));
+      debateStyleEl.replaceChildren();
+      DEBATE_STYLES.forEach((style) => {
+        const option = document.createElement("option");
+        option.value = style;
+        option.textContent = t(`discussion_debate_style_${style}`);
+        debateStyleEl.append(option);
+      });
     }
 
     function send(action, extra) {
@@ -1653,6 +1675,7 @@
       totalRoundsEl.disabled = running;
       syncRoundsSegmented();
       includeSummaryEl.disabled = running;
+      debateStyleEl.disabled = running;
       detectEl.disabled = running || detecting;
       pickFolderEl.disabled = running;
       clearFolderEl.disabled = running;
@@ -2162,6 +2185,7 @@
       renderEstimate();
       renderControls();
     });
+    debateStyleEl.addEventListener("change", renderControls);
     topicEl.addEventListener("paste", (event) => {
       const clipboard = event.clipboardData;
       const types = clipboard ? Array.from(clipboard.types || []) : [];
@@ -2201,6 +2225,7 @@
         includeSummary: includeSummaryEl.checked,
         models: { ...selectedModels },
         personas: { ...selectedPersonas },
+        debateStyle: debateStyleEl.value,
       });
     });
     stopEl.addEventListener("click", () => send("discussion_stop"));

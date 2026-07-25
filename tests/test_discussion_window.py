@@ -20,6 +20,7 @@ from typing import Any, cast
 import pytest
 
 import discussion_window
+from discussion_session import DebateStyle
 
 HTML_PATH = Path(__file__).resolve().parents[1] / "assets" / "windows" / "discussion.html"
 
@@ -54,6 +55,7 @@ class FakeBridge:
         attachments: object = None,
         total_rounds: int = 2,
         include_summary: bool = True,
+        debate_style: DebateStyle = DebateStyle.CONSTRUCTIVE,
     ) -> str:
         self.started = (topic, participants, moderator_id, working_directory)
         self.working_directory = working_directory
@@ -153,6 +155,37 @@ def test_parse_start_action_clamps_total_rounds() -> None:
 
     assert action.total_rounds == 5
     assert action.include_summary is False
+    assert action.debate_style is DebateStyle.CONSTRUCTIVE
+
+
+@pytest.mark.parametrize("style", list(DebateStyle))
+def test_parse_start_action_accepts_debate_styles(style: DebateStyle) -> None:
+    action = discussion_window.parse_discussion_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "問題",
+                "participants": ["claude"],
+                "debateStyle": style.value,
+            }
+        )
+    )
+
+    assert action.debate_style is style
+
+
+def test_parse_start_action_rejects_unknown_debate_style() -> None:
+    with pytest.raises(ValueError):
+        discussion_window.parse_discussion_action(
+            json.dumps(
+                {
+                    "action": "discussion_start",
+                    "topic": "問題",
+                    "participants": ["claude"],
+                    "debateStyle": "unknown",
+                }
+            )
+        )
 
 
 def test_parse_start_action_models_optional_defaults_empty() -> None:
@@ -658,6 +691,7 @@ def test_html_visible_static_elements_use_i18n_keys() -> None:
         "discussion_moderator",
         "discussion_persona",
         "discussion_persona_neutral",
+        "discussion_debate_style",
         "discussion_working_directory",
         "discussion_pick_folder",
         "discussion_clear_folder",

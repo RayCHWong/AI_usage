@@ -31,6 +31,7 @@ from typing import Any, Literal, cast
 
 from discussion_bridge import DiscussionBridge, ParticipantSpec
 from discussion_cli import DetectionResult
+from discussion_session import DebateStyle
 from i18n import _load_i18n_bundle, _t, packaged_resource_path
 from panels.payload import _data_uri
 from talent_market_bridge import list_personas, pick_folder, pick_image_file
@@ -264,6 +265,7 @@ class DiscussionAction:
     include_summary: bool = True
     models: Mapping[str, str | None] = field(default_factory=dict)
     personas: Mapping[str, str | None] = field(default_factory=dict)
+    debate_style: DebateStyle = DebateStyle.CONSTRUCTIVE
     attachment_path: str | None = None
     attachment_data: str | None = None
     attachment_name: str | None = None
@@ -341,10 +343,17 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
     attachments_value = payload.get("attachments")
     rounds_value = payload.get("totalRounds", 2)
     include_summary_value = payload.get("includeSummary", True)
+    debate_style_value = payload.get("debateStyle", DebateStyle.CONSTRUCTIVE.value)
     if not isinstance(rounds_value, int) or isinstance(rounds_value, bool):
         raise ValueError("discussion_start totalRounds must be an integer")
     if not isinstance(include_summary_value, bool):
         raise ValueError("discussion_start includeSummary must be a boolean")
+    if not isinstance(debate_style_value, str):
+        raise ValueError("discussion_start debateStyle must be a string")
+    try:
+        debate_style = DebateStyle(debate_style_value)
+    except ValueError as exc:
+        raise ValueError("discussion_start has an unknown debateStyle") from exc
     if attachments_value is not None:
         if not isinstance(attachments_value, list) or not all(
             isinstance(item, str) for item in attachments_value
@@ -369,6 +378,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         include_summary=include_summary_value,
         models=models,
         personas=personas,
+        debate_style=debate_style,
     )
 
 
@@ -785,6 +795,7 @@ class DiscussionWindowController:
                     attachments=action.attachments,
                     total_rounds=action.total_rounds,
                     include_summary=action.include_summary,
+                    debate_style=action.debate_style,
                 )
                 snapshot = self.bridge.snapshot()
                 snapshot_working_directory = snapshot.get("working_directory")

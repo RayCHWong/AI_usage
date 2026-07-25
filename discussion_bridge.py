@@ -38,6 +38,7 @@ from discussion_cli import (
     validate_project_working_directory,
 )
 from discussion_session import (
+    DebateStyle,
     DiscussionEvent,
     DiscussionSession,
     Participant,
@@ -250,6 +251,7 @@ class DiscussionBridge:
         attachments: Sequence[str] | None = None,
         total_rounds: int = 2,
         include_summary: bool = True,
+        debate_style: DebateStyle = DebateStyle.CONSTRUCTIVE,
     ) -> str:
         normalized_topic = topic.strip()
         if not normalized_topic:
@@ -315,6 +317,7 @@ class DiscussionBridge:
                     effective_topic,
                     rounds,
                     include_summary,
+                    debate_style,
                     cancel_event,
                 ),
                 name=f"discussion-session-{session.session_id}",
@@ -406,6 +409,7 @@ class DiscussionBridge:
         effective_topic: str,
         total_rounds: int,
         include_summary: bool,
+        debate_style: DebateStyle,
         cancel_event: threading.Event,
     ) -> None:
         try:
@@ -462,6 +466,7 @@ class DiscussionBridge:
                         answers,
                         prior_round=prior_round,
                         persona=participant.spec.persona_prompt,
+                        style=debate_style,
                     )
 
                 survivors = [
