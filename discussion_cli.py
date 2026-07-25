@@ -14,6 +14,7 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 from collections import deque
@@ -772,13 +773,13 @@ def resolve_neutral_working_directory(path: Path | None = None) -> str:
     return str(neutral_path)
 
 
-def _terminate_process_group(process: subprocess.Popen[str]) -> None:
+def _terminate_process_group_posix(process: subprocess.Popen[str]) -> None:
     try:
-        process_group = os.getpgid(process.pid)
+        process_group = os.getpgid(process.pid)  # type: ignore[attr-defined]
     except ProcessLookupError:
         return
     try:
-        os.killpg(process_group, signal.SIGTERM)
+        os.killpg(process_group, signal.SIGTERM)  # type: ignore[attr-defined]
     except ProcessLookupError:
         return
     try:
@@ -787,13 +788,36 @@ def _terminate_process_group(process: subprocess.Popen[str]) -> None:
     except subprocess.TimeoutExpired:
         pass
     try:
-        os.killpg(process_group, signal.SIGKILL)
+        os.killpg(process_group, signal.SIGKILL)  # type: ignore[attr-defined]
     except ProcessLookupError:
         return
     try:
         process.wait(timeout=TERMINATION_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
         return
+
+
+def _terminate_process_group_win(process: subprocess.Popen[str]) -> None:
+    process.terminate()
+    try:
+        process.wait(timeout=TERMINATION_GRACE_SECONDS)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    process.kill()
+    try:
+        process.wait(timeout=TERMINATION_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        return
+
+
+# AI Council only runs its GUI on macOS today (see discussion_window.py), but
+# this CLI layer is imported and type-checked on Windows CI too. `start_new_session`
+# on the Popen call above is a POSIX-only no-op on Windows, so termination there
+# falls back to plain terminate()/kill() instead of process-group signals.
+_terminate_process_group = (
+    _terminate_process_group_win if sys.platform == "win32" else _terminate_process_group_posix
+)
 
 
 def _clean_text(text: str) -> str:

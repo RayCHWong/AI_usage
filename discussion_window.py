@@ -6,7 +6,14 @@
 
 """macOS window shell for the PyObjC-free AI council bridge."""
 
-# mypy: disable-error-code="import-untyped,import-not-found,misc"
+# This module is imported and type-checked on Windows CI too (its non-GUI
+# helpers are tested there), but its AppKit/WebKit imports and classes are
+# gated behind `if sys.platform == "darwin":`. mypy's platform narrowing
+# statically skips that block on a win32 run, so every name it would have
+# bound (NSWindow, WKWebView, _DiscussionWindow, ...) looks undefined to
+# methods that reference them elsewhere in the file — hence `name-defined`
+# joining the existing PyObjC-stub suppressions below.
+# mypy: disable-error-code="import-untyped,import-not-found,misc,name-defined"
 from __future__ import annotations
 
 import base64

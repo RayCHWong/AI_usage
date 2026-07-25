@@ -125,6 +125,14 @@ ignore_missing_imports = true
 module = "usage_cli"
 warn_unused_ignores = false
 
+# discussion_cli's process-group termination pairs a POSIX branch
+# (os.getpgid/killpg) with a Windows branch (Popen.terminate/kill); same
+# reasoning as usage_cli above. tests/test_discussion_cli.py asserts against
+# signal.SIGKILL, which is POSIX-only too.
+[[tool.mypy.overrides]]
+module = ["discussion_cli", "tests.test_discussion_cli"]
+warn_unused_ignores = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"

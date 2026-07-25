@@ -12,6 +12,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -633,6 +634,9 @@ def test_large_stderr_does_not_block_stdout(monkeypatch: pytest.MonkeyPatch) -> 
     assert cancelled_count == 0
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="process-group signals (getpgid/killpg) are POSIX-only"
+)
 def test_timeout_terminates_process_group(monkeypatch: pytest.MonkeyPatch) -> None:
     process = FakeProcess(io.StringIO(), io.StringIO(), returncode=None)
     _install_fake_popen(monkeypatch, process)
@@ -653,6 +657,9 @@ def test_timeout_terminates_process_group(monkeypatch: pytest.MonkeyPatch) -> No
     assert cancelled_count == 0
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="process-group signals (getpgid/killpg) are POSIX-only"
+)
 def test_sigterm_escalates_to_sigkill(monkeypatch: pytest.MonkeyPatch) -> None:
     process = FakeProcess(io.StringIO(), io.StringIO(), returncode=None)
     _install_fake_popen(monkeypatch, process)
@@ -661,19 +668,22 @@ def test_sigterm_escalates_to_sigkill(monkeypatch: pytest.MonkeyPatch) -> None:
 
     def fake_killpg(process_group: int, sent_signal: signal.Signals) -> None:
         signals.append(sent_signal)
-        if sent_signal is signal.SIGKILL:
+        if sent_signal is signal.SIGKILL:  # type: ignore[attr-defined]
             process.returncode = -int(sent_signal)
 
     monkeypatch.setattr(os, "killpg", fake_killpg)
 
     _, errors, done_count, cancelled_count = _run(ClaudeAdapter(), _invocation(timeout=0))
 
-    assert signals == [signal.SIGTERM, signal.SIGKILL]
+    assert signals == [signal.SIGTERM, signal.SIGKILL]  # type: ignore[attr-defined]
     assert errors == ["CLI invocation timed out after 0 seconds"]
     assert done_count == 0
     assert cancelled_count == 0
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="process-group signals (getpgid/killpg) are POSIX-only"
+)
 def test_cancellation_terminates_process_group_and_commits_cancelled_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -702,6 +712,9 @@ def test_cancellation_terminates_process_group_and_commits_cancelled_once(
     assert cancelled_count == 1
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="process-group signals (getpgid/killpg) are POSIX-only"
+)
 def test_cancellation_does_not_call_on_usage(monkeypatch: pytest.MonkeyPatch) -> None:
     process = FakeProcess(io.StringIO(), io.StringIO(), returncode=None)
     _install_fake_popen(monkeypatch, process)
