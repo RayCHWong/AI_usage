@@ -5,6 +5,16 @@
 All notable changes to usage are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.1] - 2026-07-25
+
+### Added
+- **Council participants can wear a persona from the AI Talent Market**: every seat now has a role picker next to its model picker, listing the specialists from your installed talent packs (contract review, front-end, security audit, and the rest). The role's expertise is injected as a prompt prefix, so the same CLI can sit in two seats wearing two different hats. Roles are grouped by talent pack in a collapsible picker — collapsed it shows only the pack names, so a 50-role list no longer scrolls off the screen. Role text is fetched from the talent-market CLI at runtime and is never bundled into usage itself.
+- **Five debate styles for a council**: pick the tone every participant takes from the second round on — constructive consensus-seeking, adversarial fault-finding, collaborative gap-filling, Socratic questioning of assumptions, or devil's advocate. The stance label each participant must open with is preserved under every style.
+- **Council consensus is counted, and can end the discussion early**: the stance labels participants open their rebuttals with are now tallied and shown above the summary. Turn on *end on consensus* and a discussion stops as soon as every participant in a round agrees, instead of burning through the rounds you budgeted for. A round where anyone failed to finish never counts as consensus.
+
+### Changed
+- **The moderator no longer sees who said what**: the transcript handed to the moderator is anonymized, so it cannot favor the answers its own CLI wrote. Participant names are restored before the summary reaches your screen and the exported Markdown, so you still read "Claude argued…" rather than "Participant A argued…". Participants' own words are passed through untouched — a discussion *about* Claude or Codex stays readable.
+
 ## [0.29.0] - 2026-07-25
 
 ### Added
