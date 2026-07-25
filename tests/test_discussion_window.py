@@ -593,7 +593,8 @@ def test_participant_chips_use_project_icons_and_inline_agy_badge() -> None:
     assert "const DEFAULT_PARTICIPANT_BADGE" in html
     assert 'document.createElement("img")' in html
     assert 'badge.className = "participant-badge"' in html
-    assert 'badge.alt = ""' in html
+    assert 'image.className = "participant-badge-image"' in html
+    assert 'image.alt = ""' in html
     assert 'document.createElementNS("http://www.w3.org/2000/svg", "svg")' in html
     assert 'badge.setAttribute("aria-hidden", "true")' in html
     assert "createPersonaSelect(id)" in html
@@ -671,6 +672,85 @@ def test_start_button_logic(
     )
 
     assert json.loads(result.stdout) is expected
+
+
+def test_checked_badge_host_is_never_a_replaced_element() -> None:
+    """The ✓ overlay is an ::after on .participant-badge, which never renders on
+    an <img>, so every branch must host it on a span with the icon nested."""
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert ".participant-chip:has(input:checked) .participant-badge::after" in html
+    assert 'badge.className = "participant-badge";\n        badge.setAttribute(' in html
+    assert "badge.append(image);" in html
+    assert 'badge.className = "participant-badge";\n        badge.alt' not in html
+    assert 'document.createElement("img");\n        badge.className' not in html
+
+
+@pytest.mark.parametrize(
+    ("topic", "participant_count", "status", "expected"),
+    [
+        ("", 1, "IDLE", "discussion_start_hint_topic"),
+        (" \n\t", 0, "ROUND1_RUNNING", "discussion_start_hint_topic"),
+        ("question", 0, "IDLE", "discussion_start_hint_participants"),
+        ("question", 1, "PREPARING", "discussion_start_hint_running"),
+        ("question", 1, "SUMMARIZING", "discussion_start_hint_running"),
+        ("question", 1, "IDLE", ""),
+        ("question", 2, "COMPLETED", ""),
+        ("question", 1, "FAILED", ""),
+    ],
+)
+def test_start_hint_explains_why_start_is_disabled(
+    topic: str,
+    participant_count: int,
+    status: str,
+    expected: str,
+) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required to evaluate the pure browser control function")
+    html = HTML_PATH.read_text(encoding="utf-8")
+    statuses = re.search(
+        r"    const RUNNING_STATUSES = new Set\(\[.*?^    \]\);",
+        html,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    function = re.search(
+        r"    function startHintKey\(.*?^    \}",
+        html,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert statuses is not None
+    assert function is not None
+    invocation = (
+        f"{statuses.group(0)}\n{function.group(0)}\n"
+        "process.stdout.write(JSON.stringify(startHintKey("
+        f"{json.dumps(topic)}, {participant_count}, {json.dumps(status)})));"
+    )
+
+    result = subprocess.run(
+        [node, "-e", invocation],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(result.stdout) == expected
+
+
+def test_start_hint_is_wired_to_the_start_button() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert '<div class="start-hint" id="start-hint" role="status" hidden></div>' in html
+    assert 'aria-describedby="start-hint"' in html
+    assert 'startHintEl.textContent = startHint ? t(startHint) : "";' in html
+    assert "startHintEl.hidden = !startHint;" in html
+
+
+def test_moderator_toggle_exposes_pressed_state() -> None:
+    html = HTML_PATH.read_text(encoding="utf-8")
+
+    assert 'moderator.setAttribute("aria-pressed", isModerator ? "true" : "false");' in html
+    assert '"discussion_moderator_current" : "discussion_moderator_set"' in html
 
 
 def test_persona_picker_groups_packs_in_source_order_and_puts_other_last() -> None:

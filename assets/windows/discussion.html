@@ -407,8 +407,15 @@
       height: 32px;
       border-radius: 50%;
       background: var(--muted);
-      object-fit: cover;
       box-shadow: 0 0 0 1px var(--border);
+    }
+
+    .participant-badge-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
     }
 
     .participant-badge.agy {
@@ -646,6 +653,12 @@
     }
 
     .detect-status {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .start-hint {
       color: var(--muted);
       font-size: 12px;
       line-height: 1.4;
@@ -1254,11 +1267,13 @@
             <h2 class="setup-section-title" data-i18n="discussion_section_start"></h2>
             <div class="estimate" id="estimate"></div>
             <div class="actions">
-            <button class="primary-button" id="start" type="button" data-i18n="discussion_start"></button>
+            <button class="primary-button" id="start" type="button" data-i18n="discussion_start"
+                    aria-describedby="start-hint"></button>
             <button class="stop-button" id="stop" type="button" data-i18n="discussion_stop"></button>
             <button class="secondary-button danger-button" id="clear" type="button" data-i18n="discussion_clear"></button>
             <span class="session-status" id="session-status"></span>
             </div>
+            <div class="start-hint" id="start-hint" role="status" hidden></div>
             <div class="error-banner" id="error" role="alert"></div>
           </section>
         </div>
@@ -1373,6 +1388,7 @@
     const sessionBarStopEl = document.getElementById("session-bar-stop");
     const sessionBarToggleEl = document.getElementById("session-bar-toggle");
     const clearEl = document.getElementById("clear");
+    const startHintEl = document.getElementById("start-hint");
     const detectEl = document.getElementById("detect");
     const detectStatusEl = document.getElementById("detect-status");
     const statusEl = document.getElementById("session-status");
@@ -1458,6 +1474,13 @@
         && !RUNNING_STATUSES.has(status);
     }
 
+    function startHintKey(topic, participantCount, status) {
+      if (!`${topic || ""}`.trim()) return "discussion_start_hint_topic";
+      if (participantCount < 1) return "discussion_start_hint_participants";
+      if (RUNNING_STATUSES.has(status)) return "discussion_start_hint_running";
+      return "";
+    }
+
     function failureForParticipant(id) {
       const turns = Array.isArray(state.turns) ? state.turns : [];
       const failed = [...turns].reverse().find(
@@ -1469,11 +1492,14 @@
     function createParticipantBadge(id) {
       const iconUri = PARTICIPANT_ICON_URIS[id];
       if (iconUri) {
-        const badge = document.createElement("img");
+        const badge = document.createElement("span");
         badge.className = "participant-badge";
-        badge.alt = "";
         badge.setAttribute("aria-hidden", "true");
-        badge.src = iconUri;
+        const image = document.createElement("img");
+        image.className = "participant-badge-image";
+        image.alt = "";
+        image.src = iconUri;
+        badge.append(image);
         return badge;
       }
       const config = id === "agy" ? AGY_BADGE : DEFAULT_PARTICIPANT_BADGE;
@@ -1790,11 +1816,15 @@
         const moderator = document.createElement("button");
         moderator.type = "button";
         moderator.className = "moderator-toggle";
-        moderator.textContent = moderatorId === id ? "★" : "☆";
-        moderator.title = t("discussion_moderator");
+        const isModerator = moderatorId === id;
+        moderator.textContent = isModerator ? "★" : "☆";
+        moderator.title = t(
+          isModerator ? "discussion_moderator_current" : "discussion_moderator_set",
+        );
         moderator.setAttribute("aria-label", t("discussion_moderator"));
+        moderator.setAttribute("aria-pressed", isModerator ? "true" : "false");
         moderator.disabled = !available || !selected.has(id) || isRunning();
-        if (moderatorId === id) moderator.classList.add("selected");
+        if (isModerator) moderator.classList.add("selected");
         moderator.addEventListener("click", () => {
           if (!available || !selected.has(id) || isRunning()) return;
           moderatorId = id;
@@ -1969,6 +1999,9 @@
         || Boolean(state.status);
       topicEl.disabled = running;
       startEl.disabled = !canStartDiscussion(topicEl.value, selected.size, state.status);
+      const startHint = startHintKey(topicEl.value, selected.size, state.status);
+      startHintEl.textContent = startHint ? t(startHint) : "";
+      startHintEl.hidden = !startHint;
       stopEl.disabled = !running;
       sessionBarStopEl.disabled = stopEl.disabled;
       clearEl.disabled = running || !hasDiscussion;
