@@ -476,7 +476,7 @@ class DiscussionBridge:
                     round_prompt,
                     cancel_event,
                 )
-                if round_index == 2:
+                if round_index >= 2:
                     self._publish_consensus_count(session, cancel_event)
                 survivors = [
                     result

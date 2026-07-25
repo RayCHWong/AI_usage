@@ -103,16 +103,20 @@ _CONSENSUS_LABEL_RE = re.compile(
 )
 
 
-def count_round2_consensus(turns: Iterable[Turn]) -> ConsensusCount:
-    """Count tolerant first-line stance labels from second-round turns."""
+def count_stance_consensus(turns: Iterable[Turn]) -> ConsensusCount:
+    """Count completed stance labels from the latest discussion round."""
+    stance_turns = [turn for turn in turns if turn.round_index >= 2]
+    if not stance_turns:
+        return ConsensusCount()
+    latest_round = max(turn.round_index for turn in stance_turns)
     counts = {
         "agree": 0,
         "disagree": 0,
         "alternative": 0,
         "unparsed": 0,
     }
-    for turn in turns:
-        if turn.round_index != 2:
+    for turn in stance_turns:
+        if turn.round_index != latest_round or turn.status is not TurnStatus.DONE:
             continue
         first_line = turn.text.lstrip().splitlines()[0] if turn.text.strip() else ""
         match = _CONSENSUS_LABEL_RE.match(first_line)
@@ -488,7 +492,7 @@ class DiscussionSession:
 
     def count_consensus(self) -> DiscussionEvent:
         with self._lock:
-            self._consensus_count = count_round2_consensus(self._turns.values())
+            self._consensus_count = count_stance_consensus(self._turns.values())
             return self._emit_locked(
                 "consensus_counted",
                 payload=asdict(self._consensus_count),

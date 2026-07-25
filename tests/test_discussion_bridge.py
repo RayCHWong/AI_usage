@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import threading
 import time
@@ -163,7 +164,8 @@ def _prompt_round(prompt: str) -> int:
     if "<<<TRANSCRIPT_BEGIN>>>" in prompt:
         return 3
     if "重新評估以下原始問題" in prompt:
-        return 2
+        match = re.search(r"第 (\d+) 輪答案", prompt)
+        return int(match.group(1)) + 1 if match else 2
     return 1
 
 
@@ -232,6 +234,59 @@ def test_second_round_emits_consensus_count_without_changing_flow(
     assert len(consensus_events) == 1
     assert consensus_events[0]["payload"] == snapshot["consensus_count"]
     assert Counter(round_index for _, round_index in runner.calls) == {1: 3, 2: 3}
+
+
+def test_three_rounds_publish_latest_round_consensus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge, _ = _bridge_with_adapters(("a", "b", "c"))
+    runner = FakeRunner(
+        lambda adapter_id, round_index: (
+            {
+                2: {
+                    "a": "[Agree] 第二輪",
+                    "b": "[Agree] 第二輪",
+                    "c": "[Agree] 第二輪",
+                },
+                3: {
+                    "a": "[Alternative] 第三輪",
+                    "b": "[Disagree] 第三輪",
+                    "c": "第三輪未依格式",
+                },
+            }[round_index][adapter_id]
+            if round_index >= 2
+            else f"{adapter_id}-r{round_index}"
+        )
+    )
+    _install_runner(monkeypatch, runner)
+
+    bridge.start(
+        "問題",
+        _specs("a", "b", "c"),
+        total_rounds=3,
+        include_summary=False,
+    )
+    snapshot = _wait_terminal(bridge)
+    events = bridge.drain_events(500)
+
+    assert snapshot["consensus_count"] == {
+        "agree": 0,
+        "disagree": 1,
+        "alternative": 1,
+        "unparsed": 1,
+    }
+    consensus_events = [
+        event for event in events if event["kind"] == "consensus_counted"
+    ]
+    assert [event["payload"] for event in consensus_events] == [
+        {
+            "agree": 3,
+            "disagree": 0,
+            "alternative": 0,
+            "unparsed": 0,
+        },
+        snapshot["consensus_count"],
+    ]
 
 
 def test_single_participant_skips_round2_and_moderator(

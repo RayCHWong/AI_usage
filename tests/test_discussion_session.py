@@ -21,7 +21,7 @@ from discussion_session import (
     Participant,
     SessionStatus,
     TurnStatus,
-    count_round2_consensus,
+    count_stance_consensus,
 )
 from discussion_usage import TurnUsage
 
@@ -398,23 +398,65 @@ def test_moderator_prompt_has_exact_required_sections() -> None:
     assert "完整逐字稿" in prompt
 
 
-def test_count_round2_consensus_accepts_spacing_case_and_fullwidth_brackets() -> None:
+def test_count_stance_consensus_accepts_spacing_case_and_fullwidth_brackets() -> None:
     turns = [
         discussion_session.Turn("1", "a", 1, "[Disagree] 第一輪不計"),
-        discussion_session.Turn("2", "a", 2, "  [Agree] 同意  "),
-        discussion_session.Turn("3", "b", 2, "［dIsAgReE］ 不同意"),
-        discussion_session.Turn("4", "c", 2, "（Alternative）替代方案"),
-        discussion_session.Turn("5", "d", 2, "\n\t(agree) 補充"),
-        discussion_session.Turn("6", "e", 2, "沒有標籤"),
-        discussion_session.Turn("7", "f", 2, ""),
+        discussion_session.Turn(
+            "2", "a", 2, "  [Agree] 同意  ", status=TurnStatus.DONE
+        ),
+        discussion_session.Turn(
+            "3", "b", 2, "［dIsAgReE］ 不同意", status=TurnStatus.DONE
+        ),
+        discussion_session.Turn(
+            "4", "c", 2, "（Alternative）替代方案", status=TurnStatus.DONE
+        ),
+        discussion_session.Turn(
+            "5", "d", 2, "\n\t(agree) 補充", status=TurnStatus.DONE
+        ),
+        discussion_session.Turn(
+            "6", "e", 2, "沒有標籤", status=TurnStatus.DONE
+        ),
+        discussion_session.Turn("7", "f", 2, "", status=TurnStatus.DONE),
     ]
 
-    assert count_round2_consensus(turns) == ConsensusCount(
+    assert count_stance_consensus(turns) == ConsensusCount(
         agree=2,
         disagree=1,
         alternative=1,
         unparsed=2,
     )
+
+
+def test_count_stance_consensus_excludes_non_done_turns() -> None:
+    turns = [
+        discussion_session.Turn(
+            "done", "a", 2, "[Agree] 同意", status=TurnStatus.DONE
+        ),
+        discussion_session.Turn(
+            "failed", "b", 2, "[Agree] 失敗內容", status=TurnStatus.FAILED
+        ),
+        discussion_session.Turn(
+            "cancelled", "c", 2, "無標籤", status=TurnStatus.CANCELLED
+        ),
+        discussion_session.Turn(
+            "running", "d", 2, "[Agree] 進行中", status=TurnStatus.RUNNING
+        ),
+        discussion_session.Turn(
+            "pending", "e", 2, "無標籤", status=TurnStatus.PENDING
+        ),
+    ]
+
+    assert count_stance_consensus(turns) == ConsensusCount(agree=1)
+
+
+def test_count_stance_consensus_returns_zero_without_stance_rounds() -> None:
+    turns = [
+        discussion_session.Turn(
+            "round1", "a", 1, "[Agree] 第一輪", status=TurnStatus.DONE
+        )
+    ]
+
+    assert count_stance_consensus(turns) == ConsensusCount()
 
 
 def test_all_prompts_include_neutral_council_context() -> None:
