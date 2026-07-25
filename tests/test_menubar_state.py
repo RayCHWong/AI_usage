@@ -216,7 +216,7 @@ def test_codex_stale_state_hides_missing_timestamp() -> None:
     assert menubar_state.codex_stale_state("", now, "en") is None
 
 
-def test_codex_rows_hides_missing_session_and_uses_weekly_for_menu(
+def test_codex_rows_falls_back_to_weekly_when_session_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -242,9 +242,69 @@ def test_codex_rows_hides_missing_session_and_uses_weekly_for_menu(
         mock=False, language="en", burn_rate_trackers=trackers
     )
 
-    assert rows[0].title == ""
-    assert rows[1].title == "Weekly"
+    assert rows[0].title == "Weekly"
+    assert rows[0].percent == 7.0
+    assert rows[0].available is True
+    assert rows[1].title == ""
     assert menu_pct == 7.0
+
+
+def test_codex_rows_returns_to_two_rows_when_session_recovers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        codex_loader,
+        "load_rate_limits",
+        lambda: codex_loader.CodexRateLimits(
+            five_hour_pct=12.0,
+            five_hour_resets_at=9_999_999_998.0,
+            seven_day_pct=7.0,
+            seven_day_resets_at=9_999_999_999.0,
+            five_hour_window_minutes=300.0,
+            seven_day_window_minutes=10080.0,
+            model="gpt-test",
+            updated_at="",
+        ),
+    )
+    trackers = {
+        "codex_session": BurnRateTracker(),
+        "codex_weekly": BurnRateTracker(),
+    }
+
+    rows, _menu_pct, _model, _stale, _credits = menubar_state.codex_rows(
+        mock=False, language="en", burn_rate_trackers=trackers
+    )
+
+    assert rows[0].title == "Session"
+    assert rows[0].percent == 12.0
+    assert rows[1].title == "Weekly"
+    assert rows[1].percent == 7.0
+
+
+def test_codex_rows_fallback_does_not_record_session_tracker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        codex_loader,
+        "load_rate_limits",
+        lambda: codex_loader.CodexRateLimits(
+            five_hour_pct=None,
+            five_hour_resets_at=None,
+            seven_day_pct=7.0,
+            seven_day_resets_at=9_999_999_999.0,
+            five_hour_window_minutes=None,
+            seven_day_window_minutes=10080.0,
+            model="gpt-test",
+            updated_at="",
+        ),
+    )
+    trackers = {
+        "codex_session": BurnRateTracker(),
+        "codex_weekly": BurnRateTracker(),
+    }
+
+    menubar_state.codex_rows(mock=False, language="en", burn_rate_trackers=trackers)
+
     assert not trackers["codex_session"]._samples
 
 
