@@ -41,19 +41,19 @@ brew install --cask aqua5230/usage/usage
 
 - **常駐監控：** 額度常駐選單列，顏色標示警戒級別（綠到紅）。點開能看 Session、Weekly 與各專案用量細節。
 - **Antigravity 支援：** Antigravity（Gemini）的 Session 與每週額度以第三張卡片出現在每一款面板。數字直接向官方額度 API 查詢，用的是 Antigravity CLI 本來就存在你機器上的登入身分——每幾分鐘自動刷新，重置倒數即時遞減。
-- **服務狀態警示：** Claude Code、Claude API 或 Codex API 發生故障或效能降級時，相關面板底部會顯示橘紅警示橫幅。只讀取官方公開的 Statuspage.io 服務狀態頁，絕不呼叫 LLM 用量 API；服務正常時不顯示。Antigravity 因沒有可用的公開狀態頁，暫不支援。
+- **服務狀態警示：** Claude Code、Claude API 或 Codex API 發生故障或效能降級時，相關面板底部會顯示橘紅警示橫幅，數字只讀官方公開的 Statuspage.io 狀態頁——絕不呼叫 LLM 用量 API。Antigravity 因沒有可用的公開狀態頁，暫不支援。
 - **上下文提醒與系統通知：** Context Window 達 70% 時，狀態列會提醒你 `/clear` 或 `/compact` 來避免浪費；也可自選開啟系統通知，在接近門檻或額度恢復時提醒。
 - **獨立隱藏區塊：** 沒有全部都用？一鍵就能把 Claude Code、Codex 或 Antigravity 從選單列及面板上徹底隱藏。
 
 ### 工作流程輔助
 
 - **進度管家 (Progress Concierge)：** 開新對話時，自動把你上次的請求、未提交的 commits 與待辦清單交給 AI，不用重講一遍進度。完全本機、預設關閉。
-- **省 token 模式 (Token Saver)：** 一鍵讓 Claude Code 與 Codex 講話更精簡，省下輸出 token，但程式碼與錯誤訊息保證一個字都不縮水。之後每則訊息還會輕聲提醒維持精簡，長對話也不走鐘（A/B 實測：對話後段回覆少約 40%）。
+- **省 token 模式 (Token Saver)：** 一鍵讓 Claude Code 與 Codex 講話更精簡，省下輸出 token，但程式碼與錯誤訊息保證一個字都不縮水。輕聲提醒維持精簡，長對話也不走鐘——實測對話後段回覆少約 40%。
 - **Token 浪費健檢：** 每日背景診斷重複讀取檔案、污染目錄與雜訊輸出。當發現浪費時會有一行提示，AI 也能帶你看懂問題並給出改善建議。
 
 ### 報告與洞察
 
-- **深度 HTML 報告：** 視覺化呈現每日與每週趨勢、專案排行與成本。包含帶有貢獻熱力圖與 Wrapped 摘要的 **Year in Review**。一鍵另存 **.html／.csv／.png 圖卡**分享，全程離線、可選擇隱藏專案名稱。
+- **深度 HTML 報告：** 視覺化呈現每日與每週趨勢、專案排行與成本，包含帶有貢獻熱力圖與 Wrapped 摘要的 Year in Review。一鍵另存 .html／.csv／.png 分享，全程離線、可選擇隱藏專案名稱。
 - **TUI 與 CLI 支援：** 偏好終端機的話，可用 `python3 main.py --tui` 開 Rich TUI 面板，或用 `python3 usage_cli.py report` 產出深度分析報告。
 
 ### 體驗與客製化
@@ -61,8 +61,8 @@ brew install --cask aqua5230/usage/usage
 - **10 款視覺面板：** 可在 Classic、Matrix、Windows 95、Newspaper、Cloud Observation、Midnight Aquarium、Prism Arcade、Black Hole、World Cup 2026 與 Lepidoptera（藍曬圖）之間切換。
 - **拖曳排序：** 按住任何一張額度卡上下拖曳就能交換順序，排法在所有主題間共用、重開也會記住。
 - **AI 人才市場：** 將整個 AI 團隊帶進 Claude Code。瀏覽並一鍵將精選 subagent persona 安裝到 `~/.claude/agents/`，全程透過內建 CLI 在本機完成。
-- **AI 圓桌討論：** 開一個獨立視窗，讓 Claude Code、Codex、Antigravity 針對你給的題目進行多輪討論——自選誰加入、各自用哪個模型、討論幾輪，開始前就看得到大約會花多少 token。每個位子都可以戴上 AI 人才市場的專家角色，同一個 CLI 也就能坐兩個位子、扮兩種身分。還能挑五種辯論風格之一、看著表態計票隨參與者同意或反駁而變動，並讓討論在全體同意時提早收尾。支援圖片附件與唯讀的專案資料夾，讓參與者能參考真實檔案。
-- **AI 更新日報：** 點下這個選單項目，會用預設瀏覽器開啟公開[網頁](https://aqua5230.github.io/ai-updates/)。網頁每天自動更新、涵蓋 Claude Code、Codex、Antigravity 三套工具、保留完整歷史；已審核的更新顯示五語白話版，未審核的顯示官方原文。
+- **AI 圓桌討論：** 開一個獨立視窗，讓 Claude Code、Codex、Antigravity 進行多輪討論——自選參與者、模型與辯論風格，開始前就看得到大約會花多少 token。可以在輪間插話引導方向，共識計票看得出誰不同意，並讓討論在全體同意時提早收尾。位子可以戴上 AI 人才市場的專家角色，也能附上唯讀資料夾讓參與者參考真實檔案。
+- **AI 更新日報：** 開啟每天自動更新的公開[網頁](https://aqua5230.github.io/ai-updates/)，涵蓋 Claude Code、Codex、Antigravity 三套工具、保留完整歷史。已審核的更新顯示五語白話版，未審核的顯示官方原文。
 - **神獸夥伴：** 百分比旁常駐一隻小型白色動畫神獸（Claude 是鳳凰，Codex 是飛龍，Antigravity 是獅子），各自跟著自家工具的 token 燃燒率動態加速。
 - **自動多語言 (i18n)：** 介面支援繁中、簡中、英、日、韓，自動跟隨系統語言設定。
 
@@ -103,7 +103,7 @@ Windows 可完整使用核心功能：TUI、Claude Code 狀態列 hook 與 Codex
 
 系統匣圖示會隨 Claude 額度百分比更新；提示文字摘要 Claude 與 Codex 的各視窗。左鍵會用 WebView2 開啟與 macOS 相同的 11 款 HTML 面板（Classic 加十款主題）；右鍵可切換面板、重新整理、設定開機自啟、檢查更新與結束。
 
-Windows 的差異：面板開在工作區右下角，而非貼齊系統匣圖示；更新提示使用系統 Yes/No 對話框；AI 人才市場面板僅提供 macOS。
+Windows 的差異：面板開在工作區右下角，而非貼齊系統匣圖示；更新提示使用系統 Yes/No 對話框；AI 人才市場與 AI 圓桌討論面板僅提供 macOS。
 
 ### 首次打開：設定狀態列
 
@@ -154,8 +154,8 @@ Windows 的差異：面板開在工作區右下角，而非貼齊系統匣圖示
 | Antigravity（Gemini）支援 | ✅ | — | — |
 | Claude Code 與 Codex 服務狀態警示 | ✅ | — | — |
 | HTML 深度報告與 UI 面板 | ✅ | ✅ | — |
-| AI 人才市場 | ✅ | — | — |
-| AI 圓桌討論 | ✅ | — | — |
+| AI 人才市場 | 僅 macOS | — | — |
+| AI 圓桌討論 | 僅 macOS | — | — |
 | AI 更新日報 | ✅ | — | — |
 | 進度管家與省 token 模式 | ✅ | — | — |
 | Token 浪費健檢 | ✅ | — | — |

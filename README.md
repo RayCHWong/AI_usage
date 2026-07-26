@@ -41,19 +41,19 @@ It lands in your Applications folder automatically. Right-click **Open** once to
 
 - **Always-on Monitor:** Your quota lives in the menu bar, color-coded from green to red. Click when you want the full session, weekly, and per-project breakdown.
 - **Antigravity Support:** Antigravity (Gemini) session and weekly quota show up as a third card in every panel. Numbers come straight from the official quota API, using the sign-in the Antigravity CLI already keeps on your machine — refreshed every few minutes, with live reset countdowns.
-- **Service Status Alerts:** When Claude Code, Claude API, or Codex API has an outage or degraded performance, an orange-red banner appears at the bottom of the relevant panel. It reads only their public Statuspage.io status pages, never an LLM usage API; normal services show no banner. Antigravity is not supported because it has no usable public status page.
+- **Service Status Alerts:** An orange-red banner appears when Claude Code, Claude API, or Codex API has an outage or degraded performance, read from their public Statuspage.io pages — never an LLM usage API. Antigravity isn't covered; it has no public status page.
 - **Context Nudges & Notifications:** When your context window hits 70%, the status line nudges you to `/clear` or `/compact` to prevent token waste. You can also opt-in to system notifications for quota limits and recoveries.
 - **Hide Sections:** Only use one or two of the tools? Hide the Claude Code, Codex, or Antigravity section from the menu bar and panels completely with a single click.
 
 ### Workflow Helpers
 
 - **Progress Concierge:** Open a new Claude Code session and `usage` hands your last progress straight to the AI, including your last request, uncommitted changes, and unfinished todos. No `/resume`, no recap. Fully local, off by default.
-- **Token Saver:** A menu-bar toggle asks Claude Code and Codex to answer more tersely for the session, saving output tokens while keeping code and error messages byte-exact. A light per-message reminder keeps replies from drifting back to verbose in long conversations (A/B-tested: late-conversation replies stay ~40% shorter).
+- **Token Saver:** A menu-bar toggle asks Claude Code and Codex to answer more tersely, saving output tokens while keeping code and error messages byte-exact. A light reminder keeps long conversations from drifting back to verbose — tested to keep late replies ~40% shorter.
 - **Token-waste Health Check:** A daily background diagnosis scans your logs for waste, including repeated file reads, polluter directories, and noisy Bash output. If it finds issues, a one-line heads-up appears; say "show me" and the AI walks you through fixes.
 
 ### Reporting & Insight
 
-- **Deep HTML Reports:** Instant, shareable HTML deep reports showing daily and weekly token trends, project rankings, and cost. Includes a **Year in Review** featuring a contribution heatmap and "Wrapped" summary. One click saves a copy as **.html, .csv, or a .png image** — fully offline, with optional project-name masking.
+- **Deep HTML Reports:** Shareable HTML reports of daily and weekly token trends, project rankings, and cost — including a Year in Review with a contribution heatmap and "Wrapped" summary. Export as .html, .csv, or .png, fully offline, with optional project-name masking.
 - **TUI & CLI:** Prefer the terminal? Run the rich TUI dashboard with `python3 main.py --tui`, or generate deep analytics with `python3 usage_cli.py report`.
 
 ### Experience & Customization
@@ -61,8 +61,8 @@ It lands in your Applications folder automatically. Right-click **Open** once to
 - **10 Visual Themes:** Switch between panel styles including Classic, Matrix, Windows 95, Newspaper, Cloud Observation, Midnight Aquarium, Prism Arcade, Black Hole, World Cup 2026, and Lepidoptera (blueprint).
 - **Drag to Reorder:** Grab any quota card and drag it up or down to swap the order — the arrangement is shared across every theme and survives restarts.
 - **AI Talent Market:** Bring a ready-made AI team into Claude Code. Browse and install curated subagent personas into `~/.claude/agents/` instantly. Runs fully locally via the bundled CLI.
-- **AI Council:** Open a dedicated window and run a multi-round discussion between Claude Code, Codex, and Antigravity on a topic you give it — pick who joins, which model each one uses, and how many rounds, with a token estimate shown before you start. Each seat can wear a specialist persona from the AI Talent Market, so the same CLI can join twice wearing two different hats. Choose one of five debate styles, watch the stance tally as participants agree or push back, and let the discussion stop early once everyone agrees. Supports image attachments and an optional read-only project folder so participants can reference real files.
-- **AI Update Daily:** Clicking this menu item opens the public [web page](https://aqua5230.github.io/ai-updates/) in your default browser. The page auto-updates every day, covers Claude Code, Codex, and Antigravity, and keeps the full history; reviewed updates show a plain-language summary in all five languages, while unreviewed ones show the official source text.
+- **AI Council:** Open a dedicated window and run a multi-round discussion between Claude Code, Codex, and Antigravity — pick participants, models, and a debate style, with a token estimate up front. Steer it between rounds, see who dissents in the consensus tally, and let it stop early once everyone agrees. Seats can wear AI Talent Market personas and reference real files via an optional read-only folder.
+- **AI Update Daily:** Opens a daily-updated public [page](https://aqua5230.github.io/ai-updates/) covering Claude Code, Codex, and Antigravity, with the full history kept. Reviewed items get a plain-language summary in all five UI languages; unreviewed ones show the original source text.
 - **Spirit Companions:** A small animated white silhouette lives beside your usage percentages — a phoenix for Claude, a dragon for Codex, a lion for Antigravity. Each accelerates dynamically as its own tool's token burn rate climbs.
 - **Automatic Localization:** UI text is available in Traditional Chinese, Simplified Chinese, English, Japanese, and Korean, automatically matching your system settings.
 
@@ -103,7 +103,7 @@ Windows has the full core experience: the TUI, Claude Code status-line hook, and
 
 The system-tray icon updates with your Claude quota percentage; its tooltip summarizes the Claude and Codex windows. Left-click opens the same 11 HTML panels as macOS (Classic plus the ten themes) in WebView2. Right-click provides panel switching, refresh, launch at login, check for updates, and quit.
 
-Windows differences: the panel opens at the bottom-right of the working area rather than next to the tray icon; update prompts use a system Yes/No dialog; and the AI Talent Market panel is macOS-only.
+Windows differences: the panel opens at the bottom-right of the working area rather than next to the tray icon; update prompts use a system Yes/No dialog; and the AI Talent Market and AI Council panels are macOS-only.
 
 ### First Launch: Set Up the Status Line
 
@@ -154,8 +154,8 @@ If the menu bar shows `--`, it's usually not broken — there's just no local da
 | Antigravity (Gemini) usage | ✅ | — | — |
 | Claude Code & Codex service-status alerts | ✅ | — | — |
 | HTML deep reports & UI | ✅ | ✅ | — |
-| AI Talent Market | ✅ | — | — |
-| AI Council | ✅ | — | — |
+| AI Talent Market | macOS only | — | — |
+| AI Council | macOS only | — | — |
 | AI Update Daily | ✅ | — | — |
 | Progress Concierge & Token Saver | ✅ | — | — |
 | Token-waste Health Check | ✅ | — | — |

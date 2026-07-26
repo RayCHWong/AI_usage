@@ -276,6 +276,13 @@ class ClaudeAdapter(_JSONAdapter):
             # dies with "Input must be provided ... when using --print". Keep a
             # non-variadic flag (`--safe-mode`) right after it.
             argv.extend(("--tools", "Read,Grep,Glob"))
+        else:
+            # Without an attached project, participants have nothing to read
+            # and the council prompt already prohibits tool calls. Disable the
+            # built-in toolset rather than paying for its schema on every turn.
+            # `--safe-mode` below also prevents this variadic flag from
+            # consuming the trailing prompt.
+            argv.extend(("--tools", ""))
         # `--add-dir` is variadic (`<directories...>`), the same trap as
         # `--tools` above: it must not sit right before the trailing prompt.
         # Emit one `--add-dir <dir>` per folder, then let the non-variadic
@@ -285,6 +292,7 @@ class ClaudeAdapter(_JSONAdapter):
         argv.extend(
             (
                 "--safe-mode",
+                "--exclude-dynamic-system-prompt-sections",
                 "--setting-sources",
                 "project",
                 "--output-format",

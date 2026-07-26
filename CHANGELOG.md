@@ -5,6 +5,11 @@
 All notable changes to usage are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.5] - 2026-07-27
+
+### Changed
+- **AI Council spends less Claude quota per turn**: `claude -p` calls without an attached project folder used to omit `--tools` entirely, so Claude Code loaded its full built-in toolset — Bash, Edit, Write, and the rest — into every turn's input even though the council prompt already tells participants not to call tools. Calls now pass `--tools ""` when no project folder is attached, and every Claude call adds `--exclude-dynamic-system-prompt-sections` to keep the system prompt prefix byte-stable across turns for a better shot at Anthropic's automatic prompt caching. Codex and Antigravity participants are unaffected.
+
 ## [0.29.4] - 2026-07-26
 
 ### Added

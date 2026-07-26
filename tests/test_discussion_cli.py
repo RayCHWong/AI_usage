@@ -207,7 +207,10 @@ def test_invalid_configured_path_does_not_silently_fall_back(
             (
                 FAKE_CLI_PATH,
                 "-p",
+                "--tools",
+                "",
                 "--safe-mode",
+                "--exclude-dynamic-system-prompt-sections",
                 "--setting-sources",
                 "project",
                 "--output-format",

@@ -4,6 +4,11 @@
 
 本檔記錄 usage 所有重要變更。格式參考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [0.29.5] - 2026-07-27
+
+### 變更
+- **AI 圓桌討論每輪省下更多 Claude 額度**：沒帶專案資料夾時，`claude -p` 呼叫原本完全不傳 `--tools`，導致 Claude Code 每輪都把完整內建工具集（Bash、Edit、Write 等等）的定義塞進輸入內容，即使圓桌的提示詞早就告訴參與者不要呼叫任何工具。現在沒帶資料夾時會傳 `--tools ""` 關閉工具；每次 Claude 呼叫也都加上 `--exclude-dynamic-system-prompt-sections`，讓 system prompt 前綴在各輪之間保持位元不變，提高命中 Anthropic 自動 prompt 快取的機會。Codex 與 Antigravity 參與者不受影響。
+
 ## [0.29.4] - 2026-07-26
 
 ### 新增

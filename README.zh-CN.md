@@ -41,18 +41,19 @@ brew install --cask aqua5230/usage/usage
 
 - **常驻监视器：** 配额常驻菜单栏，以绿色到红色的颜色编码显示。需要完整的会话、每周和各项目明细时，点击即可查看。
 - **Antigravity 支持：** Antigravity（Gemini）的会话与每周配额以第三张卡片出现在每一款面板。数值直接向官方配额 API 查询，使用的是 Antigravity CLI 本就保存在你机器上的登录身份——每隔几分钟自动刷新，重置倒计时实时递减。
+- **服务状态警示：** Claude Code、Claude API 或 Codex API 发生故障或性能降级时，相关面板底部会显示橘红警示横幅，数值仅读取官方公开的 Statuspage.io 状态页——绝不调用 LLM 使用量 API。Antigravity 因没有可用的公开状态页，暂不支持。
 - **上下文提醒与通知：** 当上下文窗口达到 70% 时，状态栏会提示你使用 `/clear` 或 `/compact`，避免浪费 token。你也可以选择接收关于配额限额和恢复的系统通知。
 - **隐藏区块：** 没全都用？点击一次即可从菜单栏和面板中完全隐藏 Claude Code、Codex 或 Antigravity 区块。
 
 ### 工作流辅助
 
 - **进度管家：** 打开新的 Claude Code 会话时，`usage` 会直接把你上次的进度交给 AI，包括上次请求、未提交的变更和未完成的待办事项。无需 `/resume`，无需回顾。完全本地运行，默认关闭。
-- **Token 节省器：** 菜单栏开关会要求 Claude Code 和 Codex 在当前会话中更简洁地回答，在保持代码和错误信息逐字节不变的同时节省输出 token。轻量的逐消息提醒能避免长对话中的回复逐渐变得冗长（A/B 测试：对话后期回复仍可缩短约 40%）。
+- **Token 节省器：** 菜单栏开关会要求 Claude Code 和 Codex 在当前会话中更简洁地回答，在保持代码和错误信息逐字节不变的同时节省输出 token。轻量的逐消息提醒能避免长对话中的回复逐渐变得冗长——实测对话后期回复可缩短约 40%。
 - **Token 浪费健康检查：** 每日后台诊断会扫描日志中的浪费问题，包括重复读取文件、污染目录和冗长的 Bash 输出。发现问题时会显示一行提示；对 AI 说“show me”，它会引导你完成修复。
 
 ### 报告与洞察
 
-- **深入 HTML 报告：** 即时生成可分享的 HTML 深度报告，展示每日和每周 token 趋势、项目排名和费用。包含带有贡献热图和“Wrapped”摘要的**年度回顾**。一键保存为 **.html、.csv 或 .png 图像**，完全离线，并可选择遮蔽项目名称。
+- **深入 HTML 报告：** 可分享的 HTML 深度报告，展示每日和每周 token 趋势、项目排名和费用——包含带有贡献热图和“Wrapped”摘要的年度回顾。可导出为 .html、.csv 或 .png，完全离线，并可选择遮蔽项目名称。
 - **TUI 与 CLI：** 更偏好终端？运行功能丰富的 TUI 仪表板：`python3 main.py --tui`，或通过 `python3 usage_cli.py report` 生成深度分析。
 
 ### 体验与自定义
@@ -60,8 +61,8 @@ brew install --cask aqua5230/usage/usage
 - **10 个视觉主题：** 可切换面板风格，包括 Classic、Matrix、Windows 95、Newspaper、Cloud Observation、Midnight Aquarium、Prism Arcade、Black Hole、World Cup 2026 和 Lepidoptera（蓝图）。
 - **拖拽排序：** 按住任意配额卡上下拖拽即可交换顺序——这一排列在所有主题间共享，并在重启后保留。
 - **AI 人才市场：** 将现成的 AI 团队带入 Claude Code。浏览并立即将精选子代理角色安装到 `~/.claude/agents/`。通过随附 CLI 完全在本地运行。
-- **AI 圆桌讨论：** 打开一个独立窗口，让 Claude Code、Codex、Antigravity 针对你给的题目进行多轮讨论——自选谁加入、各自用哪个模型、讨论几轮，开始前就能看到大约会花多少 token。每个位置都可以戴上 AI 人才市场的专家角色，同一个 CLI 也能坐两个位置、扮演两种身份。还能选择五种辩论风格之一、看着表态计票随参与者同意或反驳而变动，并让讨论在全体同意时提早收尾。支持图片附件与只读的项目文件夹，让参与者可以参考真实文件。
-- **AI 更新日报：** 点击这个菜单项目，会用默认浏览器打开公开[网页](https://aqua5230.github.io/ai-updates/)。网页每天自动更新、涵盖 Claude Code、Codex、Antigravity 三套工具、保留完整历史；已审核的更新显示五语白话版，未审核的显示官方原文。
+- **AI 圆桌讨论：** 打开一个独立窗口，让 Claude Code、Codex、Antigravity 进行多轮讨论——自选参与者、模型与辩论风格，开始前就能看到大约会花多少 token。可以在轮间插话引导方向，共识计票看得出谁不同意，并让讨论在全体同意时提早收尾。位置可以戴上 AI 人才市场的专家角色，也能附上只读文件夹让参与者参考真实文件。
+- **AI 更新日报：** 打开每天自动更新的公开[网页](https://aqua5230.github.io/ai-updates/)，涵盖 Claude Code、Codex、Antigravity 三套工具，保留完整历史。已审核的更新显示五语白话版，未审核的显示官方原文。
 - **灵伴：** 一个小型动态白色剪影会出现在使用百分比旁边：Claude 是凤凰，Codex 是龙，Antigravity 是狮子。每个伙伴都会随各自工具的 token 消耗速率上升而动态加速。
 - **自动本地化：** 界面文本提供繁体中文、简体中文、英语、日语和韩语，并自动匹配系统设置。
 
@@ -102,7 +103,7 @@ Windows 原生支持完整核心功能：TUI、Claude Code 状态栏 hook 和 Co
 
 系统托盘图标会随 Claude 配额百分比更新；提示文字会汇总 Claude 和 Codex 的各个窗口。左键通过 WebView2 打开与 macOS 相同的 11 个 HTML 面板（Classic 加十个主题）；右键可切换面板、刷新、设置开机自启、检查更新和退出。
 
-Windows 的差异：面板显示在工作区右下角，而不是紧贴系统托盘图标；更新提示使用系统 Yes/No 对话框；AI 人才市场面板仅限 macOS。
+Windows 的差异：面板显示在工作区右下角，而不是紧贴系统托盘图标；更新提示使用系统 Yes/No 对话框；AI 人才市场与 AI 圆桌讨论面板仅限 macOS。
 
 ### 首次启动：设置状态栏
 
@@ -151,9 +152,10 @@ Windows 的差异：面板显示在工作区右下角，而不是紧贴系统托
 | macOS 菜单栏 | ✅ | — | ✅ |
 | Claude Code 与 Codex 用量 | ✅ | 仅 Claude | ✅ |
 | Antigravity（Gemini）用量 | ✅ | — | — |
+| Claude Code 与 Codex 服务状态警示 | ✅ | — | — |
 | HTML 深度报告与界面 | ✅ | ✅ | — |
-| AI 人才市场 | ✅ | — | — |
-| AI 圆桌讨论 | ✅ | — | — |
+| AI 人才市场 | 仅限 macOS | — | — |
+| AI 圆桌讨论 | 仅限 macOS | — | — |
 | AI 更新日报 | ✅ | — | — |
 | 进度管家与 Token 节省器 | ✅ | — | — |
 | Token 浪费健康检查 | ✅ | — | — |
