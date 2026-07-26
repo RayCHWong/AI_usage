@@ -250,6 +250,7 @@ ActionName = Literal[
     "discussion_pick_image",
     "discussion_drop_image",
     "discussion_remove_attachment",
+    "discussion_submit_guidance",
 ]
 
 
@@ -264,12 +265,14 @@ class DiscussionAction:
     total_rounds: int = 2
     include_summary: bool = True
     end_on_consensus: bool = False
+    guidance_between_rounds: bool = False
     models: Mapping[str, str | None] = field(default_factory=dict)
     personas: Mapping[str, str | None] = field(default_factory=dict)
     debate_style: DebateStyle = DebateStyle.CONSTRUCTIVE
     attachment_path: str | None = None
     attachment_data: str | None = None
     attachment_name: str | None = None
+    guidance_text: str | None = None
 
 
 def parse_discussion_action(raw: object) -> DiscussionAction:
@@ -295,8 +298,17 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         "discussion_pick_image",
         "discussion_drop_image",
         "discussion_remove_attachment",
+        "discussion_submit_guidance",
     }:
         raise ValueError("unknown discussion action")
+    if action == "discussion_submit_guidance":
+        text_value = payload.get("text")
+        if not isinstance(text_value, str):
+            raise ValueError("discussion_submit_guidance requires a string text")
+        return DiscussionAction(
+            cast(ActionName, action),
+            guidance_text=text_value,
+        )
     if action == "discussion_remove_attachment":
         path_value = payload.get("path")
         if not isinstance(path_value, str) or not path_value.strip():
@@ -345,6 +357,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
     rounds_value = payload.get("totalRounds", 2)
     include_summary_value = payload.get("includeSummary", True)
     end_on_consensus_value = payload.get("endOnConsensus", False)
+    guidance_between_rounds_value = payload.get("guidanceBetweenRounds", False)
     debate_style_value = payload.get("debateStyle", DebateStyle.CONSTRUCTIVE.value)
     if not isinstance(rounds_value, int) or isinstance(rounds_value, bool):
         raise ValueError("discussion_start totalRounds must be an integer")
@@ -352,6 +365,8 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         raise ValueError("discussion_start includeSummary must be a boolean")
     if not isinstance(end_on_consensus_value, bool):
         raise ValueError("discussion_start endOnConsensus must be a boolean")
+    if not isinstance(guidance_between_rounds_value, bool):
+        raise ValueError("discussion_start guidanceBetweenRounds must be a boolean")
     if not isinstance(debate_style_value, str):
         raise ValueError("discussion_start debateStyle must be a string")
     try:
@@ -381,6 +396,7 @@ def parse_discussion_action(raw: object) -> DiscussionAction:
         total_rounds=min(5, max(1, rounds_value)),
         include_summary=include_summary_value,
         end_on_consensus=end_on_consensus_value,
+        guidance_between_rounds=guidance_between_rounds_value,
         models=models,
         personas=personas,
         debate_style=debate_style,
@@ -758,6 +774,9 @@ class DiscussionWindowController:
             elif action.action == "discussion_stop":
                 self.bridge.stop()
                 self._apply_snapshot()
+            elif action.action == "discussion_submit_guidance":
+                assert action.guidance_text is not None
+                self.bridge.submit_guidance(action.guidance_text)
             elif action.action == "discussion_clear":
                 result = self.bridge.clear()
                 if result.get("status") == "busy":
@@ -801,6 +820,7 @@ class DiscussionWindowController:
                     total_rounds=action.total_rounds,
                     include_summary=action.include_summary,
                     end_on_consensus=action.end_on_consensus,
+                    guidance_between_rounds=action.guidance_between_rounds,
                     debate_style=action.debate_style,
                 )
                 snapshot = self.bridge.snapshot()

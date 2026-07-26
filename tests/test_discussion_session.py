@@ -11,7 +11,10 @@ import threading
 
 import pytest
 
+import discussion_bridge
 import discussion_session
+import discussion_window
+from discussion_bridge import DiscussionBridge
 from discussion_session import (
     ConsensusCount,
     DebateStyle,
@@ -295,6 +298,154 @@ def test_round_prompts_include_required_safety_and_truncation(
     assert "<<<ROUND1_ANSWER_1_BEGIN" in round2
     assert "<<<ROUND1_ANSWER_1_END>>>" in round2
     assert discussion_session.TRUNCATION_MARKER in round2
+
+
+def test_round2_prompt_adds_only_non_blank_guidance_between_topic_and_answers() -> None:
+    without_guidance = discussion_session.build_round2_prompt(
+        "原始問題",
+        [("參與者 A", "前一輪答案")],
+    )
+    blank_guidance = discussion_session.build_round2_prompt(
+        "原始問題",
+        [("參與者 A", "前一輪答案")],
+        guidance=" \n\t",
+    )
+    with_guidance = discussion_session.build_round2_prompt(
+        "原始問題",
+        [("參與者 A", "前一輪答案")],
+        guidance="請優先檢查成本假設",
+    )
+
+    assert blank_guidance == without_guidance
+    assert "<<<HOST_GUIDANCE_BEGIN>>>" not in without_guidance
+    assert "<<<HOST_GUIDANCE_BEGIN>>>" in with_guidance
+    assert "請優先檢查成本假設" in with_guidance
+    assert with_guidance.index("原始問題：") < with_guidance.index(
+        "<<<HOST_GUIDANCE_BEGIN>>>"
+    )
+    assert with_guidance.index("<<<HOST_GUIDANCE_END>>>") < with_guidance.index(
+        "第 1 輪答案："
+    )
+    assert "優先度高於前一輪答案" in with_guidance
+
+
+def test_round2_prompt_truncates_guidance() -> None:
+    guidance = "補" * (discussion_session.MAX_GUIDANCE_CHARS + 100)
+
+    prompt = discussion_session.build_round2_prompt("問題", [], guidance=guidance)
+    guidance_block = prompt.split("<<<HOST_GUIDANCE_BEGIN>>>\n", 1)[1].split(
+        "\n<<<HOST_GUIDANCE_END>>>", 1
+    )[0]
+
+    assert len(guidance_block) == discussion_session.MAX_GUIDANCE_CHARS
+    assert guidance_block.endswith(discussion_session.TRUNCATION_MARKER)
+
+
+def test_awaiting_guidance_transition_has_legal_and_illegal_paths() -> None:
+    session = _running_session()
+
+    event = session.transition(SessionStatus.AWAITING_GUIDANCE, round_index=2)
+
+    assert event is not None
+    assert event.kind == "guidance_requested"
+    assert session.status is SessionStatus.AWAITING_GUIDANCE
+    assert session.transition(SessionStatus.ROUND2_RUNNING, round_index=2) is not None
+    next_event = session.transition(SessionStatus.AWAITING_GUIDANCE, round_index=3)
+    assert next_event is not None
+    assert next_event.payload == {"round_index": 3}
+    assert session.transition(SessionStatus.ROUND2_RUNNING, round_index=3) is not None
+
+    illegal = _running_session()
+    illegal.transition(SessionStatus.AWAITING_GUIDANCE, round_index=2)
+    with pytest.raises(
+        InvalidSessionTransition,
+        match="AWAITING_GUIDANCE -> COMPLETED",
+    ):
+        illegal.transition(SessionStatus.COMPLETED)
+
+
+def test_submit_guidance_outside_waiting_state_is_safe() -> None:
+    bridge = DiscussionBridge()
+
+    bridge.submit_guidance("不應造成例外")
+
+    assert bridge.snapshot() == {}
+
+
+def test_guidance_wait_uses_submission_and_leaves_no_waiting_thread() -> None:
+    bridge = DiscussionBridge()
+    session = _running_session()
+    cancel_event = threading.Event()
+    waiting = threading.Event()
+    result: list[str | None] = []
+    bridge._session = session
+    bridge.set_event_listener(waiting.set)
+    worker = threading.Thread(
+        target=lambda: result.append(
+            bridge._await_guidance(session, 2, cancel_event)
+        )
+    )
+
+    worker.start()
+    assert waiting.wait(1)
+    bridge.submit_guidance("請檢查成本")
+    worker.join(1)
+
+    assert not worker.is_alive()
+    assert result == ["請檢查成本"]
+    assert session.status is SessionStatus.ROUND2_RUNNING
+
+
+def test_guidance_wait_times_out_as_skip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(discussion_bridge, "GUIDANCE_TIMEOUT_SECONDS", 0.01)
+    bridge = DiscussionBridge()
+    session = _running_session()
+    bridge._session = session
+
+    guidance = bridge._await_guidance(session, 2, threading.Event())
+
+    assert guidance is None
+    assert session.status is SessionStatus.ROUND2_RUNNING
+
+
+def test_stop_interrupts_guidance_wait_and_leaves_no_waiting_thread() -> None:
+    bridge = DiscussionBridge()
+    session = _running_session()
+    cancel_event = threading.Event()
+    waiting = threading.Event()
+    result: list[str | None] = []
+    bridge._session = session
+    bridge._cancel_event = cancel_event
+    bridge.set_event_listener(waiting.set)
+    worker = threading.Thread(
+        target=lambda: result.append(
+            bridge._await_guidance(session, 2, cancel_event)
+        )
+    )
+
+    worker.start()
+    assert waiting.wait(1)
+    bridge.stop()
+    worker.join(1)
+
+    assert not worker.is_alive()
+    assert result == [None]
+    assert session.status is SessionStatus.CANCELLED
+
+
+def test_parse_submit_guidance_accepts_string_and_rejects_other_types() -> None:
+    parsed = discussion_window.parse_discussion_action(
+        json.dumps({"action": "discussion_submit_guidance", "text": ""})
+    )
+
+    assert parsed.action == "discussion_submit_guidance"
+    assert parsed.guidance_text == ""
+    with pytest.raises(ValueError, match="requires a string text"):
+        discussion_window.parse_discussion_action(
+            json.dumps({"action": "discussion_submit_guidance", "text": 3})
+        )
 
 
 def test_persona_prompt_order_and_none_preserves_existing_output(

@@ -47,6 +47,8 @@ class FakeBridge:
         self.working_directory = working_directory
         self.attachments: object = None
         self.end_on_consensus = False
+        self.guidance_between_rounds = False
+        self.submitted_guidance: list[str] = []
 
     def start(
         self,
@@ -58,13 +60,18 @@ class FakeBridge:
         total_rounds: int = 2,
         include_summary: bool = True,
         end_on_consensus: bool = False,
+        guidance_between_rounds: bool = False,
         debate_style: DebateStyle = DebateStyle.CONSTRUCTIVE,
     ) -> str:
         self.started = (topic, participants, moderator_id, working_directory)
         self.working_directory = working_directory
         self.attachments = attachments
         self.end_on_consensus = end_on_consensus
+        self.guidance_between_rounds = guidance_between_rounds
         return "session"
+
+    def submit_guidance(self, text: str) -> None:
+        self.submitted_guidance.append(text)
 
     def stop(self) -> None:
         self.stop_count += 1
@@ -411,6 +418,35 @@ def test_controller_dispatches_start_and_stop_actions() -> None:
     assert bridge.started[3] == "/tmp/project"
     assert bridge.stop_count == 1
     assert any(script.startswith("window.discussionApplySnapshot(") for script in webview.scripts)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")
+def test_controller_forwards_guidance_flag_and_submitted_text() -> None:
+    bridge = FakeBridge()
+    controller = discussion_window.DiscussionWindowController(bridge=cast(Any, bridge))
+    controller._attached = True
+    controller._web_ready = True
+    controller.webview = FakeWebView()
+
+    controller._receive_action(
+        json.dumps(
+            {
+                "action": "discussion_start",
+                "topic": "問題",
+                "participants": ["claude", "codex"],
+                "guidanceBetweenRounds": True,
+            }
+        )
+    )
+    controller._receive_action(
+        json.dumps({"action": "discussion_submit_guidance", "text": "只談單機部署"})
+    )
+    controller._receive_action(
+        json.dumps({"action": "discussion_submit_guidance", "text": ""})
+    )
+
+    assert bridge.guidance_between_rounds is True
+    assert bridge.submitted_guidance == ["只談單機部署", ""]
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="PyObjC action shell is macOS-only")

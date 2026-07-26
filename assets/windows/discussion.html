@@ -1005,6 +1005,34 @@
       opacity: 0.72;
     }
 
+    .guidance-gate {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 11px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-strong);
+    }
+
+    .guidance-gate textarea {
+      width: 100%;
+      min-height: 92px;
+      resize: vertical;
+    }
+
+    .guidance-gate-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .guidance-waiting {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .turn-head {
       display: flex;
       gap: 8px;
@@ -1244,6 +1272,11 @@
                 <span class="switch" aria-hidden="true"></span>
                 <span data-i18n="discussion_end_on_consensus"></span>
               </label>
+              <label class="summary-toggle" for="guidance-between-rounds">
+                <input id="guidance-between-rounds" type="checkbox">
+                <span class="switch" aria-hidden="true"></span>
+                <span data-i18n="discussion_guidance_between_rounds"></span>
+              </label>
               <label class="field debate-style-field">
                 <span class="label" data-i18n="discussion_debate_style"></span>
                 <select id="debate-style"></select>
@@ -1305,6 +1338,7 @@
     const RUNNING_STATUSES = new Set([
       "PREPARING",
       "ROUND1_RUNNING",
+      "AWAITING_GUIDANCE",
       "ROUND2_RUNNING",
       "SUMMARIZING",
       "CANCELLING",
@@ -1408,6 +1442,7 @@
     const roundsSegmentedEl = document.getElementById("rounds-segmented");
     const includeSummaryEl = document.getElementById("include-summary");
     const endOnConsensusEl = document.getElementById("end-on-consensus");
+    const guidanceBetweenRoundsEl = document.getElementById("guidance-between-rounds");
     const debateStyleEl = document.getElementById("debate-style");
 
     function t(key, params) {
@@ -2013,14 +2048,17 @@
       syncRoundsSegmented();
       includeSummaryEl.disabled = running;
       endOnConsensusEl.disabled = running;
+      guidanceBetweenRoundsEl.disabled = running || Number(totalRoundsEl.value) === 1;
       debateStyleEl.disabled = running;
       detectEl.disabled = running || detecting;
       pickFolderEl.disabled = running;
       clearFolderEl.disabled = running;
       attachImageEl.disabled = running;
-      statusEl.textContent = state.status
-        ? t(`discussion_status_${state.status.toLowerCase()}`)
-        : "";
+      statusEl.textContent = state.status === "AWAITING_GUIDANCE"
+        ? t("discussion_guidance_waiting")
+        : state.status
+          ? t(`discussion_status_${state.status.toLowerCase()}`)
+          : "";
       detectEl.textContent = detecting ? t("discussion_detecting") : t("discussion_detect");
       const unavailableCount = detection.filter((item) => !item.available).length;
       detectStatusEl.hidden = detecting || unavailableCount === 0;
@@ -2069,6 +2107,12 @@
     function renderProgress() {
       const turns = Array.isArray(state.turns) ? state.turns : [];
       const totalRounds = Number(state.total_rounds) || Number(totalRoundsEl.value);
+      if (state.status === "AWAITING_GUIDANCE") {
+        historyProgressEl.textContent = t("discussion_guidance_waiting");
+        historyProgressEl.hidden = false;
+        sessionBarProgressEl.textContent = historyProgressEl.textContent;
+        return;
+      }
       const summaryTurn = turns.find(
         (turn) => Number(turn.round_index) > totalRounds && turn.status === "RUNNING",
       );
@@ -2102,8 +2146,45 @@
       sessionBarProgressEl.textContent = historyProgressEl.textContent;
     }
 
+    function createGuidanceGate() {
+      const gate = document.createElement("section");
+      gate.className = "guidance-gate";
+
+      const waiting = document.createElement("div");
+      waiting.className = "guidance-waiting";
+      waiting.textContent = t("discussion_guidance_waiting");
+
+      const textarea = document.createElement("textarea");
+      textarea.placeholder = t("discussion_guidance_placeholder");
+
+      const actions = document.createElement("div");
+      actions.className = "guidance-gate-actions";
+      const skip = document.createElement("button");
+      skip.type = "button";
+      skip.className = "secondary-button";
+      skip.textContent = t("discussion_guidance_skip");
+      const submit = document.createElement("button");
+      submit.type = "button";
+      submit.className = "primary-button";
+      submit.textContent = t("discussion_guidance_continue");
+      const sendGuidance = (text) => {
+        textarea.disabled = true;
+        skip.disabled = true;
+        submit.disabled = true;
+        send("discussion_submit_guidance", { text });
+      };
+      skip.addEventListener("click", () => sendGuidance(""));
+      submit.addEventListener("click", () => sendGuidance(textarea.value));
+      actions.append(skip, submit);
+      gate.replaceChildren(waiting, textarea, actions);
+      return gate;
+    }
+
     function renderHistory() {
       historyEl.replaceChildren();
+      if (state.status === "AWAITING_GUIDANCE") {
+        historyEl.append(createGuidanceGate());
+      }
       const totalRounds = Number(state.total_rounds) || Number(totalRoundsEl.value);
       const turns = (Array.isArray(state.turns) ? state.turns : [])
         .filter((turn) => Number(turn.round_index) <= totalRounds);
@@ -2408,6 +2489,9 @@
       } else if (event.kind === "round_started") {
         state.current_round = Number(payload.round_index);
         state.status = Number(payload.round_index) === 1 ? "ROUND1_RUNNING" : "ROUND2_RUNNING";
+      } else if (event.kind === "guidance_requested") {
+        state.current_round = Number(payload.round_index);
+        state.status = "AWAITING_GUIDANCE";
       } else if (event.kind === "consensus_counted") {
         state.consensus_count = {
           agree: Number(payload.agree) || 0,
@@ -2565,6 +2649,7 @@
       renderControls();
     });
     endOnConsensusEl.addEventListener("change", renderControls);
+    guidanceBetweenRoundsEl.addEventListener("change", renderControls);
     debateStyleEl.addEventListener("change", renderControls);
     topicEl.addEventListener("paste", (event) => {
       const clipboard = event.clipboardData;
@@ -2604,6 +2689,8 @@
         totalRounds: Number(totalRoundsEl.value),
         includeSummary: includeSummaryEl.checked,
         endOnConsensus: endOnConsensusEl.checked,
+        guidanceBetweenRounds: guidanceBetweenRoundsEl.checked
+          && Number(totalRoundsEl.value) > 1,
         models: { ...selectedModels },
         personas: { ...selectedPersonas },
         debateStyle: debateStyleEl.value,

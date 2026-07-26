@@ -48,6 +48,7 @@ from discussion_session import (
     build_moderator_prompt,
     build_round1_prompt,
     build_round2_prompt,
+    truncate_guidance,
 )
 from discussion_usage import TurnUsage
 from i18n import _t
@@ -58,6 +59,7 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT_PROCESSES = 4
 DELTA_FLUSH_CHARS = 128
 DELTA_FLUSH_SECONDS = 0.05
+GUIDANCE_TIMEOUT_SECONDS = 300.0
 DISCUSSIONS_DIRECTORY = Path("~/.usage/discussions").expanduser()
 
 ParticipantSource = Literal["builtin", "argv", "login_shell"]
@@ -229,6 +231,9 @@ class DiscussionBridge:
         self._session: DiscussionSession | None = None
         self._worker: threading.Thread | None = None
         self._cancel_event: threading.Event | None = None
+        self._guidance_event = threading.Event()
+        self._guidance_lock = threading.Lock()
+        self._guidance_text: str | None = None
         self._state_lock = threading.Lock()
         self._event_order_lock = threading.RLock()
         self._event_lock = threading.Lock()
@@ -254,6 +259,7 @@ class DiscussionBridge:
         total_rounds: int = 2,
         include_summary: bool = True,
         end_on_consensus: bool = False,
+        guidance_between_rounds: bool = False,
         debate_style: DebateStyle = DebateStyle.CONSTRUCTIVE,
     ) -> str:
         normalized_topic = topic.strip()
@@ -301,6 +307,9 @@ class DiscussionBridge:
             attachments or (), detect_lang()
         )
         cancel_event = threading.Event()
+        with self._guidance_lock:
+            self._guidance_text = None
+            self._guidance_event.clear()
         with self._state_lock:
             if self._worker is not None and self._worker.is_alive():
                 raise DiscussionBusyError("a discussion session is already running")
@@ -321,6 +330,7 @@ class DiscussionBridge:
                     rounds,
                     include_summary,
                     end_on_consensus,
+                    guidance_between_rounds,
                     debate_style,
                     cancel_event,
                 ),
@@ -341,11 +351,13 @@ class DiscussionBridge:
             if session.status not in {
                 SessionStatus.PREPARING,
                 SessionStatus.ROUND1_RUNNING,
+                SessionStatus.AWAITING_GUIDANCE,
                 SessionStatus.ROUND2_RUNNING,
                 SessionStatus.SUMMARIZING,
             }:
                 return
             cancel_event.set()
+            self._guidance_event.set()
             session.transition(SessionStatus.CANCELLING)
             for cancelled in session.cancel_incomplete_turns():
                 self._enqueue_event_locked(cancelled)
@@ -368,9 +380,20 @@ class DiscussionBridge:
             self._worker = None
             self._cancel_event = None
             self._working_directory = None
+            with self._guidance_lock:
+                self._guidance_text = None
+                self._guidance_event.clear()
             with self._event_lock:
                 self._events.clear()
         return {"status": "ok"}
+
+    def submit_guidance(self, text: str) -> None:
+        with self._guidance_lock:
+            session = self._session
+            if session is None or session.status is not SessionStatus.AWAITING_GUIDANCE:
+                return
+            self._guidance_text = truncate_guidance(text)
+            self._guidance_event.set()
 
     def snapshot(self) -> dict[str, object]:
         with self._state_lock:
@@ -414,6 +437,7 @@ class DiscussionBridge:
         total_rounds: int,
         include_summary: bool,
         end_on_consensus: bool,
+        guidance_between_rounds: bool,
         debate_style: DebateStyle,
         cancel_event: threading.Event,
     ) -> None:
@@ -454,12 +478,22 @@ class DiscussionBridge:
             for round_index in range(2, total_rounds + 1):
                 if len(survivors) < 2:
                     break
-                self._transition(
-                    session,
-                    cancel_event,
-                    SessionStatus.ROUND2_RUNNING,
-                    round_index=round_index,
-                )
+                guidance: str | None = None
+                if guidance_between_rounds:
+                    guidance = self._await_guidance(
+                        session,
+                        round_index,
+                        cancel_event,
+                    )
+                    if cancel_event.is_set():
+                        return
+                else:
+                    self._transition(
+                        session,
+                        cancel_event,
+                        SessionStatus.ROUND2_RUNNING,
+                        round_index=round_index,
+                    )
                 answers = [
                     (
                         anonymous_labels[result.participant.spec.id],
@@ -472,6 +506,7 @@ class DiscussionBridge:
                     participant: _ResolvedParticipant,
                     answers: list[tuple[str, str]] = answers,
                     prior_round: int = round_index - 1,
+                    guidance: str | None = guidance,
                 ) -> str:
                     return build_round2_prompt(
                         effective_topic,
@@ -479,6 +514,7 @@ class DiscussionBridge:
                         prior_round=prior_round,
                         persona=participant.spec.persona_prompt,
                         style=debate_style,
+                        guidance=guidance,
                     )
 
                 round_results = self._run_round(
@@ -542,6 +578,34 @@ class DiscussionBridge:
                 )
             except Exception:
                 return
+
+    def _await_guidance(
+        self,
+        session: DiscussionSession,
+        round_index: int,
+        cancel_event: threading.Event,
+    ) -> str | None:
+        with self._guidance_lock:
+            self._guidance_text = None
+            self._guidance_event.clear()
+        self._transition(
+            session,
+            cancel_event,
+            SessionStatus.AWAITING_GUIDANCE,
+            round_index=round_index,
+        )
+        self._guidance_event.wait(GUIDANCE_TIMEOUT_SECONDS)
+        with self._guidance_lock:
+            if cancel_event.is_set():
+                return None
+            guidance = self._guidance_text
+            self._transition(
+                session,
+                cancel_event,
+                SessionStatus.ROUND2_RUNNING,
+                round_index=round_index,
+            )
+            return guidance
 
     def _resolve_participants(
         self,
