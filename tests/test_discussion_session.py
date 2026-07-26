@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import threading
+from dataclasses import asdict
 
 import pytest
 
@@ -591,6 +592,14 @@ def test_count_stance_consensus_accepts_spacing_case_and_fullwidth_brackets() ->
         disagree=1,
         alternative=1,
         unparsed=2,
+        stances={
+            "a": "agree",
+            "b": "disagree",
+            "c": "alternative",
+            "d": "agree",
+            "e": "unparsed",
+            "f": "unparsed",
+        },
     )
 
 
@@ -600,17 +609,27 @@ def test_count_stance_consensus_accepts_spacing_case_and_fullwidth_brackets() ->
         (
             "我會只核對圖片中的可見狀態，然後評論第 2 輪答案，不延伸到實作或派工。"
             "[Alternative]",
-            ConsensusCount(alternative=1),
+            ConsensusCount(
+                alternative=1, stances={"participant": "alternative"}
+            ),
         ),
-        ("這是 [Agree] 我的具體理由", ConsensusCount(agree=1)),
+        (
+            "這是 [Agree] 我的具體理由",
+            ConsensusCount(agree=1, stances={"participant": "agree"}),
+        ),
         (
             "[Agree] 同意，但 [Disagree] 也有道理",
-            ConsensusCount(unparsed=1),
+            ConsensusCount(unparsed=1, stances={"participant": "unparsed"}),
         ),
-        ("檢視完成，［Alternative］", ConsensusCount(alternative=1)),
+        (
+            "檢視完成，［Alternative］",
+            ConsensusCount(
+                alternative=1, stances={"participant": "alternative"}
+            ),
+        ),
         (
             "第一行沒有標籤\n第二行引用 [Agree]",
-            ConsensusCount(unparsed=1),
+            ConsensusCount(unparsed=1, stances={"participant": "unparsed"}),
         ),
     ],
 )
@@ -644,7 +663,12 @@ def test_count_stance_consensus_excludes_non_done_turns() -> None:
         ),
     ]
 
-    assert count_stance_consensus(turns) == ConsensusCount(agree=1)
+    result = count_stance_consensus(turns)
+
+    assert result == ConsensusCount(agree=1, stances={"a": "agree"})
+    assert sum(
+        (result.agree, result.disagree, result.alternative, result.unparsed)
+    ) == len(result.stances)
 
 
 def test_count_stance_consensus_returns_zero_without_stance_rounds() -> None:
@@ -655,6 +679,62 @@ def test_count_stance_consensus_returns_zero_without_stance_rounds() -> None:
     ]
 
     assert count_stance_consensus(turns) == ConsensusCount()
+
+
+def test_count_stance_consensus_details_only_include_latest_done_turns() -> None:
+    turns = [
+        discussion_session.Turn(
+            "old", "a", 2, "[Agree] 上一輪", status=TurnStatus.DONE
+        ),
+        discussion_session.Turn(
+            "latest-done", "b", 3, "[Disagree] 本輪", status=TurnStatus.DONE
+        ),
+        discussion_session.Turn(
+            "latest-failed", "c", 3, "[Agree] 失敗", status=TurnStatus.FAILED
+        ),
+        discussion_session.Turn(
+            "latest-done-alt",
+            "d",
+            3,
+            "[Alternative] 本輪",
+            status=TurnStatus.DONE,
+        ),
+    ]
+
+    result = count_stance_consensus(turns)
+
+    assert result == ConsensusCount(
+        disagree=1,
+        alternative=1,
+        stances={"b": "disagree", "d": "alternative"},
+    )
+    assert sum(
+        (result.agree, result.disagree, result.alternative, result.unparsed)
+    ) == len(result.stances)
+
+
+def test_consensus_count_payload_round_trip_preserves_stances() -> None:
+    session = DiscussionSession("問題", _participants())
+    turn = session.add_turn(
+        "claude",
+        2,
+        supports_token_stream=False,
+        turn_id="claude-round-2",
+    )
+    session.start_turn(turn.id)
+    session.replace_text(turn.id, "[Disagree] 不同意")
+    session.complete_turn(turn.id)
+
+    event = session.count_consensus()
+    restored = ConsensusCount(**event.payload)
+    expected = ConsensusCount(
+        disagree=1,
+        stances={"claude": "disagree"},
+    )
+
+    assert restored == expected
+    assert ConsensusCount(**asdict(expected)) == expected
+    assert asdict(restored) == event.payload
 
 
 def test_all_prompts_include_neutral_council_context() -> None:

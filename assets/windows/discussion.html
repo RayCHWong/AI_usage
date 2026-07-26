@@ -802,6 +802,10 @@
       grid-column: 1 / -1;
     }
 
+    .debate-style-field.disabled .detect-status {
+      opacity: 0.5;
+    }
+
     .segmented {
       display: inline-flex;
       align-self: flex-start;
@@ -1067,6 +1071,16 @@
       line-height: 1.4;
     }
 
+    .consensus-stance-disagree .turn-status {
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    .consensus-stance-alternative .turn-status {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
     .consensus-early-exit {
       color: var(--muted);
       font-size: 13px;
@@ -1280,6 +1294,7 @@
               <label class="field debate-style-field">
                 <span class="label" data-i18n="discussion_debate_style"></span>
                 <select id="debate-style"></select>
+                <span class="detect-status" id="debate-style-hint"></span>
               </label>
             </div>
             <div class="working-directory-row">
@@ -1444,6 +1459,7 @@
     const endOnConsensusEl = document.getElementById("end-on-consensus");
     const guidanceBetweenRoundsEl = document.getElementById("guidance-between-rounds");
     const debateStyleEl = document.getElementById("debate-style");
+    const debateStyleHintEl = document.getElementById("debate-style-hint");
 
     function t(key, params) {
       const lang = I18N[currentLanguage] ? currentLanguage : "en";
@@ -1485,6 +1501,9 @@
         option.textContent = t(`discussion_debate_style_${style}`);
         debateStyleEl.append(option);
       });
+      debateStyleHintEl.textContent = t(
+        `discussion_debate_style_${debateStyleEl.value}_hint`,
+      );
     }
 
     function send(action, extra) {
@@ -2050,6 +2069,10 @@
       endOnConsensusEl.disabled = running;
       guidanceBetweenRoundsEl.disabled = running || Number(totalRoundsEl.value) === 1;
       debateStyleEl.disabled = running;
+      debateStyleEl.closest(".debate-style-field").classList.toggle("disabled", running);
+      debateStyleHintEl.textContent = t(
+        `discussion_debate_style_${debateStyleEl.value}_hint`,
+      );
       detectEl.disabled = running || detecting;
       pickFolderEl.disabled = running;
       clearFolderEl.disabled = running;
@@ -2330,7 +2353,8 @@
       if (consensus && typeof consensus === "object") {
         const count = document.createElement("div");
         count.className = "consensus-count";
-        count.textContent = t("discussion_consensus_count_summary", {
+        const countSummary = document.createElement("div");
+        countSummary.textContent = t("discussion_consensus_count_summary", {
           total: ["agree", "disagree", "alternative", "unparsed"]
             .reduce((total, key) => total + (Number(consensus[key]) || 0), 0),
           agree: Number(consensus.agree) || 0,
@@ -2338,6 +2362,22 @@
           alternative: Number(consensus.alternative) || 0,
           unparsed: Number(consensus.unparsed) || 0,
         });
+        const stances = consensus.stances && typeof consensus.stances === "object"
+          ? consensus.stances
+          : {};
+        const stanceRows = Object.entries(stances).map(([participantId, stance]) => {
+          const row = document.createElement("div");
+          row.className = `turn-head consensus-stance-${stance}`;
+          const name = document.createElement("span");
+          name.className = "turn-name";
+          name.textContent = participantNameFromState(participantId);
+          const label = document.createElement("span");
+          label.className = "turn-status";
+          label.textContent = t(`discussion_consensus_stance_${stance}`);
+          row.append(name, label);
+          return row;
+        });
+        count.replaceChildren(countSummary, ...stanceRows);
         summaryEl.append(count);
       }
 
@@ -2498,6 +2538,9 @@
           disagree: Number(payload.disagree) || 0,
           alternative: Number(payload.alternative) || 0,
           unparsed: Number(payload.unparsed) || 0,
+          stances: payload.stances && typeof payload.stances === "object"
+            ? { ...payload.stances }
+            : {},
         };
       } else if (event.kind === "consensus_reached") {
         state.consensus_reached_round = Number(payload.round_index) || null;

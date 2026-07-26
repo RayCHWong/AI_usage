@@ -227,6 +227,11 @@ def test_second_round_emits_consensus_count_without_changing_flow(
         "disagree": 1,
         "alternative": 0,
         "unparsed": 1,
+        "stances": {
+            "a": "agree",
+            "b": "disagree",
+            "c": "unparsed",
+        },
     }
     consensus_events = [
         event for event in events if event["kind"] == "consensus_counted"
@@ -274,6 +279,11 @@ def test_three_rounds_publish_latest_round_consensus(
         "disagree": 1,
         "alternative": 1,
         "unparsed": 1,
+        "stances": {
+            "a": "alternative",
+            "b": "disagree",
+            "c": "unparsed",
+        },
     }
     consensus_events = [
         event for event in events if event["kind"] == "consensus_counted"
@@ -284,6 +294,11 @@ def test_three_rounds_publish_latest_round_consensus(
             "disagree": 0,
             "alternative": 0,
             "unparsed": 0,
+            "stances": {
+                "a": "agree",
+                "b": "agree",
+                "c": "agree",
+            },
         },
         snapshot["consensus_count"],
     ]
@@ -436,7 +451,12 @@ def test_one_completed_agreement_does_not_end_for_consensus(
         "disagree": 0,
         "alternative": 0,
         "unparsed": 0,
+        "stances": {"a": "agree"},
     }
+    assert sum(
+        int(snapshot["consensus_count"][key])
+        for key in ("agree", "disagree", "alternative", "unparsed")
+    ) == len(snapshot["consensus_count"]["stances"])
     assert snapshot["consensus_reached_round"] is None
 
 

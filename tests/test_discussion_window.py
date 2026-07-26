@@ -598,6 +598,10 @@ def test_html_uses_isolated_handler_and_safe_dynamic_dom() -> None:
     assert "workingDirectoryPathEl.textContent" in html
     assert "workingDir: workingDirectory" in html
     assert "endOnConsensus: endOnConsensusEl.checked" in html
+    assert "debateStyleHintEl.textContent" in html
+    assert "payload.stances" in html
+    assert "participantNameFromState(participantId)" in html
+    assert "discussion_consensus_stance_${stance}" in html
 
 
 def test_failed_turn_error_is_collapsed_with_first_line_summary() -> None:
@@ -1014,6 +1018,16 @@ def test_consensus_controls_and_usage_caps_are_translated_in_all_languages() -> 
         assert translations["discussion_end_on_consensus"]
         assert "{round}" in translations["discussion_consensus_early_exit"]
         assert marker in translations["discussion_estimate_tokens"]
+        for style in (
+            "constructive",
+            "adversarial",
+            "collaborative",
+            "socratic",
+            "devils_advocate",
+        ):
+            assert translations[f"discussion_debate_style_{style}_hint"]
+        for stance in ("agree", "disagree", "alternative", "unparsed"):
+            assert translations[f"discussion_consensus_stance_{stance}"]
 
 
 def test_window_source_keeps_bridge_logic_out_and_main_thread_drain_batched() -> None:

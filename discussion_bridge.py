@@ -1069,9 +1069,12 @@ def _is_unanimous_consensus(
     consensus: ConsensusCount, expected_participants: int
 ) -> bool:
     return (
-        sum(vars(consensus).values()) == expected_participants
-        and
-        consensus.agree >= 2
+        consensus.agree
+        + consensus.disagree
+        + consensus.alternative
+        + consensus.unparsed
+        == expected_participants
+        and consensus.agree >= 2
         and consensus.disagree == 0
         and consensus.alternative == 0
         and consensus.unparsed == 0

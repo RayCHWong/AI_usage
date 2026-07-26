@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import threading
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from typing import Any
 from uuid import uuid4
@@ -97,6 +97,7 @@ class ConsensusCount:
     disagree: int = 0
     alternative: int = 0
     unparsed: int = 0
+    stances: dict[str, str] = field(default_factory=dict)
 
 
 _CONSENSUS_LABEL_RE = re.compile(
@@ -117,6 +118,7 @@ def count_stance_consensus(turns: Iterable[Turn]) -> ConsensusCount:
         "alternative": 0,
         "unparsed": 0,
     }
+    stances: dict[str, str] = {}
     for turn in stance_turns:
         if turn.round_index != latest_round or turn.status is not TurnStatus.DONE:
             continue
@@ -126,8 +128,18 @@ def count_stance_consensus(turns: Iterable[Turn]) -> ConsensusCount:
             for match in _CONSENSUS_LABEL_RE.finditer(first_line)
         }
         key = labels.pop() if len(labels) == 1 else "unparsed"
+        previous = stances.get(turn.participant_id)
+        if previous is not None:
+            counts[previous] -= 1
+        stances[turn.participant_id] = key
         counts[key] += 1
-    return ConsensusCount(**counts)
+    return ConsensusCount(
+        agree=counts["agree"],
+        disagree=counts["disagree"],
+        alternative=counts["alternative"],
+        unparsed=counts["unparsed"],
+        stances=stances,
+    )
 
 
 @dataclass(frozen=True)
