@@ -5,6 +5,13 @@
 All notable changes to usage are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.29.4] - 2026-07-26
+
+### Added
+- **Steer the council mid-discussion**: an opt-in "guidance between rounds" toggle pauses the session before every round after the first, so you can react to what you just heard — "we're single-host, no cluster" — instead of watching a debate run off in the wrong direction or stopping and restarting from scratch. The pause waits up to 5 minutes and is skipped automatically if left blank; the round then proceeds exactly as it did before.
+- **See who disagreed, not just how many**: the consensus tally under the moderator's summary now lists each participant by name next to their stance, with dissenting and alternative positions colored so they stand out, instead of a bare "2 agree, 1 alternative" that meant scrolling back through the transcript to find out who.
+- **The five debate tones now explain themselves**: a one-line plain-language hint appears under the tone picker — devil's advocate, for instance, now reads "the AIs will deliberately argue the opposite side to test whether a plausible conclusion holds up" — so a first-time user isn't left guessing how "adversarial" differs from "devil's advocate."
+
 ## [0.29.3] - 2026-07-25
 
 ### Fixed
