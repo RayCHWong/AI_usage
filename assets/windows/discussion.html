@@ -157,15 +157,15 @@
     }
 
     .session-bar-toggle {
-      width: 28px;
-      height: 28px;
-      padding: 0;
+      min-height: 28px;
+      padding: 0 10px;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: var(--surface-strong);
       color: var(--text);
-      font-size: 16px;
+      font-size: 13px;
       line-height: 1;
+      white-space: nowrap;
     }
 
     .setup-card {
@@ -1198,8 +1198,7 @@
       <span class="session-bar-topic" id="session-bar-topic"></span>
       <span class="session-bar-progress" id="session-bar-progress"></span>
       <button class="secondary-button" id="session-bar-stop" type="button" data-i18n="discussion_stop"></button>
-      <button class="session-bar-toggle" id="session-bar-toggle" type="button"
-              data-i18n-title="discussion_expand_settings" aria-label="settings"></button>
+      <button class="session-bar-toggle" id="session-bar-toggle" type="button"></button>
     </div>
     <section class="setup">
       <div class="setup-card">
@@ -1209,8 +1208,7 @@
           <div class="attachment-row">
             <button class="secondary-button" id="attach-image" type="button"
                     data-i18n="discussion_attach_image"></button>
-            <span class="attachment-hint" id="attachment-hint"
-                  data-i18n="discussion_attachment_hint"></span>
+            <span class="attachment-hint" id="attachment-hint"></span>
           </div>
           <div class="attachments" id="attachments" hidden></div>
         </label>
@@ -1270,6 +1268,7 @@
             <button class="primary-button" id="start" type="button" data-i18n="discussion_start"
                     aria-describedby="start-hint"></button>
             <button class="stop-button" id="stop" type="button" data-i18n="discussion_stop"></button>
+            <button class="session-bar-toggle" id="setup-collapse-toggle" type="button" hidden></button>
             <button class="secondary-button danger-button" id="clear" type="button" data-i18n="discussion_clear"></button>
             <span class="session-status" id="session-status"></span>
             </div>
@@ -1387,6 +1386,7 @@
     const sessionBarProgressEl = document.getElementById("session-bar-progress");
     const sessionBarStopEl = document.getElementById("session-bar-stop");
     const sessionBarToggleEl = document.getElementById("session-bar-toggle");
+    const setupCollapseToggleEl = document.getElementById("setup-collapse-toggle");
     const clearEl = document.getElementById("clear");
     const startHintEl = document.getElementById("start-hint");
     const detectEl = document.getElementById("detect");
@@ -1983,7 +1983,6 @@
     function renderControls() {
       const running = isRunning();
       if (running && !wasRunning) settingsCollapsed = true;
-      if (!running && wasRunning) settingsCollapsed = false;
       wasRunning = running;
       document.querySelector(".app").classList.toggle("collapsed", settingsCollapsed);
       sessionBarEl.hidden = !settingsCollapsed;
@@ -1993,10 +1992,15 @@
         : topic || t("discussion_topic_label");
       sessionBarProgressEl.textContent = historyProgressEl.textContent;
       sessionBarStopEl.disabled = stopEl.disabled;
-      sessionBarToggleEl.textContent = settingsCollapsed ? "▾" : "▴";
+      sessionBarToggleEl.textContent = t("discussion_expand_settings");
       sessionBarToggleEl.title = t("discussion_expand_settings");
+      sessionBarToggleEl.setAttribute("aria-label", t("discussion_expand_settings"));
       const hasDiscussion = (Array.isArray(state.turns) && state.turns.length > 0)
         || Boolean(state.status);
+      setupCollapseToggleEl.hidden = !hasDiscussion;
+      setupCollapseToggleEl.textContent = t("discussion_collapse_settings");
+      setupCollapseToggleEl.title = t("discussion_collapse_settings");
+      setupCollapseToggleEl.setAttribute("aria-label", t("discussion_collapse_settings"));
       topicEl.disabled = running;
       startEl.disabled = !canStartDiscussion(topicEl.value, selected.size, state.status);
       const startHint = startHintKey(topicEl.value, selected.size, state.status);
@@ -2484,10 +2488,10 @@
         window.clearTimeout(attachmentHintTimer);
         attachmentHintTimer = null;
       }
-      attachmentHintEl.textContent = hint || t("discussion_attachment_hint");
+      attachmentHintEl.textContent = hint || "";
       if (hint) {
         attachmentHintTimer = window.setTimeout(() => {
-          attachmentHintEl.textContent = t("discussion_attachment_hint");
+          attachmentHintEl.textContent = "";
           attachmentHintTimer = null;
         }, 1800);
       }
@@ -2608,6 +2612,10 @@
     stopEl.addEventListener("click", () => send("discussion_stop"));
     sessionBarStopEl.addEventListener("click", () => stopEl.click());
     sessionBarToggleEl.addEventListener("click", () => {
+      settingsCollapsed = !settingsCollapsed;
+      render();
+    });
+    setupCollapseToggleEl.addEventListener("click", () => {
       settingsCollapsed = !settingsCollapsed;
       render();
     });

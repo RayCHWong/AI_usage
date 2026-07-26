@@ -937,7 +937,6 @@ def test_html_visible_static_elements_use_i18n_keys() -> None:
         "discussion_topic_label",
         "discussion_topic_placeholder",
         "discussion_attach_image",
-        "discussion_attachment_hint",
         "discussion_participants",
         "discussion_moderator",
         "discussion_persona",
