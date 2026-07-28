@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-26",
+  "generated_at": "2026-07-28",
   "tools": [
     {
       "id": "claude_code",
@@ -853,6 +853,63 @@
       "name": "Antigravity",
       "versions": [
         {
+          "version": "1.1.8",
+          "period": "2026-07-28",
+          "items": [
+            {
+              "title": {
+                "zh-TW": "命令列輸出能直接交給程式接手",
+                "zh-CN": "命令行输出能直接交给程序接手",
+                "en": "Command-line output is now ready for programs to consume",
+                "ja": "コマンドラインの出力をそのままプログラムへ渡せる",
+                "ko": "명령줄 출력을 프로그램에 바로 넘길 수 있다"
+              },
+              "body": {
+                "zh-TW": "把命令列工具接進 CI（自動跑測試與部署的流程）時，最怕它只吐一大段人看得懂、程式卻接不住的文字。現在在 `-p` 後加 `--output-format json` 或 `--output-format stream-json`，就能拿到結構化輸出；`--help` 也找得到。選 `stream-json` 時，結果會像接力直播：一開始送出 `init`，每一步送 `step_update`，最後才送 `result`，不必等整趟工作結束。每個事件有固定的 `step_type`；工具呼叫才會附工具名稱、參數與輸出。如果有委派子代理，也帶上對話 ID 與紀錄位置。想固定答案格式，可加 `--json-schema`，給規格或檔案路徑。輸出的使用量也多了 `cache_read_tokens`，看得出有多少 token 命中快取（把先前結果暫存再利用）。",
+                "zh-CN": "把命令行工具接进 CI（自动跑测试和部署的流程）时，最怕它只吐出一大段人看得懂、程序却接不住的文字。现在在 `-p` 后加 `--output-format json` 或 `--output-format stream-json`，就能拿到供程序读取的结构化输出；`--help` 也找得到这些选项。选 `stream-json` 时，结果像接力直播：一开始送出 `init`，每一步送 `step_update`，最后才送 `result`，不用等整趟工作结束。每个事件都有固定的 `step_type` 类别；工具调用才会附上工具名称、参数与输出。如果有委派子代理，也带上对话 ID 与记录位置。想让最后答案固定格式，可加 `--json-schema`，直接给规则文字或文件路径。输出的用量也多了 `cache_read_tokens`，看得出有多少 token 命中缓存（把先前结果暂存再利用）。",
+                "en": "When you connect a command-line tool to CI, a wall of text that only humans can read is a dead end. In print mode, add `--output-format json` or `--output-format stream-json` to hand structured output to a program; both flags now also appear in `--help`. `stream-json` works like a live relay: it sends `init`, then `step_update` events as work progresses, and ends with `result`, so nothing has to wait for the whole run. Each event has a fixed `step_type`; only tool calls include names, parameters, and output. Delegated subagents also provide a conversation ID and log location. Add `--json-schema` with either an inline schema or a schema-file path to require a particular final shape. Usage data now includes `cache_read_tokens`, showing how many tokens hit the prompt cache.",
+                "ja": "CI にコマンドラインツールをつなぐとき、人には読めてもプログラムが受け取れない長文だけでは困る。print モードで `--output-format json` または `--output-format stream-json` を加えれば、プログラム用の構造化出力を渡せるようになり、両方のフラグは `--help` にも表示される。`stream-json` は中継放送のように、最初に `init`、進行中に `step_update`、最後に `result` を送るため、完走まで待つ必要がない。各イベントには固定の `step_type` があり、ツール呼び出しにだけ名前、引数、出力が入る。委任したサブエージェントには会話 ID とログの場所も付く。`--json-schema` に規格文字列か規格ファイルへのパスを渡せば、最後の結果の形式を決められる。使用量には `cache_read_tokens` も加わり、prompt cache にヒットした token 数が分かる。",
+                "ko": "명령줄 도구를 CI에 연결할 때 사람이 읽는 긴 글만 나오면 프로그램은 다음 일을 받지 못한다. print 모드에서 `--output-format json` 또는 `--output-format stream-json`을 더하면 프로그램이 읽을 구조화된 출력을 넘길 수 있고, 두 플래그는 `--help`에서도 찾을 수 있다. `stream-json`은 중계 방송처럼 처음에 `init`을 보내고, 진행 중에는 `step_update`를 보내며, 끝에 `result`를 보낸다. 그래서 전체 실행이 끝날 때까지 기다릴 필요가 없다. 각 이벤트에는 고정된 `step_type`이 있고, 도구 호출에만 이름과 매개변수, 출력이 담긴다. 위임한 하위 에이전트에는 대화 ID와 로그 위치도 붙는다. `--json-schema`에 규격 문자열이나 규격 파일 경로를 주면 마지막 결과의 모양을 강제할 수 있다. 사용량에는 `cache_read_tokens`도 추가돼 prompt cache에 적중한 token 수를 알 수 있다."
+              },
+              "original": "Print mode (`-p` / `--print`) now supports structured, machine-readable output via the `--output-format` flag (`text` (default), `json`, or `stream-json`), so headless runs in CI, eval harnesses, and scripts can consume the CLI's output programmatically; these flags are now discoverable in `--help`.\nAdded the `stream-json` output format: a strongly-typed NDJSON event stream that emits typed `init`, `step_update`, and terminal `result` events with a stable, closed-vocabulary `step_type` discriminator, so consumers receive progress incrementally instead of waiting for the whole run to finish.\nAdded the `--json-schema` flag to enforce a custom JSON schema on the structured output, accepting either an inline schema string or a path to a schema file; for `stream-json` the schema applies to the final `result` event.\nEnriched the structured stream with a `tool_info` object for each tool call (canonical tool name, parameters, and output) and a `subagent_info` payload for delegated subagents (including `conversation_id` and `log_uri`) so consumers can correlate child trajectories.\nThe JSON usage object emitted by `json` and `stream-json` now reports token accounting including `cache_read_tokens`, so non-interactive consumers can attribute prompt-cache hits."
+            },
+            {
+              "title": {
+                "zh-TW": "選取文字要不要自動複製，自己決定",
+                "zh-CN": "选取文字要不要自动复制，自己决定",
+                "en": "You decide whether selecting text copies it automatically",
+                "ja": "文字を選んだら自動コピーするか自分で決められる",
+                "ko": "글자를 선택하면 자동 복사할지 직접 정한다"
+              },
+              "body": {
+                "zh-TW": "你在終端機裡拖曳選取一段結果，原本只是想看清楚，鬆開滑鼠卻可能把內容自動塞進剪貼簿，甚至弄壞特定資料。現在 TUI（終端機裡用文字畫出的互動介面）的 altscreen 呈現模式新增 `copyOnSelect`，預設開啟：選取後放開滑鼠便會複製。它像影印機自動送紙，省掉按複製，卻不適合每種紙張。若你貼上後發現內容怪掉，打開 `/settings`，把 `copyOnSelect` 關閉，就只保留選取、不再自動複製。",
+                "zh-CN": "你在终端里拖动选取一段结果，本来只是想看清楚，松开鼠标却可能把内容自动塞进剪贴板，甚至弄坏特定数据。现在 TUI（终端里用文字画出的交互界面）的 altscreen 呈现模式新增 `copyOnSelect`，默认开启：选取后放开鼠标便会复制。它像复印机自动送纸，省掉按复制，却不适合每种纸张。若你贴上后发现内容变怪，打开 `/settings`，把 `copyOnSelect` 关闭，就只保留选取、不再自动复制。",
+                "en": "You may drag across terminal text only to inspect it, then release the mouse and find that the selection has already landed in your clipboard — sometimes corrupting certain payloads. The TUI's altscreen renderer now has `copyOnSelect`, enabled by default: release a text selection and it copies automatically. It is like a copier that feeds every sheet the moment you touch it: handy when you want a copy, awkward when you do not. If pasted content comes out wrong, open `/settings` and turn `copyOnSelect` off. You can still select text, but releasing the mouse will no longer copy it.",
+                "ja": "端末で結果の一部をドラッグして見やすくしただけなのに、マウスを離すと内容がクリップボードへ自動で入り、特定のデータを壊してしまうことがある。TUI の altscreen 描画には、選択してマウスを離すとコピーする `copyOnSelect` が追加され、初期状態では有効である。触れた紙をすぐ送り出すコピー機のように、コピーしたいときは便利だが、そうでないときは困る。貼り付けた内容がおかしくなったら `/settings` を開き、`copyOnSelect` を無効にすればよい。選択は残るが、自動コピーは起きなくなる。",
+                "ko": "터미널에서 결과 일부를 드래그해 읽기만 하려 했는데, 마우스를 놓자마자 내용이 클립보드에 자동으로 들어가 특정 데이터가 망가질 수 있다. TUI의 altscreen 표시 모드에 `copyOnSelect`가 추가됐으며 기본값은 켜짐이다. 글자를 선택하고 마우스를 놓으면 곧바로 복사한다. 손댄 종이를 바로 넣는 복사기처럼 복사가 필요할 때는 편하지만, 아닐 때는 곤란하다. 붙여 넣은 내용이 이상해지면 `/settings`를 열어 `copyOnSelect`를 끄면 된다. 선택은 그대로 하되 자동 복사는 일어나지 않는다."
+              },
+              "original": "Added a `copyOnSelect` setting (default on, toggleable in `/settings`) that controls whether releasing a mouse text-selection auto-copies it to the system clipboard in the TUI's altscreen rendering mode; disable it to stop the automatic copy on release — useful when the auto-copy is unwanted or corrupts certain payloads."
+            },
+            {
+              "title": {
+                "zh-TW": "常用串接指令核准一次就夠",
+                "zh-CN": "常用复合命令批准一次就够",
+                "en": "Approve a familiar chained command once, not every time",
+                "ja": "いつもの連結コマンドは一度の許可で済む",
+                "ko": "자주 쓰는 연결 명령은 한 번만 허용하면 된다"
+              },
+              "body": {
+                "zh-TW": "你每天都要更新專案，輸入 `git fetch && git rebase` 後又得重複核准，流程像同一張通行證每天重新蓋章。現在可以把這條完全相同的串接指令存成「永遠允許」規則。下次再跑同一條指令時，不必再等，權限確認不會重跳。它認的是整串命令，不是看到 `git` 就一概放行；因此常用流程少一步，其他不同命令仍各自檢查。",
+                "zh-CN": "你每天都要更新项目，输入 `git fetch && git rebase` 后又得重复批准，流程像同一张通行证每天重新盖章。现在可以把这条完全相同的复合命令存成「永远允许」规则。下次再跑同一条命令时，权限确认不会重跳。它认的是整串命令，不是看到 `git` 就一概放行；因此常用流程少一步，其他不同命令仍各自检查。",
+                "en": "When you update a project every day, approving `git fetch && git rebase` again and again feels like getting the same pass stamped from scratch. You can now save that exact chained command as an always-allow rule. The next time you run the identical command, the permission prompt stays away. The rule recognizes the whole chain, not every command that happens to begin with `git`; your routine loses a step while different commands still receive their own check.",
+                "ja": "毎日プロジェクトを更新し、`git fetch && git rebase` を打つたびに許可し直すのは、同じ通行証に毎日あらためて判を押すようなものだ。この完全に同じ連結コマンドは、常に許可する規則として保存できるようになった。次回も同じコマンドを実行するなら、権限確認は再び出ない。`git` で始まるものをまとめて通すのではなく、連結した命令全体を見分けるため、いつもの手順だけが一段減り、別の命令はそれぞれ確認される。",
+                "ko": "매일 프로젝트를 업데이트하며 `git fetch && git rebase`를 입력할 때마다 다시 허용하는 일은 같은 통행증에 매일 도장을 새로 찍는 것과 같다. 이제 이 완전히 같은 연결 명령을 항상 허용하는 규칙으로 저장할 수 있다. 다음에 같은 명령을 실행하면 권한 확인이 다시 뜨지 않는다. `git`으로 시작하는 모든 명령을 통과시키는 것이 아니라 연결된 명령 전체를 알아본다. 그래서 익숙한 절차만 한 단계 줄고, 다른 명령은 각각 확인한다."
+              },
+              "original": "Improved compound-command permissions so an exact chained command (such as `git fetch && git rebase`) can be saved as an allow-always rule and no longer re-prompts on the next identical run."
+            }
+          ]
+        },
+        {
           "version": "1.1.7",
           "period": "2026-07-25",
           "items": [
@@ -1084,114 +1141,6 @@
               "original": "Improved overall reliability and stability across the CLI with additional hardening and fixes for intermittent failures in background tasks, print mode, and interactive flows.\nFixed a crash when a command was blocked by sandbox permissions before its output was captured, and cleaned up the permission approval and denial messages.\nFixed print mode (`-p`) surfacing the real conversation-creation failure instead of a misleading \"no active conversation\" error.\nFixed a background auto-updater double-spawn race where two processes could each spawn an updater within a single update window.\nFixed sandbox error reporting so blocked actions are recorded even when the network proxy is disabled.\nFixed the `ctrl+b` shortcut being hardcoded to background shell commands even when none were running, so a remapped `ctrl+b` is now respected whenever there are no running shell commands in the conversation."
             }
           ]
-        },
-        {
-          "version": "1.1.5",
-          "period": "2026-07-21",
-          "items": [
-            {
-              "title": {
-                "zh-TW": "模型選擇多了深淺旋鈕，也能替代理指定等級",
-                "zh-CN": "模型选择多了深浅旋钮，也能替代理指定等级",
-                "en": "Model choice gains a depth dial and agent-specific tiers",
-                "ja": "モデル選びに深さのダイヤル、エージェントには専用の等級",
-                "ko": "모델 선택에 깊이 조절기가 생기고 에이전트별 등급도 지정한다"
-              },
-              "body": {
-                "zh-TW": "趕著回覆訊息時，你會想要快；遇到棘手問題時，則願意多等一下換更深的推理。新的 `/effort` 指令把這個取捨做成時間軸儀表，可左右選擇，也能直接輸入等級；啟動 CLI 時則用 `--effort` 選定。`/model` 現在用穩定的 model slug（模型的固定代號）列出選項，跨工作階段也能可靠指定同一款模型。你替 custom agent（自訂代理，預先寫好工作規則的小幫手）加上 `model` 後，叫它當子代理時可跑 flash 或 pro；沒指定便沿用父代理。像相機不只選鏡頭，還能轉快門：快拍或細拍，由你在當下決定。",
-                "zh-CN": "赶着回复消息时，你会想要快；遇到棘手问题时，则愿意多等一下换更深的推理。新的 `/effort` 指令把这个取舍做成时间轴仪表，可左右选择，也能直接输入等级；启动 CLI 时则用 `--effort` 选定。`/model` 现在用稳定的 model slug（模型的固定代号）列出选项，跨会话也能可靠指定同一款模型。你替 custom agent（自定义代理，预先写好工作规则的小帮手）加上 `model` 后，叫它当子代理时可跑 flash 或 pro；没指定便沿用父代理。像相机不只选镜头，还能转快门：快拍或细拍，由你在当下决定。",
-                "en": "When a reply is urgent, you want speed; when a problem is thorny, you may accept a wait for deeper reasoning. The new `/effort` command turns that tradeoff into a left/right timeline gauge, and also accepts a level directly; `--effort` makes the choice when launching the CLI. `/model` now shows stable model slugs, fixed names you can reliably reuse across sessions. A custom agent, a helper with prewritten instructions, can now declare its own `model`: as a subagent it can use a tier such as flash or pro, otherwise it inherits its parent’s model. It is like setting both a camera lens and shutter speed: choose quick or deliberate for task in front of you.",
-                "ja": "急ぎの返信なら速さが欲しく、難問なら少し待って深い推論を得たい。新しい `/effort` 指令はその交換条件を左右で選べる時間軸のゲージにし、等級を直接入力することもできる。CLI 起動時は `--effort` で選ぶ。`/model` には、作業セッションをまたいでも同じ機種を確実に指定できる固定名 model slug が表示される。custom agent（あらかじめ仕事の規則を書いた小さな助手）には `model` を付けられ、子エージェントとして呼ぶと flash や pro を使える。未指定なら親のモデルを引き継ぐ。カメラでレンズだけでなくシャッター速度も選ぶようなものである。",
-                "ko": "급한 답장에는 속도가 필요하고, 어려운 문제에는 조금 기다려 더 깊은 추론을 얻고 싶다. 새 `/effort` 명령은 이 선택을 좌우로 고르는 시간축 게이지로 만들었고 등급을 바로 입력할 수도 있다. CLI를 시작할 때는 `--effort`로 고른다. `/model`에는 세션이 달라도 같은 모델을 확실히 지정할 수 있는 고정 이름 model slug가 나온다. custom agent(미리 작업 규칙을 적어 둔 작은 도우미)에 `model`을 붙이면 하위 에이전트로 불렀을 때 flash나 pro를 쓴다. 지정하지 않으면 부모 모델을 물려받는다. 카메라에서 렌즈와 셔터 속도를 함께 고르는 것과 같다."
-              },
-              "original": "Added a `/effort` command to view and change the current model's reasoning effort, with a left/right timeline-gauge picker and a direct `/effort <level>` form so you can trade latency for depth on the fly.\nAdded an `--effort` flag to select a model's reasoning-effort variant when launching the CLI.\nAdded stable, user-facing model slugs that appear in the `/model` picker and are accepted by `--model`, so you can pin a specific model reliably across sessions.\nAdded a `model` option to custom agent frontmatter so an agent runs at a chosen model tier (such as `flash` or `pro`) when invoked as a subagent, defaulting to `inherit` (the parent's model).\nRedesigned the `/model` picker to group models by their base model and choose reasoning effort from a timeline gauge navigable with Left and Right, and added an effort badge to the status line for models that expose multiple effort variants."
-            },
-            {
-              "title": {
-                "zh-TW": "短終端機也看得清設定，檢視差異不再把畫面推歪",
-                "zh-CN": "短终端也看得清设置，查看差异不再把画面推歪",
-                "en": "Settings fit short terminals and diff viewing stays steady",
-                "ja": "短い端末でも設定が読め、差分表示もぶれない",
-                "ko": "작은 터미널에서도 설정이 보이고 차이 보기 화면도 흔들리지 않는다"
-              },
-              "body": {
-                "zh-TW": "筆電分割畫面時，設定清單不該像過長的海報從視窗底下溢出去。`/settings` 或 `/config` 現在是有邊界、可捲動的清單，開關下拉選單也不再閃爍。你查看程式修改處時，`/diff` 檢視器在換頁、長行折行或展開留言後，不會抖動，更不會把狀態列擠出螢幕。連輸入框也聽得懂你的重綁 Enter：若綁到 `prompt.insert_newline`，按下去會換行而非送出。這些改動像把凌亂書桌換成有抽屜的工作台；內容還是那些內容，手邊位置終於穩了。",
-                "zh-CN": "笔电分屏时，设置清单不该像过长的海报从窗口底下溢出去。`/settings` 或 `/config` 现在是有边界、可滚动的清单，开关下拉菜单也不再闪烁。你查看代码修改处时，`/diff` 查看器在换页、长行折行或展开留言后，不会抖动，更不会把状态栏挤出屏幕。连输入框也听得懂你重绑的 Enter：若绑到 `prompt.insert_newline`，按下去会换行而非提交。这些改动像把凌乱书桌换成有抽屉的工作台；内容还是那些内容，手边位置终于稳了。",
-                "en": "On a split laptop screen, a settings list should not spill below the window like an overlong poster. `/settings` and `/config` are now bounded, scrollable lists, and their dropdowns no longer flicker. While reviewing code changes, the `/diff` viewer no longer jitters or pushes the status line offscreen when you page, wrapped lines appear, or comments expand. The prompt also honors a remapped Enter: if it is bound to `prompt.insert_newline`, it inserts a line break instead of submitting. It is like replacing a messy desk with a workbench full of drawers: same tools, but they stay where your hands expect them.",
-                "ja": "ノート PC を分割表示したとき、設定一覧が長いポスターのように画面下へはみ出すべきではない。`/settings` と `/config` は枠内でスクロールできる一覧になり、ドロップダウンを開閉してもちらつかない。変更箇所を見る `/diff` も、ページ送り、長い行の折り返し、コメント展開で揺れたり状態行を画面外へ押し出したりしなくなった。入力欄は Enter の再割り当ても守る。`prompt.insert_newline` に結び付ければ、送信ではなく改行する。散らかった机を引き出し付きの作業台に替えるようなものである。",
-                "ko": "노트북 화면을 나눠 쓸 때 설정 목록이 긴 포스터처럼 창 아래로 흘러내리면 안 된다. `/settings`와 `/config`는 이제 경계가 있는 스크롤 목록이 되었고 드롭다운을 열고 닫아도 깜빡이지 않는다. 코드 변경을 보는 `/diff`도 페이지를 넘기거나 긴 줄이 접히고 댓글이 펼쳐져도 흔들리거나 상태 줄을 화면 밖으로 밀어내지 않는다. 입력칸은 다시 묶은 Enter도 따른다. `prompt.insert_newline`에 연결했다면 제출 대신 줄바꿈을 넣는다. 어질러진 책상을 서랍 있는 작업대로 바꾼 것과 같다."
-              },
-              "original": "Improved the `/settings` (`/config`) panel by making it a bounded, scrollable list so it renders correctly in short terminals instead of overflowing, and stopped it from flickering when opening and closing dropdowns.\nImproved scrolling in the `/diff` viewer so paging through a diff no longer jitters or pushes the status line off the screen when lines wrap or comments expand.\nFixed the prompt to honor a custom Enter binding to `prompt.insert_newline`, so a remapped Enter inserts a newline instead of submitting."
-            },
-            {
-              "title": {
-                "zh-TW": "背景工作不再一處失火、整場陪葬",
-                "zh-CN": "后台工作不再一处失火、整场陪葬",
-                "en": "Background work becomes isolated, orderly, and less wasteful",
-                "ja": "バックグラウンド作業が巻き添えで止まらず、無駄も減る",
-                "ko": "백그라운드 작업이 함께 멈추지 않고 낭비도 줄어든다"
-              },
-              "body": {
-                "zh-TW": "讓 CLI 在背景慢慢更新資料時，最怕其中一件小事出錯，整個工作階段跟著亂掉。現在長時間背景任務共用同一套生命週期，啟動與關閉都有固定順序，啟動時也能安全面對 panic（程式遇到嚴重錯誤而中斷）；單一任務失敗不再拖垮整場，離開前待送的分析資料也會送完。短時間內連續觸發更新，則會合併成一次，少做重複工作。收集自訂規則時的 data race（多個工作同時碰同份資料造成結果不穩）也補上保護。像廚房把各道菜分到獨立爐火，並把連按三次的叫餐鈴合成一張單；一口鍋燒焦，不會讓整間餐廳停擺。",
-                "zh-CN": "让 CLI 在后台慢慢更新数据时，最怕其中一件小事出错，整个会话跟着乱掉。现在长时间后台任务共用同一套生命周期，启动与关闭都有固定顺序，启动时也能安全面对 panic（程序遇到严重错误而中断）；单个任务失败不再拖垮整场，退出前待发送的分析数据也会送完。短时间内连续触发更新，则会合并成一次，少做重复工作。收集自定义规则时的 data race（多个工作同时碰同份数据造成结果不稳）也补上保护。像厨房把各道菜分到独立炉火，并把连按三次的叫餐铃合成一张单；一口锅烧焦，不会让整间餐厅停摆。",
-                "en": "When the CLI refreshes data in the background, one small failure should not scramble the whole session. Long-running background tasks now share one lifecycle, with deterministic start and shutdown and panic-safe launching; one failed task no longer disrupts the session, and pending analytics are flushed before exit. Several refresh triggers arriving in a burst are coalesced into one run instead of repeating work. A data race, where concurrent work touches shared data unpredictably, is also guarded while customization rules are collected. It is like giving each dish in a kitchen its own burner and turning three rapid bell rings into one order: one burnt pan does not close the restaurant.",
-                "ja": "CLI が裏でデータを更新しているとき、小さな失敗一つで作業セッション全体が乱れては困る。長時間のバックグラウンド作業は共通のライフサイクルで動き、起動と終了の順序が決まり、panic（重大なエラーでプログラムが中断すること）にも安全に対応する。一つの失敗は全体へ波及せず、終了前には保留中の分析データも送られる。連続した更新要求は一回にまとめ、重複作業を減らす。カスタマイズ規則を集める際の data race（複数の処理が同じデータに同時に触れて結果が不安定になること）も防ぐ。厨房で料理ごとに火口を分け、三度鳴った注文ベルを一枚にまとめるようなものである。",
-                "ko": "CLI가 뒤에서 데이터를 새로 고칠 때 작은 실패 하나가 전체 세션을 흐트러뜨리면 곤란하다. 오래 가는 백그라운드 작업은 이제 하나의 생명주기를 공유하며 시작과 종료 순서가 정해져 있고 panic(심각한 오류로 프로그램이 중단되는 일)에도 안전하게 시작한다. 한 작업의 실패가 세션 전체를 망치지 않으며 나가기 전 남은 분석 데이터도 보낸다. 짧은 시간에 몰린 갱신 요청은 한 번으로 합쳐 중복 일을 줄인다. 사용자 규칙을 모을 때의 data race(여러 작업이 같은 데이터를 동시에 건드려 결과가 흔들리는 일)도 막았다. 주방에서 요리마다 화구를 나누고 세 번 울린 벨을 주문 한 장으로 합치는 것과 같다."
-              },
-              "original": "Improved background-task reliability by moving long-running work onto a shared lifecycle with deterministic startup and shutdown and panic-safe launching, so a failure in one background task no longer disrupts the session and pending analytics are flushed on exit instead of dropped.\nImproved responsiveness of bursty background refreshes by coalescing rapid repeated triggers into a single run, cutting redundant work.\nFixed a data race when collecting customization rules by guarding the shared structures."
-            },
-            {
-              "title": {
-                "zh-TW": "MCP 登入不當機，伺服器回傳內容不再消失",
-                "zh-CN": "MCP 登录不崩溃，服务器返回内容不再消失",
-                "en": "MCP authentication stays up and returned content reaches chat",
-                "ja": "MCP 認証で落ちず、サーバーの返答も会話へ届く",
-                "ko": "MCP 인증에서 멈추지 않고 서버 응답도 대화에 도착한다"
-              },
-              "body": {
-                "zh-TW": "你在 `/mcp` 面板替遠端 MCP（Model Context Protocol，讓 AI 連接外部工具的協定）伺服器按 Authenticate 時，現在不會再把 CLI 按到當機。更重要的是，MCP 工具回傳的 embedded resources（嵌入式資源，文字或內嵌媒體等隨結果附上的內容）以前會被悄悄丟掉，現在會出現在對話裡。也就是說，接上外部工具後，登入這扇門能打開，工具端帶回來的說明或圖片也不會留在門外。像快遞站以前辦證時會關門，包裹裡附的文件還會被抽走；現在櫃台照常辦理，附檔也完整交到你手上。",
-                "zh-CN": "你在 `/mcp` 面板替远程 MCP（Model Context Protocol，让 AI 连接外部工具的协议）服务器按 Authenticate 时，现在不会再把 CLI 按到崩溃。更重要的是，MCP 工具返回的 embedded resources（嵌入式资源，文字或内嵌媒体等随结果附上的内容）以前会被悄悄丢掉，现在会出现在对话里。也就是说，接上外部工具后，登录这扇门能打开，工具端带回来的说明或图片也不会留在门外。像快递站以前办证时会关门，包裹里附的文件还会被抽走；现在柜台照常办理，附件也完整交到你手上。",
-                "en": "Pressing Authenticate for a remote MCP server in the `/mcp` panel no longer crashes the CLI. More importantly, embedded resources, extra text or inline media carried inside an MCP tool result, used to be silently discarded; they now appear in the conversation. In other words, once you connect an external tool through MCP, the authentication door opens and its explanation or image can come through with it. It is like a parcel counter that once shut down while checking your ID and removed documents from packages; now the counter stays open and every enclosure reaches your hands.",
-                "ja": "`/mcp` パネルでリモート MCP（Model Context Protocol、AI を外部ツールにつなぐ協定）サーバーの Authenticate を押しても、CLI はクラッシュしなくなった。さらに、MCP ツールの結果に含まれる embedded resources（本文やインラインメディアなど、結果に添えられる内容）は以前こっそり捨てられていたが、会話に表示される。外部ツールにつないだあと、認証という扉が開くだけでなく、説明や画像も扉の外に置き去りにならない。本人確認中に窓口が閉まり、荷物の同封書類まで抜き取る宅配所が、今は窓口を開けたまま全てを渡すようなものである。",
-                "ko": "`/mcp` 패널에서 원격 MCP(Model Context Protocol, AI를 외부 도구에 연결하는 규약) 서버의 Authenticate를 눌러도 CLI가 더는 멈추지 않는다. 더 중요한 점은 MCP 도구 결과에 들어 있던 embedded resources(본문이나 인라인 미디어처럼 결과에 딸린 내용)가 예전에는 조용히 버려졌지만 이제 대화에 나타난다는 것이다. 외부 도구를 연결하면 인증 문이 열리고 도구가 가져온 설명이나 그림도 문밖에 남지 않는다. 신분 확인 중 창구를 닫고 소포 속 서류까지 빼던 택배소가 이제는 창구를 열어 둔 채 모든 동봉물을 건네는 것과 같다."
-              },
-              "original": "Fixed a crash when triggering Authenticate on a remote MCP server in the `/mcp` panel.\nFixed MCP tool results containing embedded resources being silently dropped, so text and inline media returned by MCP servers now surface in the conversation."
-            },
-            {
-              "title": {
-                "zh-TW": "指令判讀與檔案搜尋更耐髒資料，錯誤也說人話",
-                "zh-CN": "指令判断与文件搜索更耐脏数据，错误也说人话",
-                "en": "Command checks and file search handle awkward input more safely",
-                "ja": "コマンド判定とファイル検索が厄介な入力に強くなる",
-                "ko": "명령 판단과 파일 검색이 까다로운 입력에도 견고해진다"
-              },
-              "body": {
-                "zh-TW": "你下 `--grep=\"a|b\"` 這類指令時，管線符號明明只是引號裡的參數，權限檢查卻曾誤以為你真要建立 pipeline（管線，把一個指令輸出交給下一個指令的串接），跳出多餘提示；現在能正確看懂。檢視或搜尋檔案時，若多位元字元剛好被截在中間，也不再因 invalid UTF-8 而失敗。資格不符時，CLI 也重新顯示真正原因，不再只說「unknown reason」。這像機場安檢終於會分辨行李標籤上的豎線和危險物，掃描到半截外文字也不會當成壞行李；拒絕登機時，還會告訴你缺的是哪份證件。",
-                "zh-CN": "你下 `--grep=\"a|b\"` 这类指令时，管线符号明明只是引号里的参数，权限检查却曾误以为你真要建立 pipeline（管线，把一个命令输出交给下一个命令的串接），跳出多余提示；现在能正确看懂。查看或搜索文件时，若多字节字符刚好被截在中间，也不再因 invalid UTF-8 而失败。资格不符时，CLI 也重新显示真正原因，不再只说“unknown reason”。这像机场安检终于会分辨行李标签上的竖线和危险物，扫描到半截外文字也不会当成坏行李；拒绝登机时，还会告诉你缺的是哪份证件。",
-                "en": "With a command such as `--grep=\"a|b\"`, a pipe character inside a quoted argument is not a pipeline, a chain that passes one command’s output to another. Permission checks used to misread it and ask unnecessarily; now they interpret it correctly. File viewing and search also stop failing with invalid UTF-8 when a multibyte character is cut at a truncation boundary. And when you are not eligible, the CLI again shows the real reason rather than “unknown reason.” It is like airport screening that can distinguish a vertical mark on a luggage tag from a hazardous item, and can explain which document is missing when it cannot let you board.",
-                "ja": "`--grep=\"a|b\"` のような命令では、引用符内の縦線は pipeline（ある命令の出力を次の命令へ渡す連結）ではない。権限確認は以前これを誤読して余計な確認を出したが、今は正しく判定する。ファイルの表示や検索も、複数バイト文字が切り詰め境界で途中までになって invalid UTF-8 で失敗しなくなった。利用資格がない場合も、CLI は “unknown reason” ではなく本当の理由を再び示す。荷札の縦線と危険物を見分け、搭乗を断るなら不足書類を教える空港検査のようなものである。",
-                "ko": "`--grep=\"a|b\"` 같은 명령에서 따옴표 안의 세로줄은 pipeline(한 명령의 출력을 다음 명령에 넘기는 연결)이 아니다. 권한 확인은 예전에 이를 잘못 읽고 쓸데없이 물었지만 이제 제대로 판단한다. 파일 보기와 검색도 여러 바이트 문자가 잘림 경계에서 끊겼다고 invalid UTF-8 오류로 실패하지 않는다. 자격이 없을 때 CLI는 “unknown reason” 대신 진짜 이유를 다시 보여 준다. 수하물 표의 세로줄과 위험물을 구별하고 탑승을 거절할 때 빠진 서류를 알려 주는 공항 보안 검색과 같다."
-              },
-              "original": "Fixed permission checks splitting a single command into a pipeline when an argument contained quoted shell metacharacters (such as `--grep=\"a|b\"`), which caused spurious permission prompts.\nFixed the file-view and file-search tools failing with invalid-UTF-8 errors when a multi-byte character was split at a truncation boundary.\nFixed eligibility error messages so the CLI shows the real reason again instead of defaulting to a generic \"unknown reason\"."
-            },
-            {
-              "title": {
-                "zh-TW": "多指令能連著下，代理與無頭執行也各守界線",
-                "zh-CN": "多指令能连着下，代理与无头执行也各守界线",
-                "en": "Chained commands, agents, and headless runs now follow their intended rules",
-                "ja": "連続コマンド、エージェント、無頭実行が意図どおりに動く",
-                "ko": "연속 명령, 에이전트, 헤드리스 실행이 의도한 규칙을 따른다"
-              },
-              "body": {
-                "zh-TW": "規劃完還想立刻請它挑毛病？現在同一句可排 `/plan /grill-me <prompt>`，每個開頭斜線指令會依輸入順序解析、啟用並顯示。custom agent 若明確寫 `subagent: false`，也不會再混進可呼叫的子代理清單。用 `-p` 或 `--print` 跑 headless（無頭模式，沒有終端機視窗／視覺介面的執行模式）時，已儲存的 `settings.json` 政策終於會生效，包括權限、檔案存取、sandbox mode（沙盒模式，把程式限制在安全範圍內的執行方式）、自動執行與成品審查。`/btw` 的岔題也不再複製成另一筆同標題對話。像火車站的轉乘牌：能依序換線，但標著不接客的月台不會被派車，沒有站務員的夜車仍照既定規則行駛。",
-                "zh-CN": "规划完还想立刻请它挑毛病？现在同一句可排 `/plan /grill-me <prompt>`，每个开头斜线命令会依输入顺序解析、启用并显示。custom agent 若明确写 `subagent: false`，也不会再混进可调用的子代理清单。用 `-p` 或 `--print` 跑 headless（无头模式，没有终端窗口／视觉界面的执行模式）时，已保存的 `settings.json` 政策终于会生效，包括权限、文件访问、sandbox mode（沙盒模式，把程序限制在安全范围内的执行方式）、自动执行与成品审查。`/btw` 的岔题也不再复制成另一笔同标题对话。像火车站的换乘牌：能依序换线，但标着不接客的站台不会被派车，没有站务员的夜车仍照既定规则行驶。",
-                "en": "Finished planning and want an immediate critique? One prompt can now begin `/plan /grill-me <prompt>`; each leading slash command is parsed, activated, and displayed in typed order. A custom agent explicitly marked `subagent: false` no longer sneaks into the callable-subagent list. Headless runs, execution through `-p` or `--print` without a terminal window, now honor saved `settings.json` policies: permissions, file access, sandbox mode, auto-execution, and artifact review. A `/btw` side question also stops making a duplicate conversation with its parent’s title. It is like a station transfer board: you can change lines in order, closed platforms are not assigned trains, and an unattended night train still follows its rules.",
-                "ja": "計画のあとすぐ批評も頼みたいなら、一つの入力に `/plan /grill-me <prompt>` と並べられる。先頭のスラッシュ命令は入力順に解析、起動、表示される。`subagent: false` を明記した custom agent も、呼び出せる子エージェント一覧に紛れ込まない。`-p` や `--print` で行う headless（無頭モード、端末の画面や視覚的な画面を出さない実行）も、保存済み `settings.json` の方針を守る。権限、ファイルアクセス、sandbox mode（プログラムを安全な範囲へ閉じ込める実行方式）、自動実行、成果物レビューが対象である。`/btw` の脇道も親と同名の重複会話を作らない。駅の乗換案内のようなものである。",
-                "ko": "계획을 세운 뒤 곧바로 흠을 찾아 달라고 하고 싶다면 한 입력에 `/plan /grill-me <prompt>`를 나란히 쓸 수 있다. 앞쪽 슬래시 명령은 입력한 순서대로 해석되고 켜지며 표시된다. `subagent: false`를 분명히 적은 custom agent도 호출 가능한 하위 에이전트 목록에 섞이지 않는다. `-p`나 `--print`로 하는 헤드리스 모드(터미널 창이나 시각 화면 없이 실행하는 방식)도 저장된 `settings.json` 정책을 따른다. 권한, 파일 접근, sandbox mode(프로그램을 안전한 범위에 가두는 실행 방식), 자동 실행, 결과물 검토가 포함된다. `/btw` 곁가지 질문도 부모 제목을 단 중복 대화를 만들지 않는다. 역의 환승 안내판과 같다."
-              },
-              "original": "Added support for stacking multiple leading slash commands in a single prompt, so a chain like `/plan /grill-me <prompt>` parses, activates, and renders every command in the order you typed them.\nFixed custom agents that declare `subagent: false` still appearing in the available-subagents list and being invocable as subagents.\nFixed headless (`-p` / `--print`) runs so they now honor persisted `settings.json` policies, including `permissions`, file access, sandbox mode, auto-execution, and artifact review.\nFixed `/btw` side-questions leaking into the conversation list as duplicate entries that carried the parent conversation's title."
-            }
-          ]
         }
       ]
     },
@@ -1199,6 +1148,52 @@
       "id": "usage",
       "name": "Usage",
       "versions": [
+        {
+          "version": "0.29.5",
+          "period": "2026-07-27",
+          "items": [
+            {
+              "title": {
+                "zh-TW": "AI Council 少帶一箱工具，Claude 額度更省",
+                "zh-CN": "AI Council 少带一箱工具，Claude 额度更省",
+                "en": "AI Council stops hauling unused tools into every Claude turn",
+                "ja": "AI Council が不要な道具箱を持ち込まず、Claude の利用枠を節約",
+                "ko": "AI Council이 매 차례 쓸데없는 도구 상자를 빼고 Claude 사용량을 아낀다"
+              },
+              "body": {
+                "zh-TW": "AI Council 裡的 Claude 成員明明被要求只討論，卻每回合還背著一整箱用不到的工具，會白佔你的 Claude 額度。先前在沒有附上專案資料夾時，`claude -p` 沒有傳入 `--tools`，Claude Code 仍會把 Bash、Edit、Write 等內建工具（讓 AI 能執行終端機、編輯與寫入檔案的能力）整套塞進每回合的輸入。現在此情況會明確傳入 `--tools \"\"`，把工具箱留在門外。每次 Claude 呼叫也會加上 `--exclude-dynamic-system-prompt-sections`，讓系統提示詞（AI 每回合先讀的固定規則）開頭在各回合維持位元組完全一致，較有機會命中 Anthropic 的自動提示詞快取（把已處理內容暫存直接沿用），少花重複額度。這只影響 Claude；Codex 和 Antigravity 成員不變。",
+                "zh-CN": "AI Council 里的 Claude 成员明明被要求只讨论，却每回合还背着一整箱用不到的工具，会白占你的 Claude 额度。此前没有附上项目文件夹时，`claude -p` 没有传入 `--tools`，Claude Code 仍会把 Bash、Edit、Write 等内置工具（让 AI 能执行终端、编辑与写入文件的能力）整套塞进每回合的输入。现在这种情况会明确传入 `--tools \"\"`，把工具箱留在门外。每次 Claude 调用也会加上 `--exclude-dynamic-system-prompt-sections`，让系统提示词（AI 每回合先读的固定规则）开头在各回合维持字节完全一致，更有机会命中 Anthropic 的自动提示词缓存（把已处理内容暂存后直接沿用），少花重复额度。这只影响 Claude；Codex 和 Antigravity 成员不变。",
+                "en": "In AI Council, Claude participants are told to discuss rather than use tools, yet they used to carry a whole unused toolbox into every turn, consuming Claude quota. When `claude -p` ran without an attached project folder, it omitted `--tools`, so Claude Code still packed its built-in tools—Bash, Edit, Write, and more—into each turn's input. It now explicitly sends `--tools \"\"` in that case, leaving the toolbox outside. Every Claude call also adds `--exclude-dynamic-system-prompt-sections`, keeping the system-prompt prefix byte-for-byte stable across turns and giving Anthropic's automatic prompt cache a better chance to reuse it. Codex and Antigravity participants are unchanged.",
+                "ja": "AI Council の Claude 参加者は議論だけをするよう指示されているのに、毎ターン使わない道具箱まで抱え、Claude の利用枠を余計に使っていた。プロジェクトフォルダを付けずに `claude -p` を実行すると、以前は `--tools` が渡されず、Claude Code が Bash、Edit、Write などの内蔵ツール（AI が端末操作やファイル編集・書き込みを行うための機能）を毎ターンの入力に丸ごと入れていた。今はこの場合に `--tools \"\"` を明示し、道具箱を外に置く。さらに全 Claude 呼び出しで `--exclude-dynamic-system-prompt-sections` を加え、システムプロンプト（AI が各ターンの前に読む固定ルール）の先頭をターン間でバイト単位まで同一に保つ。これにより Anthropic の自動プロンプトキャッシュが再利用できる可能性が高まる。Codex と Antigravity の参加者は変わらない。",
+                "ko": "AI Council의 Claude 참여자는 토론만 하라는 지시를 받는데도, 매 차례 쓰지도 않을 도구 상자를 들고 와 Claude 사용량을 괜히 차지하곤 했다. 프로젝트 폴더를 붙이지 않고 `claude -p`를 실행하면 예전에는 `--tools`가 빠져, Claude Code가 Bash, Edit, Write 등 내장 도구(AI가 터미널을 실행하고 파일을 편집·작성하는 기능)를 매 차례 입력에 통째로 넣었다. 이제 이 경우 `--tools \"\"`를 명시해 도구 상자를 문밖에 둔다. 모든 Claude 호출에는 `--exclude-dynamic-system-prompt-sections`도 추가한다. 이로써 시스템 프롬프트(AI가 매 차례 먼저 읽는 고정 규칙)의 앞부분이 차례마다 바이트 단위까지 같아져 Anthropic의 자동 프롬프트 캐시가 다시 쓸 가능성이 커진다. Codex와 Antigravity 참여자는 영향이 없다."
+              },
+              "original": "**AI Council spends less Claude quota per turn**: `claude -p` calls without an attached project folder used to omit `--tools` entirely, so Claude Code loaded its full built-in toolset — Bash, Edit, Write, and the rest — into every turn's input even though the council prompt already tells participants not to call tools. Calls now pass `--tools \"\"` when no project folder is attached, and every Claude call adds `--exclude-dynamic-system-prompt-sections` to keep the system prompt prefix byte-stable across turns for a better shot at Anthropic's automatic prompt caching. Codex and Antigravity participants are unaffected."
+            }
+          ]
+        },
+        {
+          "version": "0.29.4",
+          "period": "2026-07-26",
+          "items": [
+            {
+              "title": {
+                "zh-TW": "AI 開會時能插話校正，也一眼看懂誰持反對意見",
+                "zh-CN": "AI 开会时能插话校正，也一眼看懂谁持反对意见",
+                "en": "Steer an AI council as it talks, and see exactly who disagrees",
+                "ja": "AI評議会の途中で軌道修正し、誰が反対したかも一目で分かる",
+                "ko": "AI 회의 도중 방향을 고치고, 누가 반대했는지도 한눈에 본다"
+              },
+              "body": {
+                "zh-TW": "幾個 AI 正在替你討論方案，第一輪卻發現大家把你的單機需求當成要做叢集，也就是讓多台主機一起運作；現在不用整場喊停重來。開啟「輪次間指引」開關後，討論工作階段（一次連續進行的討論）每一輪結束、下一輪開始前都會暫停，讓你補一句「只有單一主機，不要叢集」。若一直空白，最多等五分鐘便自動略過，討論照原本方式繼續，像主持會議時每回合按一下暫停鈴，及早把話題拉回來。主持人摘要下方的共識統計（列出每位參與者採取的立場）也會直接寫出名字；反對與替代意見用顏色標出，不必再翻紀錄猜是誰說的。第一次挑辯論語氣時，五種選項下方都有白話提示；例如「魔鬼代言人」會刻意站到相反邊，測試看似合理的結論是否站得住腳，因此不會再把它和「對抗式」混為一談。",
+                "zh-CN": "几个 AI 正在替你讨论方案，第一轮却发现大家把你的单机需求当成要做集群；现在不用整场喊停重来。打开“轮次间指引”开关后，每一轮结束、下一轮开始前都会暂停，让你补一句“只有单一主机，不要集群”。空白五分钟会自动跳过，讨论按原来的方式继续，像主持会议时每回合按一下暂停铃，及早把话题拉回来。主持人摘要下方的共识统计（列出每位参与者采取的立场）也会直接写出名字；反对与替代意见用颜色标出，不必再翻记录猜是谁说的。第一次挑选辩论语气时，五种选项下方都有白话提示；例如“魔鬼代言人”会刻意站到相反边，测试看似合理的结论是否站得住脚，因此不会再把它和“对抗式”混为一谈。",
+                "en": "Picture an AI council discussing a plan, then learning after round one that your single-host setup is being mistaken for a cluster. You no longer need to scrap the whole discussion. Turn on “guidance between rounds” and the session pauses before every later round, so you can add a correction such as “single host, no cluster.” A blank pause skips itself after five minutes, then the next round continues normally—like a chairperson’s bell that gets the meeting back on topic early. The consensus tally beneath the moderator’s summary now names each participant beside their position and colors dissenting or alternative views, so you need not hunt through the transcript. New to the five debate tones? Each picker option now has a plain-language hint: devil’s advocate deliberately argues the other side to test whether a plausible conclusion actually holds up, rather than merely being adversarial.",
+                "ja": "複数のAIに案を議論させたら、第一ラウンドの後で単一ホストの要件をクラスター前提で受け取っていたと気づくことがある。もう議論全体を止めて最初からやり直す必要はない。「ラウンド間の指示」を有効にすると、最初の後の各ラウンドの前で議論が一度止まり、「単一ホストで、クラスターは不要」と補足できる。何も書かなければ5分後に自動で飛ばされ、次のラウンドは従来どおり進む。司会が各回の前にベルを鳴らし、話を早めに本題へ戻すようなものだ。司会者の要約の下にある合意集計も、各参加者の名前と立場を並べ、反対意見や代替案を色で目立たせる。5種類の討論トーンには平易な説明も付く。「悪魔の代弁者」はもっともらしい結論が本当に成り立つか試すため、あえて反対側を論じる役であり、単なる対立的な議論とは違うのである。",
+                "ko": "여러 AI에게 방안을 토론하게 했는데 첫 라운드가 끝난 뒤 단일 호스트 요구를 클러스터로 잘못 이해했다는 걸 알아차릴 수 있다. 이제 토론 전체를 멈추고 처음부터 다시 시작할 필요가 없다. ‘라운드 사이 안내’ 토글을 켜면 첫 라운드 뒤의 매 라운드 전에 세션이 멈춰서 ‘단일 호스트이며 클러스터는 필요 없음’처럼 바로잡는 말을 덧붙일 수 있다. 아무것도 쓰지 않으면 5분 뒤 자동으로 건너뛰고 다음 라운드는 원래대로 진행한다. 회의 진행자가 매 차례 종을 울려 일찍 본론으로 돌려놓는 것과 같다. 진행자 요약 아래의 합의 집계도 이제 각 참여자의 이름과 입장을 함께 보여 주며, 반대 의견과 대안은 색으로 눈에 띄게 표시한다. 다섯 가지 토론 분위기를 처음 고를 때도 각 선택지 아래에 쉬운 설명이 붙는다. 가령 ‘악마의 변호인’은 그럴듯한 결론이 정말 버티는지 시험하려고 일부러 반대편을 주장하는 역할이므로, 단순히 대립적인 방식과는 다른 것이다."
+              },
+              "original": "**Steer the council mid-discussion**: an opt-in \"guidance between rounds\" toggle pauses the session before every round after the first, so you can react to what you just heard — \"we're single-host, no cluster\" — instead of watching a debate run off in the wrong direction or stopping and restarting from scratch. The pause waits up to 5 minutes and is skipped automatically if left blank; the round then proceeds exactly as it did before.\n**See who disagreed, not just how many**: the consensus tally under the moderator's summary now lists each participant by name next to their stance, with dissenting and alternative positions colored so they stand out, instead of a bare \"2 agree, 1 alternative\" that meant scrolling back through the transcript to find out who.\n**The five debate tones now explain themselves**: a one-line plain-language hint appears under the tone picker — devil's advocate, for instance, now reads \"the AIs will deliberately argue the opposite side to test whether a plausible conclusion holds up\" — so a first-time user isn't left guessing how \"adversarial\" differs from \"devil's advocate.\""
+            }
+          ]
+        },
         {
           "version": "0.29.3",
           "period": "2026-07-25",
@@ -1236,137 +1231,6 @@
                 "ko": "서비스는 이미 복구됐는데 패널에 경고가 계속 남아 당신을 놀라게 하던 일이 줄어든다. 제공업체의 상태 페이지(서비스가 정상인지 알리는 공지 페이지)는 가벼운 ‘성능 저하’ 표시를 지우는 것을 잊을 수 있다. Usage는 가장 낮은 이 단계에만 두 가지 정리 규칙을 적용하므로 부분 장애나 대규모 장애는 절대 숨기지 않는다. 첫째, 해결되지 않은 모든 사고가 monitoring(고친 뒤에도 제공업체가 지켜보는 단계)에 들어간 지 네 시간이 넘으면 상태가 바뀔 때까지 경고를 숨긴다. 둘째, Usage가 같은 상태를 24시간 넘게 계속 보면 남은 정보로 본다. 페이지의 시간만 믿지 않는 까닭도 있다. OpenAI 상태 페이지에서는 정상인 것을 포함한 25개 구성 요소가 2주 넘게 지난 같은 시간을 쓰는데, 이는 상태 변경 시각이 아니라 구성 요소를 만든 시각일 수 있다. 가게 앞에 잊힌 ‘일시 품절’ 팻말처럼, 오래된 가벼운 경고만 내리고 진짜 휴점 표시는 남긴다."
               },
               "original": "**A service alert the provider forgot to clear no longer sticks around**: a status page can leave a component marked as degraded long after the incident is over, and the panel had no way to tell that apart from a live problem. Two rules now retire such an alert, both limited to the mildest *degraded performance* level so a partial or major outage is never hidden. First, if every unresolved incident on the page has sat in *monitoring* — the provider's own word for \"the fix is in, we are watching it\" — for more than four hours, the alert is suppressed until something changes. Second, a status observed unchanged for more than 24 hours is treated as residue. The second rule times what usage itself has seen rather than trusting the page's own timestamps: on OpenAI's page all 25 components, the operational ones included, share one timestamp from over two weeks earlier, so that field records when a component was defined, not when its status last moved."
-            }
-          ]
-        },
-        {
-          "version": "0.29.2",
-          "period": "2026-07-25",
-          "items": [
-            {
-              "title": {
-                "zh-TW": "共識不再漏算意見，也不能只靠一句同意",
-                "zh-CN": "共识不再漏算意见，也不能只靠一句同意",
-                "en": "Consensus now counts every opinion and demands real agreement",
-                "ja": "合意は意見を取りこぼさず、一言の賛成だけでは成立しない",
-                "ko": "합의는 의견을 빠뜨리지 않고, 한마디 동의만으로 성립하지 않는다"
-              },
-              "body": {
-                "zh-TW": "一場討論要有共識，不能靠有人開頭寫了「同意」就算數。council 討論（讓多位參與者各自表態後彙整結論的流程）以前只在每回合第一行開頭找立場標籤；先寫幾個字才標、或把標籤放在行尾，意見就像投票箱旁漏掉的選票，沒有被計入。現在會掃完整第一行，但一回合必須明確只提一種不同立場才列入；同時引用幾種立場就維持未解析，不隨便猜。若有人以同意立場開場，還得交代看過什麼、為何同意、仍有哪些顧慮。得出的共識不再是蓋章，而是每張選票都可追查的會議紀錄。",
-                "zh-CN": "一场讨论要有共识，不能靠有人开头写了“同意”就算数。council 讨论（让多位参与者各自表态后汇总结论的流程）以前只在每回合第一行开头找立场标签；先写几个字才标、或把标签放在行尾，意见就像投票箱旁漏掉的选票，没有被计入。现在会扫描完整第一行，但一回合必须明确只提一种不同立场才列入；同时引用几种立场就保持未解析，不随便猜。若有人以同意立场开场，还得交代看过什么、为何同意、仍有哪些顾虑。得出的共识不再是盖章，而是每张选票都可追查的会议记录。",
-                "en": "Consensus cannot rest on someone merely opening with “agree.” In a council discussion, where several participants state positions before a conclusion is collected, stance labels used to be checked only at the beginning of each turn’s first line. A label appearing later, or at line end, could disappear like a ballot dropped beside the box. The whole first line is now scanned, but a turn counts only when it names exactly one distinct label; a turn quoting several remains unparsed rather than being guessed at. An agreement opening must also say what was reviewed, why it agrees, and what concerns remain. The result is less a rubber stamp than meeting minutes with every ballot traceable.",
-                "ja": "議論の合意は、誰かが冒頭で「賛成」と書いただけでは成立しない。複数の参加者が立場を示して結論をまとめる council の議論では、以前は各発言の一行目の先頭だけで立場ラベルを探していた。少し書いてからラベルを置いたり、行末に置いたりすると、投票箱の脇に落ちた票のように集計から消えていた。今は一行目全体を調べるが、数えられるのは異なるラベルを一つだけ明示した発言だけである。複数を引用した発言は推測せず未解析のままにする。賛成で始める参加者も、確認した内容、賛成する理由、残る懸念を示さねばならない。合意は押印ではなく、票を追える議事録に近づくのである。",
-                "ko": "토론에서 합의가 되려면 누군가 첫머리에 ‘동의’라고 썼다고 끝나서는 안 된다. 여러 참여자가 입장을 밝힌 뒤 결론을 모으는 council 토론에서는 예전에 각 발언 첫 줄의 맨 앞에서만 입장 표지를 찾았다. 몇 글자 뒤에 표지를 쓰거나 줄 끝에 두면 투표함 옆에 떨어진 표처럼 집계에서 사라졌다. 이제 첫 줄 전체를 살피지만, 서로 다른 표지를 정확히 하나만 밝힌 발언만 센다. 여러 표지를 인용한 발언은 억지로 추측하지 않고 미해석으로 둔다. 동의 입장으로 시작한 참여자는 검토한 내용, 동의 이유, 남은 걱정도 밝혀야 한다. 합의가 도장 찍기가 아니라 모든 표를 추적할 수 있는 회의 기록에 가까워진다."
-              },
-              "original": "**The council consensus tally no longer drops opinions**: stance labels were only matched at the very start of a turn's first line, so a rebuttal that reached its label a few words in — or ended its first line with one — counted as unparsed and vanished from the count. The whole first line is now scanned, and a turn must name exactly one distinct label to be counted; a turn quoting several stays unparsed instead of having one guessed for it.\n**Agreeing in a council rebuttal requires reasons**: a participant opening with the agreement stance must state what it reviewed, why it agrees, and what concerns remain, so consensus cannot be reached by rubber-stamping."
-            },
-            {
-              "title": {
-                "zh-TW": "選人與開始討論，介面終於說清楚",
-                "zh-CN": "选人和开始讨论，界面终于说清楚",
-                "en": "Selecting participants and starting a discussion are finally clear",
-                "ja": "参加者の選択と議論の開始が、ようやく分かりやすくなった",
-                "ko": "참여자 선택과 토론 시작 상태를 이제 분명히 알 수 있다"
-              },
-              "body": {
-                "zh-TW": "你選 Claude、Codex 或 Antigravity 加進討論時，每個被選中的座位現在都會亮出 ✓。先前這個記號綁在頭像本身，只有使用內嵌圖示的 Antigravity 碰巧顯示得出來；Claude 和 Codex 使用圖片頭像，整排明明都選好了，畫面卻像只選一半。現在三者都把記號放在外層，選取狀態一致可見。開始討論按鈕若變灰，底下也會說明是沒填主題、沒選參與者，還是已有討論正在跑。理由會連到按鈕並放進狀態區，鍵盤與螢幕閱讀器使用者也收得到，不必靠滑鼠懸停猜答案。像活動報名櫃台，名牌終於都掛在到場者胸前，不能開場時也會直接告訴你缺哪一項。",
-                "zh-CN": "你选 Claude、Codex 或 Antigravity 加进讨论时，每个被选中的座位现在都会亮出 ✓。先前这个记号绑在头像本身，只有使用内嵌图标的 Antigravity 碰巧显示得出来；Claude 和 Codex 使用图片头像，整排明明都选好了，画面却像只选一半。现在三者都把记号放在外层，选取状态一致可见。开始讨论按钮若变灰，底下也会说明是没填主题、没选参与者，还是已有讨论正在运行。理由会连到按钮并放进状态区，键盘与屏幕阅读器用户也收得到，不必靠鼠标悬停猜答案。像活动报名柜台，名牌终于都挂在到场者胸前，不能开场时也会直接告诉你缺哪一项。",
-                "en": "When you add Claude, Codex, or Antigravity to a discussion, every selected seat now shows a ✓. The mark used to sit on the avatar itself: it happened to appear for Antigravity’s inline SVG icon, but stayed invisible for Claude and Codex image avatars, making a fully selected lineup look half-selected. All three now place the overlay on a wrapper, so selection is consistently visible. If Start discussion is greyed out, text underneath now says whether the topic is missing, nobody is selected, or a discussion is already running. That reason is connected to the button and placed in a status region, so keyboard and screen-reader users receive it too. It is like a registration desk where every attendee finally gets a visible badge, and a closed door explains exactly what is still missing.",
-                "ja": "Claude、Codex、Antigravity を議論に加えると、選ばれた席すべてに ✓ が表示されるようになった。以前はこの印がアバターそのものに付いており、インライン SVG の Antigravity だけはたまたま見えたが、画像アイコンの Claude と Codex では見えなかった。全員を選んでも半分しか選ばれていないように見えたのである。今は三者とも外側の要素に印を置き、選択状態がそろって見える。Start discussion ボタンが灰色なら、話題がない、参加者がいない、すでに議論中のいずれかを下に示す。理由はボタンと結び付けられ、ステータス領域にも置かれるため、キーボードやスクリーンリーダーでも分かる。受付で全員の名札が見え、開始できない理由もその場で分かるようなものである。",
-                "ko": "Claude, Codex, Antigravity를 토론에 넣으면 선택된 모든 자리에 이제 ✓가 보인다. 예전에는 이 표지가 아바타 자체에 붙어 있었다. 인라인 SVG 아이콘을 쓰는 Antigravity에서는 우연히 보였지만, 이미지 아이콘을 쓰는 Claude와 Codex에서는 보이지 않아 모두 골라도 절반만 고른 것처럼 보였다. 이제 셋 모두 바깥 요소에 표지를 붙여 선택 상태가 똑같이 드러난다. Start discussion 버튼이 회색이면 아래에서 주제가 없는지, 참여자를 고르지 않았는지, 이미 토론이 진행 중인지 알려 준다. 이유는 버튼과 연결되고 상태 영역에도 들어가므로 키보드와 스크린 리더 사용자도 알 수 있다. 접수대에서 모든 참석자의 이름표가 보이고, 시작할 수 없는 이유도 바로 알려 주는 것과 같다."
-              },
-              "original": "**Every selected participant shows its check mark**: the \"✓\" marking a participant as joining the discussion is drawn as a CSS `::after` overlay, which never renders on a replaced element. It therefore appeared only on the seat whose avatar falls back to an inline SVG (Antigravity) and stayed invisible on the seats drawn from an image icon (Claude, Codex), making a fully selected line-up look half-selected. All three now host the overlay on a wrapper element.\n**The disabled *start discussion* button says why it is disabled**: a line under the button now names what is missing — no topic, no participant selected, or a discussion already running — instead of leaving a greyed-out button and no explanation. The reason is tied to the button with `aria-describedby` and lives in a status region, so keyboard and screen-reader users get it too, not only whoever hovers."
-            },
-            {
-              "title": {
-                "zh-TW": "主持人星號不再讓輔助工具猜人",
-                "zh-CN": "主持人星号不再让辅助工具猜人",
-                "en": "Moderator stars no longer make assistive tools guess",
-                "ja": "司会者の星印を支援技術が推測しなくてよくなった",
-                "ko": "진행자 별표를 보조 기술이 추측할 필요가 없어졌다"
-              },
-              "body": {
-                "zh-TW": "輪到你挑主持人時，三顆星星過去都對螢幕閱讀器說同一句話，根本無法清楚分辨到底哪一席正在主持。現在每顆星會公開自己的按下狀態，滑鼠提示也分成「目前主持人」或「設為主持人」。這改動看似小，卻讓不用看畫面的人能跟看得見的人一樣確認會議誰在掌舵。像舞台後的控台，三個按鈕以前都只寫「燈」，如今一眼或一聽就知道哪盞已經亮、按哪顆會換人。",
-                "zh-CN": "轮到你挑主持人时，三颗星星过去都对屏幕阅读器说同一句话，根本无法分辨哪一席正在主持。现在每颗星会公开自己的按下状态，鼠标提示也分成“当前主持人”或“设为主持人”。这改动看似小，却让不用看画面的人能跟看得见的人一样确认会议谁在掌舵。像舞台后的控制台，三个按钮以前都只写“灯”，如今一眼或一听就知道哪盏已经亮、按哪颗会换人。",
-                "en": "When it is time to choose a moderator, the three stars used to give a screen reader the same accessible name, leaving no way to tell which seat was moderating. Each star now exposes whether it is pressed, and its tooltip says either “current moderator” or “set as moderator.” The change is small but lets people who do not view the screen confirm who is steering the meeting just as everyone else can. It is like a stage control board whose three buttons once all said “light”; now you can see or hear which lamp is on and which button changes it.",
-                "ja": "司会者を選ぶ場面で、以前は三つの星がスクリーンリーダーに同じ名前を伝えていたため、どの席が司会中なのか分からなかった。今は各星が押されている状態を示し、ツールチップも「現在の司会者」か「司会者に設定」のどちらかを表示する。小さな変更だが、画面を見ない人も見える人と同じように、会議を誰が進めているか確かめられる。舞台裏の操作盤で、以前は三つのボタンがすべて「照明」とだけ書かれていたのが、今はどの灯りが点き、どれを押せば交代するか分かるようなものである。",
-                "ko": "진행자를 고를 때 예전에는 세 별이 스크린 리더에 모두 같은 이름을 들려주어 어느 자리가 진행 중인지 알 수 없었다. 이제 각 별은 눌린 상태를 드러내고, 도움말도 ‘현재 진행자’ 또는 ‘진행자로 설정’이라고 구분해 보여 준다. 작은 변화지만 화면을 보지 않는 사람도 다른 사람처럼 누가 회의를 이끄는지 확인할 수 있다. 무대 뒤 조작판의 세 버튼이 예전에는 모두 ‘조명’이라고만 적혀 있었지만, 이제는 어느 등이 켜졌고 어느 버튼을 누르면 바뀌는지 알 수 있는 것과 같다."
-              },
-              "original": "**The moderator star is tellable apart**: all three stars carried the same accessible name, so a screen reader could not say which seat was moderating. Each star now exposes its pressed state, and its tooltip reads *current moderator* or *set as moderator* to match."
-            },
-            {
-              "title": {
-                "zh-TW": "打包工具 setuptools 升到 83.0.0",
-                "zh-CN": "打包工具 setuptools 升到 83.0.0",
-                "en": "Packaging tool setuptools moves to 83.0.0",
-                "ja": "パッケージ作成ツール setuptools を 83.0.0 に更新",
-                "ko": "패키지 도구 setuptools를 83.0.0으로 올렸다"
-              },
-              "body": {
-                "zh-TW": "這版也把 setuptools（Python 用來打包與安裝套件的工具）升到 83.0.0。原始紀錄未說明對畫面或功能的影響；原始紀錄只交代這項相依套件升級，沒有承諾特定功能改變。對從原始碼安裝、打包或維護 Usage 的人，它像廚房換了新的量杯：原始紀錄沒有說明成品會有什麼變化。若你只是開啟成品使用，知道這是維護性更新即可；若你處理建置環境中的相依版本，則以 83.0.0 為準。",
-                "zh-CN": "这版也把 setuptools（Python 用来打包与安装软件包的工具）升到 83.0.0。原始记录未说明对界面或功能的影响；原始记录只交代这项依赖包升级，没有承诺特定功能改变。对从源代码安装、打包或维护 Usage 的人，它像厨房换了新的量杯：原始记录没有说明成品会有什么变化。若你只是打开成品使用，知道这是维护性更新即可；若你处理构建环境中的依赖版本，则以 83.0.0 为准。",
-                "en": "This release also moves setuptools, a Python tool for packaging and installing software, to 83.0.0. The source note does not describe any effect on the interface or features. The source notes only this dependency upgrade and do not promise a specific feature change. For someone installing from source, packaging, or maintaining Usage, it is like replacing a kitchen measuring cup. The source note does not say what changes, if anything, in the finished app. If you only use the finished app, treat this as maintenance. If you manage build dependencies, use 83.0.0 as the stated version.",
-                "ja": "この版では、Python でソフトウェアをパッケージ化しインストールするための setuptools も 83.0.0 へ更新した。原文は画面や機能への影響を説明していない。原文が伝えているのはこの依存パッケージの更新だけで、特定の機能変更は約束していない。ソースからの導入、パッケージ作成、Usage の保守をする人にとっては、台所の計量カップを新しくするようなものだ。完成品にどのような変化があるかは原文に書かれていない。完成品を使うだけなら保守更新として捉えればよく、ビルド時の依存関係を管理するなら 83.0.0 が基準となる。",
-                "ko": "이번 판에서는 Python으로 소프트웨어를 묶고 설치하는 도구인 setuptools도 83.0.0으로 올렸다. 원문은 화면이나 기능에 미치는 영향을 설명하지 않는다. 원문은 이 의존성 도구의 판올림만 말할 뿐, 특정 기능 변화는 약속하지 않는다. 소스에서 설치하거나 패키지를 만들거나 Usage를 관리하는 사람에게는 부엌의 계량컵을 새것으로 바꾸는 일과 같다. 완성품에 어떤 변화가 있는지는 원문에 나와 있지 않다. 완성품만 쓴다면 유지 관리 업데이트로 보면 되고, 빌드 의존성 버전을 관리한다면 83.0.0을 기준으로 삼으면 된다."
-              },
-              "original": "Bumped `setuptools` to 83.0.0."
-            }
-          ]
-        },
-        {
-          "version": "0.29.1",
-          "period": "2026-07-25",
-          "items": [
-            {
-              "title": {
-                "zh-TW": "替 Council 每個座位配一頂專業帽子",
-                "zh-CN": "给 Council 每个座位配一顶专业帽子",
-                "en": "Give every Council seat its own expert hat",
-                "ja": "Council の各席に専門家の帽子をかぶせられる",
-                "ko": "Council의 각 자리에 전문 모자를 씌운다"
-              },
-              "body": {
-                "zh-TW": "同一場 Council（讓多個 AI 分座討論的功能）裡，現在能替每個座位挑不同專長。想請一位看合約、一位找網頁問題、另一位做安全檢查時，模型選擇器旁的角色選擇器會列出已安裝人才包裡的專家。角色（persona，先替 AI 戴上的專業帽子）會以提示詞前綴加入，所以同一個 CLI（從命令列啟動的工具）可在兩張椅子分別扮演兩種人。角色會按人才包分組並可收合，五十個選項也不會把畫面捲到找不到底。角色文字則在執行時向 talent-market CLI 取得，不會塞進 usage 本身；像替一場會議現場選角，每張椅子都能坐上合適的專家。",
-                "zh-CN": "同一场 Council（让多个 AI 分座讨论的功能）里，现在能为每个座位挑不同专长。想请一位看合同、一位找网页问题、另一位做安全检查时，模型选择器旁的角色选择器会列出已安装人才包里的专家。角色（persona，先给 AI 戴上的专业帽子）会作为提示词前缀加入，所以同一个 CLI（从命令行启动的工具）能在两张椅子分别扮演两种人。角色会按人才包分组并可折叠，五十个选项也不会把页面滚到找不到底。角色文字则在运行时向 talent-market CLI 获取，不会塞进 usage 本身；像替一场会议现场选角，每张椅子都能坐上合适的专家。",
-                "en": "In one Council (a feature where several AIs discuss an issue from separate seats), each seat can now take a different specialty. Need one person to review a contract, one to spot front-end trouble, and another to audit security? A role picker beside the model picker lists specialists from your installed talent packs. A persona (an expert hat placed on an AI before it speaks) is injected as a prompt prefix, so the same CLI (a tool launched from a command line) can wear two different hats in two seats. Roles are grouped by talent pack in a collapsible picker, keeping even 50 choices manageable. Their text is fetched from the talent-market CLI at runtime instead of bundled into usage: like casting a meeting, each chair gets the right specialist.",
-                "ja": "一つの Council（複数の AI が別々の席で話し合う機能）で、席ごとに異なる専門性を選べるようになった。契約を読む役、フロントエンドの問題を探す役、安全性を点検する役が欲しいなら、モデル選択の横にある役割選択から、導入済み talent pack の専門家を選ぶ。persona（AI が話す前にかぶせる専門家の帽子）はプロンプトの先頭に加わるため、同じ CLI（コマンドラインから起動する道具）でも二つの席で別の役を演じられる。役割は talent pack ごとにまとまり、折りたためるので、50 個あっても選択肢が画面の外へ流れない。役割の文章は実行時に talent-market CLI から取得し、usage 本体には同梱しない。会議の配役で各席にふさわしい専門家を座らせるような仕組みである。",
-                "ko": "한 Council(여러 AI가 각자 자리에 앉아 토론하는 기능) 안에서 자리마다 다른 전문성을 고를 수 있게 됐다. 계약을 검토할 사람, 프런트엔드 문제를 찾을 사람, 보안을 점검할 사람이 필요하다면 모델 선택기 옆 역할 선택기에서 설치한 talent pack의 전문가를 고른다. persona(AI가 말하기 전에 씌우는 전문가 모자)는 프롬프트 앞에 붙으므로, 같은 CLI(명령줄에서 실행하는 도구)도 두 자리에서 다른 역할을 맡을 수 있다. 역할은 talent pack별로 묶여 접을 수 있어 50개여도 목록이 화면 밖으로 끝없이 밀리지 않는다. 역할 문구는 실행할 때 talent-market CLI에서 가져오며 usage 자체에 넣지 않는다. 회의의 각 자리에 알맞은 전문가를 배치하는 일과 같다."
-              },
-              "original": "**Council participants can wear a persona from the AI Talent Market**: every seat now has a role picker next to its model picker, listing the specialists from your installed talent packs (contract review, front-end, security audit, and the rest). The role's expertise is injected as a prompt prefix, so the same CLI can sit in two seats wearing two different hats. Roles are grouped by talent pack in a collapsible picker — collapsed it shows only the pack names, so a 50-role list no longer scrolls off the screen. Role text is fetched from the talent-market CLI at runtime and is never bundled into usage itself."
-            },
-            {
-              "title": {
-                "zh-TW": "先決定辯論打法，同意就提早收場",
-                "zh-CN": "先决定辩论打法，同意就提前收场",
-                "en": "Choose a debate style, then stop once everyone agrees",
-                "ja": "議論の型を選び、全員が同意すれば早く終えられる",
-                "ko": "토론 방식을 고르고, 모두 동의하면 일찍 끝낸다"
-              },
-              "body": {
-                "zh-TW": "一群 AI 反覆討論時，你可以先決定這場會議要當腦力激盪，還是挑錯大會。Council 從第二輪起可替每位參與者從五種辯論風格中選一種：找共識、挑漏洞、補缺口、蘇格拉底式追問假設，或唱反調的魔鬼代言人。無論選哪種，每人回應開頭的立場標籤都會保留，並統計在摘要上方。若打開 end on consensus（全員同意便停止的開關），某一輪人人標示同意時，討論會立刻結束，不會耗完原先預留輪數；只要有人沒完成該輪，便不算共識。像會議主席先訂好規則、再看全體舉牌，牌沒全舉起就不宣布散會。",
-                "zh-CN": "一群 AI 反复讨论时，你可以先决定这场会议要当脑力激荡，还是挑错大会。Council 从第二轮起可为每位参与者从五种辩论风格中选一种：找共识、挑漏洞、补缺口、苏格拉底式追问假设，或唱反调的魔鬼代言人。无论选哪种，每人回应开头的立场标签都会保留，并统计在摘要上方。若打开 end on consensus（全员同意便停止的开关），某一轮人人标示同意时，讨论会立刻结束，不会耗完原先预留轮数；只要有人没完成该轮，便不算共识。像会议主席先订好规则、再看全体举牌，牌没全举起就不宣布散会。",
-                "en": "When a group of AIs keeps debating, you can now decide whether the meeting should brainstorm together or hunt for flaws. From round two onward, Council lets each participant take one of five debate styles: constructive consensus-seeking, adversarial fault-finding, collaborative gap-filling, Socratic questioning of assumptions, or devil's advocate. Whatever style you choose, the stance label opening each reply stays visible and is counted above the summary. Enable end on consensus (a switch that stops once everyone agrees), and the discussion ends as soon as every participant marks agreement in a round instead of using all budgeted rounds. If anyone fails to finish that round, it does not count. Like a chair setting meeting rules, then checking every raised hand before calling the room settled.",
-                "ja": "AI の集団が何度も議論する時、その場を一緒に案を練る会議にするか、欠点をあえて探す会議にするかを先に決められる。Council では第二ラウンド以降、各参加者が五つの議論スタイルから一つを選べる。建設的に合意を探す、対立的に欠点を探す、協力して穴を埋める、前提をソクラテス式に問い直す、または悪魔の代弁者として反対を唱える、の五つである。どの型でも各回答の冒頭にある立場ラベルは残り、要約の上で集計される。end on consensus（全員の同意で止めるスイッチ）を有効にすると、一つのラウンドで全員が同意を示した時点で、予定した回数を使い切らずに終わる。ただし一人でも完走しなければ合意には数えない。司会者が会議の規則を決め、全員の挙手を見てから閉会するようなものである。",
-                "ko": "AI 여러 명이 계속 토론할 때, 이 자리를 함께 답을 찾는 회의로 할지 일부러 허점을 찾는 회의로 할지 먼저 정할 수 있다. Council은 둘째 라운드부터 참가자마다 다섯 가지 토론 방식 중 하나를 고르게 한다. 건설적으로 합의를 찾기, 맞서서 흠 찾기, 함께 빈틈 메우기, 가정을 소크라테스식으로 묻기, 또는 악마의 대변인처럼 반대하기이다. 어느 방식을 골라도 각 답변 첫머리의 입장 표시는 남고 요약 위에서 집계된다. end on consensus(모두 동의하면 멈추는 스위치)를 켜면 한 라운드에서 전원이 동의를 표시하는 즉시, 잡아 둔 라운드를 다 쓰지 않고 끝난다. 다만 한 명이라도 그 라운드를 끝내지 못하면 합의로 세지 않는다. 진행자가 회의 규칙을 정한 뒤 모든 손이 올라왔는지 보고 끝내는 일과 같다."
-              },
-              "original": "**Five debate styles for a council**: pick the tone every participant takes from the second round on — constructive consensus-seeking, adversarial fault-finding, collaborative gap-filling, Socratic questioning of assumptions, or devil's advocate. The stance label each participant must open with is preserved under every style.\n**Council consensus is counted, and can end the discussion early**: the stance labels participants open their rebuttals with are now tallied and shown above the summary. Turn on *end on consensus* and a discussion stops as soon as every participant in a round agrees, instead of burning through the rounds you budgeted for. A round where anyone failed to finish never counts as consensus."
-            },
-            {
-              "title": {
-                "zh-TW": "主持人看不到名字，結論更不偏袒",
-                "zh-CN": "主持人看不到名字，结论更不偏袒",
-                "en": "Moderators no longer see names, keeping summaries impartial",
-                "ja": "司会者が名前を見ないため、結論がえこひいきしにくい",
-                "ko": "진행자가 이름을 못 봐 요약이 더 공정해진다"
-              },
-              "body": {
-                "zh-TW": "要主持人替多個 AI 的意見下結論時，現在它先看不到發言者姓名。交給主持人的逐字稿（transcript，完整保留每句話的討論記錄）已匿名化，避免它偏愛自己那個 CLI（從命令列啟動的工具）寫出的答案。摘要送回你的畫面或匯出成 Markdown（能直接排版的純文字格式）前，名字會恢復，所以你仍會讀到「Claude 主張……」，而非「參與者 A」。只有說話者的標記被遮住，原話不會改動；即使討論題目正是 Claude 或 Codex，內容也照樣看得懂。這像盲飲評酒：評審先喝內容、不看酒標，公布結果時才告訴你是哪一瓶。",
-                "zh-CN": "要主持人替多个 AI 的意见下结论时，现在它先看不到发言者姓名。交给主持人的逐字稿（transcript，完整保留每句话的讨论记录）已经匿名化，避免它偏爱自己那个 CLI（从命令行启动的工具）写出的答案。摘要送回你的页面或导出成 Markdown（能直接排版的纯文本格式）前，名字会恢复，所以你仍会读到「Claude 主张……」，而非「参与者 A」。只有说话者的标记被遮住，原话不会改动；即使讨论题目正是 Claude 或 Codex，内容也照样看得懂。这像盲饮评酒：评审先喝内容、不看酒标，公布结果时才告诉你是哪一瓶。",
-                "en": "When a moderator is asked to draw a conclusion from several AIs, it now sees the opinions before it sees their authors. The transcript (a record preserving every spoken line) handed to the moderator is anonymized, so it cannot favor answers written by its own CLI (a tool launched from a command line). Names return before the summary reaches your screen or is exported as Markdown (plain text that can carry formatting), so you still read “Claude argued...” rather than “Participant A.” Only author labels are hidden; the words themselves remain untouched, even when the discussion is about Claude or Codex. It is like a blind wine tasting: judges taste what is in the glass before learning its label.",
-                "ja": "複数の AI の意見から司会者に結論を出させる時、司会者は発言者の名前を先に見なくなった。司会者へ渡す transcript（一言ずつを残した議論の記録）は匿名化されるため、自分の CLI（コマンドラインから起動する道具）が書いた答えをえこひいきできない。要約を画面へ返す前、または Markdown（整形できるプレーンテキスト形式）として書き出す前には名前が戻るため、「参加者 A」ではなく「Claude は……と主張した」と読める。隠すのは発言者の印だけで、発言そのものには手を加えない。議題が Claude や Codex についてでも、内容はそのまま読める。銘柄を隠したワインの試飲で、審査員が中身を味わってからラベルを知るような仕組みである。",
-                "ko": "여러 AI의 의견을 바탕으로 진행자가 결론을 낼 때, 이제 진행자는 발언자 이름을 먼저 보지 못한다. 진행자에게 건네는 transcript(말 한마디씩을 보존한 토론 기록)는 익명 처리되어, 자기 CLI(명령줄에서 실행하는 도구)가 쓴 답을 편들 수 없다. 요약을 화면에 보여 주거나 Markdown(서식을 담을 수 있는 일반 텍스트 형식)으로 내보내기 전에는 이름이 돌아오므로, 여전히 'Claude는 ...라고 주장했다'라고 읽지 '참가자 A'라고만 읽지는 않는다. 가리는 것은 발언자 표시뿐이며 말 자체는 손대지 않는다. 주제가 Claude나 Codex여도 내용은 그대로 읽을 수 있다. 상표를 가린 와인을 먼저 맛본 뒤 이름을 확인하는 시음과 같다."
-              },
-              "original": "**The moderator no longer sees who said what**: the transcript handed to the moderator is anonymized, so it cannot favor the answers its own CLI wrote. Participant names are restored before the summary reaches your screen and the exported Markdown, so you still read \"Claude argued…\" rather than \"Participant A argued…\". Participants' own words are passed through untouched — a discussion *about* Claude or Codex stays readable."
             }
           ]
         }
